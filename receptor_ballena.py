@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13m sentidos en el panel, ajustes que no se pierden"
+VERSION = "2026-10-13n actuar con la red"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -173,6 +173,16 @@ class BALLENA_OT_reproducir(bpy.types.Operator):
         cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "reproducir.py"), p.toma, "--modo", p.modo_toma] + (["--loop"] if p.loop_toma else [])
         ns["_ballena_reproductor"] = subprocess.Popen(cmd, cwd=YAKUMAMA, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.report({'INFO'}, f"reproduciendo {p.toma}"); return {'FINISHED'}
+class BALLENA_OT_actuar(bpy.types.Operator):
+    bl_idname = "ballena.actuar"; bl_label = "Actuar con la red"; bl_description = "La ballena actua el animo elegido en Comportamiento con lo que aprendio del actor (generar_animo.py)"
+    def execute(self, context):
+        import subprocess
+        p = context.scene.ballena; ns = bpy.app.driver_namespace; bpy.ops.ballena.parar()
+        animo = p.comportamiento if p.comportamiento != "auto" else None
+        cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "generar_animo.py")] + ([animo] if animo else ["--todos"]) + ["--segundos", "60" if animo else "30", "--modo", p.modo_toma if p.modo_toma in ("anclada", "cuerpo", "cara") else "anclada"]
+        p.comportamiento = "auto"
+        ns["_ballena_reproductor"] = subprocess.Popen(cmd, cwd=YAKUMAMA, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.report({'INFO'}, f"actuando {animo or 'los diez'}"); return {'FINISHED'}
 class BALLENA_OT_parar(bpy.types.Operator):
     bl_idname = "ballena.parar"; bl_label = "Parar"; bl_description = "Para la reproduccion (la del panel o una lista externa)"
     def execute(self, context):
@@ -183,7 +193,7 @@ class BALLENA_OT_parar(bpy.types.Operator):
             try: pr.send_signal(_sg.SIGINT)   # como Ctrl-C: reproducir.py borra su estado
             except Exception: pass
         ns["_ballena_reproductor"] = None
-        try: subprocess.run(["pkill", "-f", "playlist"], capture_output=True); subprocess.run(["pkill", "-INT", "-f", "reproducir.py"], capture_output=True)
+        try: subprocess.run(["pkill", "-f", "playlist"], capture_output=True); subprocess.run(["pkill", "-INT", "-f", "reproducir.py"], capture_output=True); subprocess.run(["pkill", "-INT", "-f", "generar_animo.py"], capture_output=True)
         except Exception: pass
         try: os.remove("/tmp/ballena_reproduciendo.json")
         except Exception: pass
@@ -251,6 +261,7 @@ class BALLENA_PT_panel(bpy.types.Panel):
         col.separator()
         col.label(text="Comportamiento (fotos NOAA)")
         col.prop(p, "comportamiento", text="")
+        col.operator("ballena.actuar", text="Actuar con la red (lo aprendido del actor)", icon='OUTLINER_OB_ARMATURE')
         col.separator()
         col.label(text="Mouth + Tongue")
         col.prop(p, "mouth_scale", slider=True)
@@ -312,12 +323,13 @@ try:   # al re-ejecutar el script, re-registrar BallenaProps borra los ajustes d
     _p = bpy.context.scene.ballena
     _guardado = {k: getattr(_p, k) for k in ("mouth_scale", "tongue_scale", "auto_turn_scale", "follow_hand", "color_track", "color_follow", "use_brain", "virtual_joy_x", "virtual_joy_y", "music_volume", "sound_volume", "toma", "modo_toma", "loop_toma", "comportamiento")}
 except Exception: pass
-for cls in (BALLENA_PT_panel, BALLENA_OT_reset_vjoy, BALLENA_OT_test_sound, BALLENA_OT_turbine, BALLENA_OT_reproducir, BALLENA_OT_parar, BallenaProps):
+for cls in (BALLENA_PT_panel, BALLENA_OT_reset_vjoy, BALLENA_OT_test_sound, BALLENA_OT_turbine, BALLENA_OT_reproducir, BALLENA_OT_parar, BALLENA_OT_actuar, BallenaProps):
     try: bpy.utils.unregister_class(cls)
     except: pass
 bpy.utils.register_class(BallenaProps)
 bpy.utils.register_class(BALLENA_OT_reproducir)
 bpy.utils.register_class(BALLENA_OT_parar)
+bpy.utils.register_class(BALLENA_OT_actuar)
 bpy.utils.register_class(BALLENA_OT_turbine)
 bpy.utils.register_class(BALLENA_OT_test_sound)
 bpy.utils.register_class(BALLENA_OT_reset_vjoy)
