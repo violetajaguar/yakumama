@@ -10,6 +10,12 @@ Oscilloscope, ollama, el grabador y el **panel web** en `http://localhost:8765`:
 guardar tramo, neutral y modo, con estado en vivo (cara vista, neutral, Blender recibiendo, EmotiBit, segundos por
 ánimo). Hace lo mismo que las teclas. En el Oscilloscope hay que marcar Output List > OSC a mano.
 
+## El panel Ballena siempre está
+`yakumama_receptor_addon.py` está instalado como add-on de Blender (`~/Library/Application Support/Blender/5.1/scripts/addons/`,
+activado en las preferencias): cada vez que se abre `whale.blend`, de donde sea, carga `receptor_ballena.py` solo.
+No hace falta pegar nada ni usar el launcher para tener el panel y la ballena escuchando. Si se cambia de versión
+de Blender, copiar el archivo a la carpeta de add-ons de la nueva versión y activarlo en Preferences > Add-ons.
+
 ## Arrancar la ballena (a mano)
 ```bash
 /Applications/Blender.app/Contents/MacOS/Blender ~/Desktop/Huk/whale.blend     # y correr el receptor (Text.017)
