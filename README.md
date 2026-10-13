@@ -1,5 +1,7 @@
 # Yakumama
 
+![Yakumama, the whale, calm](docs/yakumama.jpg)
+
 **A whale that learns to move from a human performer.** Yakumama is a 3D whale living in Blender. A performer sits
 in front of a depth camera wearing a biometric sensor and acts her ten moods; the whale follows the performer's face,
 hands and heartbeat live, and every performance is recorded as a dataset she is trained on.
@@ -42,6 +44,16 @@ Part of a series of characters driven by human performance (the llama, the gecko
 
 The datasets (≈ 250 MB) and the behaviour videos are not in the repository. The Blender file `whale.blend` and the
 camera script `ballena3.py` live in the companion Huk project.
+
+## The neural net
+
+Same idea as the llama trainers, one step further. `entrenar_movimiento.py` learns the performer's own way of acting
+each mood: input is the mood, the phase inside the take and harmonic time features plus the recent pulse; output is
+what the performer did at that instant, head, mouth, blinks, brows, smile, gaze, both hands, pulse and skin
+conductance (18 channels, 56 000 frames, PyTorch on the Apple GPU). `generar_animo.py <mood>` then runs the net
+and feeds the whale those channels as if the performer were there: she acts the mood on her own, in the performer's
+style, over the NOAA body behaviour. In Blender: choose a mood under Comportamiento and press **Actuar con la red**.
+The mood recogniser (`entrenar_animo.py`, random forest on 2‑second windows) is the other learned piece.
 
 ## Hardware
 
