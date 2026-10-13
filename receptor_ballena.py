@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13l reproducir suelta el menu manual"
+VERSION = "2026-10-13m sentidos en el panel, ajustes que no se pierden"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -242,6 +242,13 @@ class BALLENA_PT_panel(bpy.types.Panel):
         e = _reproduciendo()
         col.label(text=(f"▶ {e['tramo']}  {e['t']}/{e['dur']} s  ({e['modo']}{', repite' if e.get('loop') else ''})" if e else "(nada reproduciendose)"))
         col.separator()
+        col.label(text="Sentidos (lo que le llega)")
+        se = ns.get("_ballena_sentidos", {})
+        col.label(text=f"ánimo: {se.get('dominante','—')}  ←  {se.get('fuente','—')}")
+        col.label(text=f"actor: {'cara vista' if se.get('cara') else 'sin cara'}" + (f", ve {se['actor']}" if se.get('actor') else "") + (f", manos {se['manos']}" if se.get('manos') else ""))
+        col.label(text=f"pulso: {se['hr']:.0f} lpm · piel {se['eda']:.1f} µS · {se['therm']:.1f} °C" if se.get('hr') else "pulso: sin EmotiBit")
+        col.label(text=f"entorno: color {se.get('color','—')} · agua {se.get('agua','—')} · cerebro {se.get('cerebro','—')}")
+        col.separator()
         col.label(text="Comportamiento (fotos NOAA)")
         col.prop(p, "comportamiento", text="")
         col.separator()
@@ -300,6 +307,11 @@ class BALLENA_PT_panel(bpy.types.Panel):
             depress=turbine_on,
         )
 
+_guardado = {}
+try:   # al re-ejecutar el script, re-registrar BallenaProps borra los ajustes del panel: se guardan y se restauran
+    _p = bpy.context.scene.ballena
+    _guardado = {k: getattr(_p, k) for k in ("mouth_scale", "tongue_scale", "auto_turn_scale", "follow_hand", "color_track", "color_follow", "use_brain", "virtual_joy_x", "virtual_joy_y", "music_volume", "sound_volume", "toma", "modo_toma", "loop_toma", "comportamiento")}
+except Exception: pass
 for cls in (BALLENA_PT_panel, BALLENA_OT_reset_vjoy, BALLENA_OT_test_sound, BALLENA_OT_turbine, BALLENA_OT_reproducir, BALLENA_OT_parar, BallenaProps):
     try: bpy.utils.unregister_class(cls)
     except: pass
@@ -311,6 +323,9 @@ bpy.utils.register_class(BALLENA_OT_test_sound)
 bpy.utils.register_class(BALLENA_OT_reset_vjoy)
 bpy.utils.register_class(BALLENA_PT_panel)
 bpy.types.Scene.ballena = bpy.props.PointerProperty(type=BallenaProps)
+for _k, _v in _guardado.items():
+    try: setattr(bpy.context.scene.ballena, _k, _v)
+    except Exception: pass
 
 # ============================================================
 # AUDIO
@@ -1349,6 +1364,15 @@ def breathe():
     if len(session_log["mood_sequence"]) == 0 or session_log["mood_sequence"][-1] != dominant:
         session_log["mood_sequence"].append(dominant)
         if len(session_log["mood_sequence"]) > 30: session_log["mood_sequence"].pop(0)
+    if breathe._fc % 15 == 0:
+        try:
+            _wb = {k[6:]: float(v) for k, v in d.items() if k.startswith('whale_')}
+            bpy.app.driver_namespace["_ballena_sentidos"] = {
+                "dominante": dominant, "fuente": ("menú" if (manual != "auto") else ("actor (reconocedor)" if d.get('actor_animo') else ("cerebro Qwen" if use_brain and _wb else "color de la escena"))),
+                "cara": bool(cara_actor), "actor": d.get('actor_animo'), "manos": ("2" if ('l_palm_y' in d and 'r_palm_y' in d) else ("1" if ('l_palm_y' in d or 'r_palm_y' in d) else "")),
+                "hr": float(d.get('emotibit_hr') or 0) or None, "eda": float(d.get('emotibit_eda') or 0), "therm": float(d.get('emotibit_therm') or 0),
+                "color": d.get('scene_color', '—'), "agua": wl if 'wl' in dir() else d.get('water', '—'), "cerebro": (max(_wb, key=_wb.get) if _wb else "—")}
+        except Exception: pass
     if breathe._fc % 30 == 0:
         try:
             for w in bpy.data.window_managers[0].windows:
