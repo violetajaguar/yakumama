@@ -2,3 +2,4 @@ venv
 datasets/
 __pycache__/
 .DS_Store
+videos_comportamientos/*.mp4

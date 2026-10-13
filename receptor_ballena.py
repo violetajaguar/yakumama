@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13e animo del actor"
+VERSION = "2026-10-13j caras por animo, giro en playful, profundidad"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -75,6 +75,19 @@ COLOR_TO_MOOD = {
     "black":   "sad",
 }
 
+# color de piel por animo (inverso de COLOR_TO_MOOD, aclarado para que siga leyendose como piel)
+MOOD_RGB = {
+    "angry":     (0.80, 0.22, 0.20),
+    "playful":   (0.95, 0.55, 0.18),
+    "curious":   (0.93, 0.82, 0.22),
+    "feeding":   (0.30, 0.70, 0.32),
+    "surfacing": (0.30, 0.78, 0.82),
+    "calm":      (0.28, 0.42, 0.80),
+    "singing":   (0.58, 0.32, 0.78),
+    "alert":     (0.92, 0.55, 0.72),
+    "diving":    (0.86, 0.88, 0.92),
+    "sad":       (0.22, 0.24, 0.30),
+}
 SCENE_COLORS_RGB = {
     "red":     (0.85, 0.15, 0.15),
     "orange":  (0.95, 0.50, 0.10),
@@ -93,7 +106,33 @@ SCENE_COLORS_RGB = {
 # ============================================================
 # N-PANEL CONTROLS
 # ============================================================
+YAKUMAMA = "/Users/jaguar/Desktop/Yakumama"
+def _tomas_items(self, context):
+    try: fs = sorted(f[:-6] for f in os.listdir(os.path.join(YAKUMAMA, "datasets", "cara")) if f.endswith(".jsonl"))
+    except Exception: fs = []
+    return [(f, f, "") for f in fs] or [("", "(sin tomas)", "")]
+def _reproduciendo():
+    try:
+        e = json.load(open("/tmp/ballena_reproduciendo.json"))
+        if time.time() - e.get("hora", 0) < 3: return e
+    except Exception: pass
+    return None
 class BallenaProps(bpy.types.PropertyGroup):
+    toma: bpy.props.EnumProperty(name="Toma", items=_tomas_items, description="Tramo grabado en datasets/ (cara + cuerpo)")
+    modo_toma: bpy.props.EnumProperty(name="Modo", items=[("anclada", "Anclada", "cuerpo entero, sin viajar"), ("cuerpo", "Cuerpo", "cuerpo entero, viaja"), ("cara", "Solo cara", "cuerpo quieto"), ("fija", "Cara, cabeza fija", "solo boca, parpadeo y cejas")], default="anclada")
+    loop_toma: bpy.props.BoolProperty(name="Repetir", default=False)
+    comportamiento: bpy.props.EnumProperty(name="Comportamiento", default="auto", description="Posicion y movimiento del cuerpo, de las fotos de NOAA (referencias/noaa_comportamientos)", items=[
+        ("auto", "Automático (ánimo)", "el animo viene del actor, los colores o el cerebro"),
+        ("calm", "calm · logging", "quieta en la superficie, respiracion lenta"),
+        ("singing", "singing · canto", "cabeza abajo, casi inmovil, cola apenas levantada"),
+        ("playful", "playful · flipper slap + breach", "golpea con las aletas, rola, y salta cada 12 s"),
+        ("curious", "curious · spyhopping", "se levanta vertical y gira despacio"),
+        ("feeding", "feeding · lunge + snaking", "embiste con la boca abierta y filtra ondulando"),
+        ("sad", "sad · colgando", "cabeza y cola caidas, lentisima"),
+        ("angry", "angry · lobtailing", "levanta la cola y la golpea"),
+        ("alert", "alert · rounding out", "lomo arqueado, cabeza escaneando"),
+        ("diving", "diving · high fluking dive", "nariz abajo, cola vertical, en ciclos"),
+        ("surfacing", "surfacing · blow", "sube, sopla, se nivela")])
     mouth_scale: bpy.props.FloatProperty(
         name="Mouth", default=1.0, min=0.0, max=3.0, soft_max=2.5)
     tongue_scale: bpy.props.FloatProperty(
@@ -123,6 +162,31 @@ class BallenaProps(bpy.types.PropertyGroup):
         name="Sound Volume", default=0.7, min=0.0, max=1.5, soft_max=1.0,
         description="Mood-triggered whale sound volume.")
 
+class BALLENA_OT_reproducir(bpy.types.Operator):
+    bl_idname = "ballena.reproducir"; bl_label = "Reproducir"; bl_description = "Manda la toma elegida a la ballena (reproducir.py)"
+    def execute(self, context):
+        import subprocess, signal
+        p = context.scene.ballena; ns = bpy.app.driver_namespace
+        bpy.ops.ballena.parar()
+        if not p.toma: self.report({'WARNING'}, "no hay tomas"); return {'CANCELLED'}
+        cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "reproducir.py"), p.toma, "--modo", p.modo_toma] + (["--loop"] if p.loop_toma else [])
+        ns["_ballena_reproductor"] = subprocess.Popen(cmd, cwd=YAKUMAMA, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.report({'INFO'}, f"reproduciendo {p.toma}"); return {'FINISHED'}
+class BALLENA_OT_parar(bpy.types.Operator):
+    bl_idname = "ballena.parar"; bl_label = "Parar"; bl_description = "Para la reproduccion (la del panel o una lista externa)"
+    def execute(self, context):
+        import subprocess
+        ns = bpy.app.driver_namespace; pr = ns.get("_ballena_reproductor")
+        import signal as _sg
+        if pr and pr.poll() is None:
+            try: pr.send_signal(_sg.SIGINT)   # como Ctrl-C: reproducir.py borra su estado
+            except Exception: pass
+        ns["_ballena_reproductor"] = None
+        try: subprocess.run(["pkill", "-f", "playlist"], capture_output=True); subprocess.run(["pkill", "-INT", "-f", "reproducir.py"], capture_output=True)
+        except Exception: pass
+        try: os.remove("/tmp/ballena_reproduciendo.json")
+        except Exception: pass
+        return {'FINISHED'}
 class BALLENA_OT_turbine(bpy.types.Operator):
     bl_idname = "ballena.toggle_turbine"
     bl_label = "Toggle Turbine"
@@ -170,6 +234,16 @@ class BALLENA_PT_panel(bpy.types.Panel):
         ns = bpy.app.driver_namespace
         col = layout.column(align=True)
 
+        col.label(text="Tomas grabadas")
+        col.prop(p, "toma", text="")
+        col.prop(p, "modo_toma", text="")
+        row = col.row(align=True); row.operator("ballena.reproducir", text="Reproducir", icon='PLAY'); row.operator("ballena.parar", text="Parar", icon='SNAP_FACE'); row.prop(p, "loop_toma", text="", icon='FILE_REFRESH')
+        e = _reproduciendo()
+        col.label(text=(f"▶ {e['tramo']}  {e['t']}/{e['dur']} s  ({e['modo']}{', repite' if e.get('loop') else ''})" if e else "(nada reproduciendose)"))
+        col.separator()
+        col.label(text="Comportamiento (fotos NOAA)")
+        col.prop(p, "comportamiento", text="")
+        col.separator()
         col.label(text="Mouth + Tongue")
         col.prop(p, "mouth_scale", slider=True)
         col.prop(p, "tongue_scale", slider=True)
@@ -225,10 +299,12 @@ class BALLENA_PT_panel(bpy.types.Panel):
             depress=turbine_on,
         )
 
-for cls in (BALLENA_PT_panel, BALLENA_OT_reset_vjoy, BALLENA_OT_test_sound, BALLENA_OT_turbine, BallenaProps):
+for cls in (BALLENA_PT_panel, BALLENA_OT_reset_vjoy, BALLENA_OT_test_sound, BALLENA_OT_turbine, BALLENA_OT_reproducir, BALLENA_OT_parar, BallenaProps):
     try: bpy.utils.unregister_class(cls)
     except: pass
 bpy.utils.register_class(BallenaProps)
+bpy.utils.register_class(BALLENA_OT_reproducir)
+bpy.utils.register_class(BALLENA_OT_parar)
 bpy.utils.register_class(BALLENA_OT_turbine)
 bpy.utils.register_class(BALLENA_OT_test_sound)
 bpy.utils.register_class(BALLENA_OT_reset_vjoy)
@@ -817,52 +893,57 @@ def _rampa(t, periodo, desde, hasta):
     if f < desde: return 0.0
     if f < hasta: return 1.0
     return max(0.0, 1.0 - (f - hasta) / max(1e-6, 1.0 - hasta))
-def comp_calm(t):      # LOGGING: quieta en la superficie, respiracion lenta
+# cada comportamiento devuelve tambien: cara = (parpadeo, angry, sad, asombrado), mirada = (yaw, pitch), spin = vueltas
+# sobre su eje (radianes, sin suavizar), depth = cuanto sube (+) o baja (-) en z
+def _suave01(x): x = max(0.0, min(1.0, x)); return x * x * (3 - 2 * x)
+def comp_calm(t):      # LOGGING: quieta en la superficie, respiracion lenta; ojos entrecerrados
     return dict(pitch=0.0, roll=0.03 * _onda(t, 7), yaw=0.0, head=0.0, spine=[0.02 * _onda(t, 7, -i * 0.08) for i in range(6)],
-                fluke=0.0, flap=0.08 * _onda(t, 5), ladeo=0.0, jaw=0.0)
-def comp_singing(t):   # CANTO: la jorobada canta cabeza abajo, casi inmovil, cola apenas levantada
+                fluke=0.0, flap=0.08 * _onda(t, 5), ladeo=0.0, jaw=0.0, cara=(0.5, 0.0, 0.0, 0.0), mirada=(0.0, -0.2), spin=0.0, depth=0.0)
+def comp_singing(t):   # CANTO: cabeza abajo, casi inmovil; ojos casi cerrados, boca al ritmo
     return dict(pitch=-0.45, roll=0.02 * _onda(t, 9), yaw=0.0, head=-0.1, spine=[0, 0, 0, -0.03, -0.06, -0.08],
-                fluke=-0.1, flap=0.05 * _onda(t, 6), ladeo=0.0, jaw=0.15 + 0.1 * _onda(t, 2.5))
-def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s (foto: sube vertical, aletas abiertas, cae de espalda)
-    sube = _pulso(t, 12, 0.22, 0.0)            # 0..1: se eleva vertical
-    cae = _pulso(t, 12, 0.22, -0.2)            # justo despues: se tumba de espalda
+                fluke=-0.1, flap=0.05 * _onda(t, 6), ladeo=0.0, jaw=0.15 + 0.1 * _onda(t, 2.5), cara=(0.75, 0.0, 0.0, 0.1), mirada=(0.0, -0.4), spin=0.0, depth=-0.3)
+def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s con DOS VUELTAS sobre su eje (foto: sube, aletas abiertas, gira, cae)
+    sube = _pulso(t, 12, 0.22, 0.0); cae = _pulso(t, 12, 0.22, -0.2)
+    f = (t / 12) % 1.0; vueltas = 2 * 2 * math.pi * _suave01(f / 0.42) if f < 0.42 else 0.0
     salto = max(sube, cae); slap = _onda(t, 1.6) * (1 - salto)
-    return dict(pitch=0.45 * sube + 0.15 * cae, roll=0.25 * _onda(t, 4) * (1 - salto) + 0.7 * cae, yaw=0.0, head=0.15 * sube,
+    return dict(pitch=0.45 * sube + 0.15 * cae, roll=0.25 * _onda(t, 4) * (1 - salto), yaw=0.0, head=0.15 * sube,
                 spine=[-k * sube for k in (0.02, 0.03, 0.05, 0.07, 0.09, 0.1)], fluke=-0.25 * sube,
-                flap=0.2 + 0.3 * slap + 0.7 * salto, ladeo=0.25 * _onda(t, 1.6, 0.25) * (1 - salto), jaw=0.1 * sube)
-def comp_curious(t):   # SPYHOPPING: vertical, saca la cabeza, gira despacio
+                flap=0.2 + 0.3 * slap + 0.7 * salto, ladeo=0.25 * _onda(t, 1.6, 0.25) * (1 - salto), jaw=0.15 + 0.15 * sube,
+                cara=(0.0, 0.0, 0.0, 0.6), mirada=(0.3 * _onda(t, 1.6), 0.4), spin=vueltas, depth=0.9 * sube)
+def comp_curious(t):   # SPYHOPPING: vertical, saca la cabeza, gira despacio; ojos muy abiertos mirando alrededor
     return dict(pitch=0.45, roll=0.0, yaw=0.3 * _onda(t, 12), head=0.15, spine=[0.05, 0.05, 0.03, 0, -0.02, -0.03],
-                fluke=0.0, flap=0.15 + 0.1 * _onda(t, 3), ladeo=0.0, jaw=0.05)
-def comp_feeding(t):   # LUNGE: embestida con la boca abierta, cierra despacio filtrando (snaking)
+                fluke=0.0, flap=0.15 + 0.1 * _onda(t, 3), ladeo=0.0, jaw=0.05, cara=(0.0, 0.0, 0.0, 0.9), mirada=(0.8 * _onda(t, 5), 0.5), spin=0.0, depth=0.5)
+def comp_feeding(t):   # LUNGE: embestida con la boca abierta, cierra despacio filtrando (snaking); ojos abajo
     emb = _pulso(t, 6, 0.3); cierra = _rampa(t, 6, 0.3, 0.45)
     return dict(pitch=0.3 * emb, roll=0.0, yaw=0.0, head=0.2 * emb, spine=[0.04 * _onda(t, 3, -i * 0.15) for i in range(6)],
-                fluke=-0.1 * emb, flap=0.2 + 0.15 * emb, ladeo=0.0, jaw=max(0.6 * emb, 0.35 * cierra))
-def comp_sad(t):       # colgando: cabeza y cola caidas, lentisima
+                fluke=-0.1 * emb, flap=0.2 + 0.15 * emb, ladeo=0.0, jaw=max(0.6 * emb, 0.35 * cierra), cara=(0.2 + 0.4 * emb, 0.0, 0.0, 0.3), mirada=(0.0, -0.7), spin=0.0, depth=0.0)
+def comp_sad(t):       # colgando: cabeza y cola caidas, lentisima; cara triste, parpados caidos, mirada al fondo
     return dict(pitch=-0.15, roll=0.0, yaw=0.0, head=-0.3, spine=[0.02, 0.04, 0.06, 0.1, 0.14, 0.18],
-                fluke=0.15, flap=-0.25 + 0.03 * _onda(t, 8), ladeo=0.0, jaw=0.0)
-def comp_angry(t):     # LOBTAILING: levanta la cola despacio y la golpea de golpe
+                fluke=0.15, flap=-0.25 + 0.03 * _onda(t, 8), ladeo=0.0, jaw=0.0, cara=(0.55, 0.0, 1.0, 0.0), mirada=(0.0, -0.9), spin=0.0, depth=-0.8)
+def comp_angry(t):     # LOBTAILING: levanta la cola despacio y la golpea; cara furiosa, mirada fija al frente
     arriba = 0.5 + 0.5 * _onda(t, 3.2, 0.25); golpe = _pulso(t, 3.2, 0.12, 0.5)
     cola = -0.5 * arriba + 0.35 * golpe
     return dict(pitch=-0.2, roll=0.05 * golpe, yaw=0.0, head=-0.15, spine=[0, 0.02, cola * 0.2, cola * 0.4, cola * 0.7, cola],
-                fluke=0.3 * arriba - 0.4 * golpe, flap=-0.15, ladeo=0.0, jaw=0.05)
-def comp_alert(t):     # ROUNDING OUT: lomo arqueado, cabeza escaneando rapido
+                fluke=0.3 * arriba - 0.4 * golpe, flap=-0.15, ladeo=0.0, jaw=0.05 + 0.2 * golpe, cara=(0.25, 1.0, 0.0, 0.0), mirada=(0.0, 0.1), spin=0.0, depth=0.0)
+def comp_alert(t):     # ROUNDING OUT: lomo arqueado, cabeza escaneando rapido; ojos bien abiertos, mirada que barre
     return dict(pitch=0.05, roll=0.0, yaw=0.2 * _onda(t, 2.4), head=-0.1 + 0.08 * _onda(t, 1.2), spine=[0.06, 0.1, 0.12, 0.1, 0.06, 0.02],
-                fluke=0.0, flap=0.05, ladeo=0.0, jaw=0.0)
-def comp_diving(t):    # HIGH FLUKING DIVE: nariz abajo, cola vertical, en ciclos
+                fluke=0.0, flap=0.05, ladeo=0.0, jaw=0.0, cara=(0.0, 0.3, 0.0, 0.7), mirada=(0.9 * _onda(t, 1.2), 0.2), spin=0.0, depth=0.2)
+def comp_diving(t):    # HIGH FLUKING DIVE: nariz abajo, cola vertical, y BAJA de verdad; ojos entornados, mirada abajo
     ciclo = 0.5 + 0.5 * _onda(t, 10, -0.25)
     return dict(pitch=-0.35 - 0.5 * ciclo, roll=0.0, yaw=0.0, head=-0.15, spine=[0, -0.02, -0.06, -0.12, -0.2, -0.1 - 0.3 * ciclo],
-                fluke=-0.35 * ciclo, flap=0.1, ladeo=0.0, jaw=0.0)
-def comp_surfacing(t): # sube, SOPLA, se nivela
+                fluke=-0.35 * ciclo, flap=0.1, ladeo=0.0, jaw=0.0, cara=(0.6, 0.0, 0.0, 0.0), mirada=(0.0, -0.8), spin=0.0, depth=-1.6 * ciclo)
+def comp_surfacing(t): # sube, SOPLA, se nivela; SUBE de verdad, ojos abiertos al salir
     sube = 0.5 + 0.5 * _onda(t, 7, -0.25); soplo = _pulso(t, 7, 0.15, 0.55)
     return dict(pitch=0.4 * sube, roll=0.0, yaw=0.0, head=0.2 * sube + 0.15 * soplo, spine=[-0.03 * sube, -0.05 * sube, -0.06 * sube, -0.04 * sube, 0, 0.03],
-                fluke=0.0, flap=0.25 + 0.15 * soplo, ladeo=0.0, jaw=0.08 * soplo)
+                fluke=0.0, flap=0.25 + 0.15 * soplo, ladeo=0.0, jaw=0.08 + 0.3 * soplo, cara=(0.1, 0.0, 0.0, 0.3 + 0.4 * soplo), mirada=(0.0, 0.6), spin=0.0, depth=1.0 * sube)
 COMPORTAMIENTOS = {"calm": comp_calm, "singing": comp_singing, "playful": comp_playful, "curious": comp_curious, "feeding": comp_feeding,
                    "sad": comp_sad, "angry": comp_angry, "alert": comp_alert, "diving": comp_diving, "surfacing": comp_surfacing}
-COMP_CERO = dict(pitch=0.0, roll=0.0, yaw=0.0, head=0.0, spine=[0.0] * 6, fluke=0.0, flap=0.0, ladeo=0.0, jaw=0.0)
+COMP_CERO = dict(pitch=0.0, roll=0.0, yaw=0.0, head=0.0, spine=[0.0] * 6, fluke=0.0, flap=0.0, ladeo=0.0, jaw=0.0, cara=(0.0, 0.0, 0.0, 0.0), mirada=(0.0, 0.0), spin=0.0, depth=0.0)
 def comportamiento(t, dom, sec, w_dom=0.8):
     a = COMPORTAMIENTOS.get(dom, comp_calm)(t); b = COMPORTAMIENTOS.get(sec, comp_calm)(t); w = 1.0 - w_dom
-    out = {k: a[k] * w_dom + b[k] * w for k in a if k != "spine"}
+    out = {k: a[k] * w_dom + b[k] * w for k in a if k not in ("spine", "cara", "mirada")}
     out["spine"] = [x * w_dom + y * w for x, y in zip(a["spine"], b["spine"])]
+    out["cara"] = tuple(x * w_dom + y * w for x, y in zip(a["cara"], b["cara"])); out["mirada"] = tuple(x * w_dom + y * w for x, y in zip(a["mirada"], b["mirada"]))
     return out
 
 # ============================================================
@@ -895,6 +976,10 @@ def breathe():
             brain_val = float(d.get(f'whale_{k}', m[k]))
             m[k] = m[k] * 0.7 + brain_val * 0.3
     actor = d.get('actor_animo')   # el reconocedor del grabador: el animo que ve en la cara del actor manda, entero
+    try:
+        manual = bpy.context.scene.ballena.comportamiento   # el panel manda sobre todo lo demas
+        if manual != "auto": actor = manual
+    except Exception: pass
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
         whale_mood.update(m)
@@ -904,9 +989,28 @@ def breathe():
     sorted_moods = sorted(m.items(), key=lambda x: -x[1])
     dom_name = sorted_moods[0][0]
     sec_name = sorted_moods[1][0] if len(sorted_moods) > 1 else dom_name
+    # PULSO DEL ACTOR -> tempo, energia y latido del cuerpo (EmotiBit via grabar_ballena.py / reproducir.py)
+    #   tempo: 75 lpm = ritmo normal; 120 lpm = todo un 60% mas rapido; 50 lpm = mas lento.  energia: sube con el pulso.
+    #   latido: cada latido, un pulso corto recorre el cuerpo (escala de la columna, aletas, cabeza).  eda alta -> mas tension.
+    try: hr = float(d.get('emotibit_hr', 0) or 0)
+    except Exception: hr = 0.0
+    if not hasattr(breathe, '_hr'): breathe._hr = 75.0; breathe._latido = 0.0; breathe._tiempo = 0.0; breathe._t_prev = t
+    if 30 < hr < 220: breathe._hr += (hr - breathe._hr) * 0.05
+    tempo = max(0.6, min(1.6, breathe._hr / 75.0)) if 30 < hr < 220 else 1.0
+    energia = max(0.0, min(1.0, (breathe._hr - 60.0) / 60.0)) if 30 < hr < 220 else 0.0
+    try: eda = float(d.get('emotibit_eda', 0) or 0)
+    except Exception: eda = 0.0
+    tension = max(0.0, min(1.0, (eda - 2.0) / 8.0)) if 0.1 < eda < 1000 else 0.0
+    breathe._tiempo += (t - breathe._t_prev) * tempo; breathe._t_prev = t          # reloj del comportamiento, acelerado por el pulso
+    if 30 < hr < 220:
+        breathe._latido += breathe._hr / 60.0 * 2 * math.pi * (t - breathe._t_prev + 0.033)
+        beat = max(0.0, math.sin(breathe._latido)) ** 4
+    else: beat = 0.0
     # COMPORTAMIENTO del animo (movimiento real, ver arriba); en solo cara el cuerpo descansa
-    if not hasattr(breathe, '_t0'): breathe._t0 = t
-    comp = COMP_CERO if solo_cara else comportamiento(t - breathe._t0, dom_name, sec_name, 1.0 if actor in m else 0.8)   # con actor: un solo animo, sin mezcla
+    comp = COMP_CERO if solo_cara else comportamiento(breathe._tiempo, dom_name, sec_name, 1.0 if actor in m else 0.8)   # con actor: un solo animo, sin mezcla
+    if not solo_cara:
+        comp = dict(comp); comp["head"] = comp["head"] + 0.03 * beat + 0.06 * tension * _onda(t, 0.9)   # el latido asoma en la cabeza; la tension la hace vibrar
+        comp["flap"] = comp["flap"] + 0.06 * beat + 0.1 * energia; comp["fluke"] = comp["fluke"] - 0.05 * beat
     spine_bones = ['spine', 'spine.001', 'spine.002', 'spine.003', 'spine.004', 'spine.005']
     for i, bone in enumerate(spine_bones):
         rot(bone, comp["spine"][i], 0, 0.04); rot(bone, 0.0, 1, 0.04); rot(bone, 0.0, 2, 0.04)   # eje 2: la ola de nado se suma abajo
@@ -914,7 +1018,15 @@ def breathe():
     rot('back_fin.U', comp["fluke"], 0, 0.05); rot('back_fin.U', 0.0, 2, 0.05)
     rot('back_fin.L', comp["fluke"] * 0.5, 0, 0.05); rot('back_fin.L', 0.0, 2, 0.05)
     rot('back_fin.R', comp["fluke"] * 0.5, 0, 0.05); rot('back_fin.R', 0.0, 2, 0.05)
-    rot('root', comp["pitch"], 0, 0.03); rot('root', comp["roll"], 1, 0.03)   # eje 1 = rolido
+    rot('root', comp["pitch"], 0, 0.03)
+    if comp["spin"] > 0.001:   # vueltas (playful): directo, sin suavizar
+        current_rots['root:1'] = comp["roll"] + comp["spin"]; breathe._girando = True
+        try: armature.pose.bones['root'].rotation_euler[1] = current_rots['root:1']
+        except Exception: pass
+    else:
+        if getattr(breathe, '_girando', False):   # termino: normalizar para que no se desenrolle al reves
+            v = current_rots.get('root:1', 0.0) % (2 * math.pi); current_rots['root:1'] = v - 2 * math.pi if v > math.pi else v; breathe._girando = False
+        rot('root', comp["roll"], 1, 0.03)   # eje 1 = rolido
     if not cara_actor:
         for e in ('eye.L', 'eye.R'): rot(e, 0.0, 0, 0.1); rot(e, 0.0, 1, 0.1); rot(e, 0.0, 2, 0.1)
 
@@ -923,7 +1035,7 @@ def breathe():
     calm = m.get("calm", 0)
     jaw = max(0.0, comp["jaw"])
     if cara_actor:   # boca = la del actor, rango completo (ignora el slider Mouth del panel)
-        jaw = max(0.0, min(1.0, float(d.get('jaw_open', 0)))) * 0.25; mouth_scale = 1.0   # tope 0.3 rad (antes 0.5: 40% menos, pedido del actor)
+        jaw = max(max(0.0, min(1.0, float(d.get('jaw_open', 0)))) * 0.25, comp["jaw"] * 0.5); mouth_scale = 1.0   # tope 0.3 rad; la boca del animo por debajo
         tongue_scale = 0.0   # el sway automatico no: la lengua sale con tongue_out (Face Landmarker via grabar_ballena.py)
         lengua = max(0.0, min(1.0, float(d.get('tongue_out', 0))))
         if lengua > 0.2: jaw = max(jaw, 0.1 + 0.2 * lengua)   # para que se vea, la boca se abre un poco
@@ -972,7 +1084,8 @@ def breathe():
     # FIN OSCILLATION
     playful = m.get("playful", 0); angry = m.get("angry", 0)
     fin_speed = 0.3 + playful * 0.8 + feeding * 0.5 + angry * 1.2
-    fin_amp = (0.05 + playful * 0.2 + feeding * 0.15 + surfacing * 0.2 + angry * 0.15) * calm_dampen
+    fin_amp = (0.05 + playful * 0.2 + feeding * 0.15 + surfacing * 0.2 + angry * 0.15) * calm_dampen * (1.0 + 0.6 * energia)
+    fin_speed *= tempo
     fin_wave = 0.0 if solo_cara else math.sin(t * fin_speed) * fin_amp
     # ALAS: en modo cuerpo cada mano del actor levanta o baja la aleta de su lado (palm_y: 0 arriba, 1 abajo).
     ALAS_CRUZADAS = False   # True si la mano izquierda mueve la aleta derecha (MediaPipe etiqueta en espejo)
@@ -1023,7 +1136,7 @@ def breathe():
     rot('head', cur_head_x + (-head_pitch * pw * 0.8), 0, 0.05)
     if cara_actor:   # ojos: mirada real del actor (eye_yaw/eye_pitch, blendshapes) o, si no hay, hacia donde apunta la nariz
         if 'eye_yaw' in d:
-            ey = max(-1.0, min(1.0, float(d.get('eye_yaw', 0)))); ep = max(-1.0, min(1.0, float(d.get('eye_pitch', 0))))
+            ey = max(-1.0, min(1.0, float(d.get('eye_yaw', 0)) + 0.6 * comp["mirada"][0])); ep = max(-1.0, min(1.0, float(d.get('eye_pitch', 0)) + 0.6 * comp["mirada"][1]))
             if MIRADA_ESPEJO: ey = -ey
             # mirar a la derecha: el ojo izquierdo gira hacia adelante y el derecho hacia atras; arriba: los dos arriba
             rot(OJO_IZQ, ey * MIRADA_AMP, 0, 0.3);  rot(OJO_DER, -ey * MIRADA_AMP, 0, 0.3)
@@ -1032,6 +1145,9 @@ def breathe():
         else:
             rot('eye.L', head_pitch * 0.15, 0, 0.1); rot('eye.R', head_pitch * 0.15, 0, 0.1)
             rot('eye.L', head_yaw * 0.15, 1, 0.1);   rot('eye.R', -head_yaw * 0.15, 1, 0.1)
+    if not cara_actor and not solo_cara:   # sin actor: la mirada del animo
+        ey, ep = comp["mirada"]
+        rot(OJO_IZQ, ey * MIRADA_AMP, 0, 0.2); rot(OJO_DER, -ey * MIRADA_AMP, 0, 0.2); rot(OJO_IZQ, ep * MIRADA_AMP, 2, 0.2); rot(OJO_DER, -ep * MIRADA_AMP, 2, 0.2)
 
     # SHAPE KEYS
     w_sad = m.get("sad", 0); curious = m.get("curious", 0)
@@ -1050,22 +1166,26 @@ def breathe():
     else: sleep_val = 0.0
     parpadeo = max(breathe._blink_val, sleep_val)
     parpadeo = max(0, min(1, parpadeo))
-    if cara_actor:   # cara del actor, sin animo
-        shape('parpadeo', float(d.get('blink', 0)), 0.6)   # rapido: un parpadeo dura 3-5 cuadros
-        shape('angry', float(d.get('brow_down', 0)))
-        shape('sad', float(d.get('mouth_sad', 0)))
-        shape('asombrado', float(d.get('brow_up', 0)))
+    c_parp, c_angry, c_sad, c_asom = comp["cara"]   # expresion del animo (comportamiento)
+    if cara_actor:   # la del actor encima de la del animo
+        shape('parpadeo', max(float(d.get('blink', 0)), c_parp), 0.6)   # rapido: un parpadeo dura 3-5 cuadros
+        shape('angry', max(float(d.get('brow_down', 0)), c_angry))
+        shape('sad', max(float(d.get('mouth_sad', 0)), c_sad))
+        shape('asombrado', max(float(d.get('brow_up', 0)), c_asom))
     else:
-        shape('parpadeo', parpadeo)
-        shape('angry', min(1, sk_targets.get("angry", 0) * 1.5 + angry * 0.6))
-        shape('sad', min(1, sk_targets.get("sad", 0) * 1.3 + w_sad * 0.5))
-        shape('asombrado', min(1, sk_targets.get("asombrado", 0) * 1.3 + curious * 0.4 + surfacing * 0.3))
+        shape('parpadeo', max(parpadeo, c_parp))
+        shape('angry', max(c_angry, min(1, sk_targets.get("angry", 0) * 1.5 + angry * 0.6)))
+        shape('sad', max(c_sad, min(1, sk_targets.get("sad", 0) * 1.3 + w_sad * 0.5)))
+        shape('asombrado', max(c_asom, min(1, sk_targets.get("asombrado", 0) * 1.3 + curious * 0.4 + surfacing * 0.3)))
 
-    # COLOR FOLLOW (tint)
+    # COLOR DE PIEL POR ANIMO: la piel vira al color del animo dominante (mismo mapa color->animo de Brian, mas suave);
+    # el slider Color Follow sigue mandando si esta subido (tinte por el color de la escena)
     seen_color = str(d.get('scene_color', 'neutral'))
     bpy.app.driver_namespace["_ballena_seen_color"] = seen_color
-    if color_follow > 0.01 and seen_color in SCENE_COLORS_RGB:
+    if color_follow >= 0.5 and seen_color in COLOR_TO_MOOD:   # solo si el slider esta bien subido y es un color real (no neutral/gris)
         tint_body(SCENE_COLORS_RGB[seen_color], lerp_amount=0.04 * color_follow)
+    elif dominant in MOOD_RGB:
+        tint_body(MOOD_RGB[dominant], lerp_amount=0.02)   # ~2 s de transicion
 
     # SMILE → APPROACH
     perf_sad = float(d.get('mouth_sad', 0))
@@ -1081,6 +1201,7 @@ def breathe():
     water = float(d.get('water', 0))
     swim_energy = m.get("playful",0)*0.8 + m.get("feeding",0)*0.5 + m.get("singing",0)*0.3 + m.get("angry",0)*0.7
     swim_energy *= calm_dampen
+    swim_energy += 0.3 * energia                    # pulso alto: nada con mas fuerza
     if solo_cara: water = 0.0; swim_energy = 0.0   # sin nado automatico ni ola en la columna
     if anclada: water = 0.0                        # sin nado automatico, pero la ola de la columna sigue
     swim_speed = 0.2 + swim_energy * 1.2
@@ -1172,7 +1293,7 @@ def breathe():
     depth_y = 0.0 if quieta else -m.get("diving",0) * 0.2 + m.get("surfacing",0) * 0.15
     final_x = hx + breathe._auto_x
     final_y = hy + depth_y + breathe._auto_y
-    final_z = hz + breathe._wz + (auto_z if water > 0.5 else 0)
+    final_z = hz + breathe._wz + (auto_z if water > 0.5 else 0) + comp["depth"]   # diving baja, surfacing y curious suben
     loc('root', sm('bfx',final_x,0.03), sm('bfy',final_y,0.03), sm('bfz',final_z,0.03))
 
     # TURBINE
@@ -1185,16 +1306,13 @@ def breathe():
         rot('turbine', turbine_angle, 2, 1.0)
 
     # LATIDO: el cuerpo late al ritmo del corazon del actor (emotibit_hr, EmotiBit via grabar_ballena.py)
-    try:
-        hr = float(d.get('emotibit_hr', 0) or 0)
-        if not hasattr(breathe, '_latido'): breathe._latido = 0.0
-        if 30 < hr < 220:
-            breathe._latido += hr / 60.0 * 2 * math.pi * 0.033
-            beat = max(0.0, math.sin(breathe._latido)) ** 4          # golpe corto, como un pulso
-            esc = 1.0 + 0.035 * beat
-        else: esc = 1.0
-        if 'latido' not in current_rots: current_rots['latido'] = 1.0
-        armature.pose.bones['spine.001'].scale = (sm('latido', esc, 0.5),) * 3
+    try:   # el latido recorre la columna: spine (pecho) primero, luego .001 y .002 con un poco de retraso
+        if not hasattr(breathe, '_beats'): breathe._beats = [0.0] * 6
+        breathe._beats = [beat] + breathe._beats[:-1]
+        for i, b in enumerate(('spine', 'spine.001', 'spine.002')):
+            esc = 1.0 + (0.045, 0.035, 0.02)[i] * breathe._beats[i * 2]
+            if f'latido{i}' not in current_rots: current_rots[f'latido{i}'] = 1.0
+            armature.pose.bones[b].scale = (sm(f'latido{i}', esc, 0.6),) * 3
     except Exception: pass
 
     # MOOD SOUND
@@ -1226,6 +1344,12 @@ def breathe():
     if len(session_log["mood_sequence"]) == 0 or session_log["mood_sequence"][-1] != dominant:
         session_log["mood_sequence"].append(dominant)
         if len(session_log["mood_sequence"]) > 30: session_log["mood_sequence"].pop(0)
+    if breathe._fc % 30 == 0:
+        try:
+            for w in bpy.data.window_managers[0].windows:
+                for ar in w.screen.areas:
+                    if ar.type == 'VIEW_3D': ar.tag_redraw()
+        except Exception: pass
     if breathe._fc % 60 == 0:
         try:
             with open("/tmp/ballena_receptor.json", "w") as f:

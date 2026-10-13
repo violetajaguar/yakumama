@@ -59,6 +59,10 @@ receptor como `actor_animo`, que entonces usa ese ánimo entero, sin mezclar con
 "La ballena ve". Acierto dentro de sesión ~75 %; entre sesiones distintas todavía ~5 % (falta una tercera sesión con
 la cámara de frente y neutral tomado para que generalice).
 
+## Videos de los comportamientos
+`videos_comportamientos/` tiene un video por ánimo (cuerpo + cara de cerca) y `todos_los_animos.mp4` con los diez
+seguidos, renderizados sin actor para ver el comportamiento, la cara y el color de cada ánimo. Ver su README.
+
 ## Ver un tramo en la ballena
 `venv/bin/python reproducir.py playful_001` manda el tramo a Blender con su tiempo original (`--modo cara|fija|cuerpo|anclada`,
 `--velocidad 2`, `--loop`). Cerrar antes el grabador (`q`) para que no manden los dos a la vez.
