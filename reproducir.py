@@ -17,6 +17,8 @@ fc = os.path.join(AQUI, "datasets", "cara", a.tramo + ".jsonl"); fb = os.path.jo
 if not os.path.exists(fc): sys.exit(f"no existe {fc}")
 cara = [json.loads(l) for l in open(fc)]; cuerpo = [json.loads(l) for l in open(fb)] if os.path.exists(fb) else [{}] * len(cara)
 flags = {"cara": {"solo_cara": 1}, "fija": {"solo_cara": 2}, "cuerpo": {}, "anclada": {"anclada": 1}}[a.modo]
+flags["actor_animo"] = a.tramo.rsplit("_", 1)[0]   # el animo de la toma manda el comportamiento (cuerpo de las fotos NOAA)
+flags["soltar_manual"] = 1                           # al arrancar, el panel vuelve a Automatico (si no, el menu manda sobre la toma)
 def clamp(v, lo, hi): return max(lo, min(hi, v))
 def mirada(r):
     g = lambda k: float(r.get("face_" + k, 0))

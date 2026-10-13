@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13j caras por animo, giro en playful, profundidad"
+VERSION = "2026-10-13l reproducir suelta el menu manual"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -169,6 +169,7 @@ class BALLENA_OT_reproducir(bpy.types.Operator):
         p = context.scene.ballena; ns = bpy.app.driver_namespace
         bpy.ops.ballena.parar()
         if not p.toma: self.report({'WARNING'}, "no hay tomas"); return {'CANCELLED'}
+        p.comportamiento = "auto"   # la toma manda
         cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "reproducir.py"), p.toma, "--modo", p.modo_toma] + (["--loop"] if p.loop_toma else [])
         ns["_ballena_reproductor"] = subprocess.Popen(cmd, cwd=YAKUMAMA, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.report({'INFO'}, f"reproduciendo {p.toma}"); return {'FINISHED'}
@@ -977,6 +978,8 @@ def breathe():
             m[k] = m[k] * 0.7 + brain_val * 0.3
     actor = d.get('actor_animo')   # el reconocedor del grabador: el animo que ve en la cara del actor manda, entero
     try:
+        if d.get('soltar_manual') and bpy.context.scene.ballena.comportamiento != "auto":
+            bpy.context.scene.ballena.comportamiento = "auto"; print("  menu Comportamiento -> Automatico (llego una toma)")
         manual = bpy.context.scene.ballena.comportamiento   # el panel manda sobre todo lo demas
         if manual != "auto": actor = manual
     except Exception: pass
@@ -1156,10 +1159,12 @@ def breathe():
     if not hasattr(breathe, '_blink_val'): breathe._blink_val = 0
     breathe._blink_timer += 0.033
     blink_interval = 3.5 - alert_v * 1.5 + calm * 3.0
+    if not hasattr(breathe, '_blink_hold'): breathe._blink_hold = 0
     if breathe._blink_timer > blink_interval:
         breathe._blink_timer = 0
-        breathe._blink_val = 1.0
-    breathe._blink_val = max(0, breathe._blink_val - 0.033 / 0.12)
+        breathe._blink_val = 1.0; breathe._blink_hold = 5   # cerrado 5 cuadros, como el parpadeo del actor
+    if breathe._blink_hold > 0: breathe._blink_hold -= 1
+    else: breathe._blink_val = max(0, breathe._blink_val - 0.033 / 0.12)
     if dom_name == "calm": sleep_val = 0.6 + calm * 0.3
     elif dom_name == "sad": sleep_val = 0.4 + w_sad * 0.3
     elif dom_name == "singing": sleep_val = 0.3
@@ -1173,7 +1178,7 @@ def breathe():
         shape('sad', max(float(d.get('mouth_sad', 0)), c_sad))
         shape('asombrado', max(float(d.get('brow_up', 0)), c_asom))
     else:
-        shape('parpadeo', max(parpadeo, c_parp))
+        shape('parpadeo', max(parpadeo, c_parp), 0.6)   # rapido, si no el parpadeo automatico no se ve
         shape('angry', max(c_angry, min(1, sk_targets.get("angry", 0) * 1.5 + angry * 0.6)))
         shape('sad', max(c_sad, min(1, sk_targets.get("sad", 0) * 1.3 + w_sad * 0.5)))
         shape('asombrado', max(c_asom, min(1, sk_targets.get("asombrado", 0) * 1.3 + curious * 0.4 + surfacing * 0.3)))
@@ -1353,7 +1358,9 @@ def breathe():
     if breathe._fc % 60 == 0:
         try:
             with open("/tmp/ballena_receptor.json", "w") as f:
-                json.dump({"version": VERSION, "t": time.time(), "dominante": dominant, "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
+                try: _manual = bpy.context.scene.ballena.comportamiento
+                except Exception: _manual = "?"
+                json.dump({"version": VERSION, "t": time.time(), "dominante": dominant, "manual": _manual, "actor": d.get('actor_animo'), "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
                            "cara": bool(cara_actor), "fin_L": [round(v, 2) for v in armature.pose.bones['side_fine.L'].rotation_euler], "fin_R": [round(v, 2) for v in armature.pose.bones['side_fine.R'].rotation_euler],
                            "pose": {pb.name: [round(v, 3) for v in pb.rotation_euler] for pb in armature.pose.bones},
                            "root_loc": [round(v, 3) for v in armature.pose.bones['root'].location],
