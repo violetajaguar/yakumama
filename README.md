@@ -1,8 +1,62 @@
 # Yakumama
 
-La ballena. El personaje vive en `~/Desktop/Huk` (`whale.blend`, `ballena3.py`, `yakumama_alma.py`); este proyecto
-guarda lo nuevo: los **datasets de cara y de cuerpo** grabados mientras actuás, como con la llama, y lo que se entrene
-con ellos. `venv` es un enlace al venv de Huk: no instalar nada ahí.
+**A whale that learns to move from a human performer.** Yakumama is a 3D whale living in Blender. A performer sits
+in front of a depth camera wearing a biometric sensor and acts her ten moods; the whale follows the performer's face,
+hands and heartbeat live, and every performance is recorded as a dataset she is trained on.
+
+Part of a series of characters driven by human performance (the llama, the gecko, the macaque). Built in Cochabamba.
+
+## What it does
+
+- **Live puppeteering.** OAK‑D camera → MediaPipe face mesh, 51 blendshapes and hand tracking → the whale's head,
+  eyes, blinks, gaze, mouth and pectoral fins, 30 times a second.
+- **Biometrics.** An EmotiBit on the performer's wrist streams pulse, skin conductance, skin temperature and motion
+  straight to the recorder over WiFi. Her heart beats with the performer's; the pulse sets her tempo and energy,
+  the skin conductance her tension.
+- **Ten moods as real whale behaviours.** calm, singing, playful, curious, feeding, sad, angry, alert, diving,
+  surfacing, each modelled on humpback behaviours documented by NOAA (logging, spyhopping, lobtailing, breaching,
+  high‑fluking dive, lunge feeding…), each with its own facial expression, gaze and skin colour.
+- **Mood recognition.** A classifier trained on the performer's takes reads the mood from the face and switches the
+  whale's behaviour on its own.
+- **Dataset.** Every take is saved as two JSON‑lines files, face and body, aligned frame by frame, ready for training.
+
+```
+ OAK-D ──► face / hands ──► grabador ──► UDP ──► receptor (Blender add-on) ──► whale
+ EmotiBit (WiFi) ────────► grabador               body: NOAA behaviour of the mood
+ recorded takes ──► reproducir ──► UDP            face: mood expression + performer's face on top
+```
+
+## Repository
+
+| file | role |
+|---|---|
+| `grabar_ballena.py` | the recorder: runs the camera script, calibrates the face, links the EmotiBit, recognises the mood, serves a web control panel, writes the datasets |
+| `receptor_ballena.py` | the whale: Blender script with the ten behaviours, the Ballena panel, the face/fin/pulse layers |
+| `yakumama_receptor_addon.py` | Blender add-on that loads the receiver whenever `whale.blend` opens |
+| `emotibit_cliente.py` | direct WiFi client for the EmotiBit (no Oscilloscope needed) |
+| `entrenar_animo.py` | trains the mood recogniser from the datasets |
+| `reproducir.py` | replays a recorded take on the whale |
+| `Yakumama.command` | double-click launcher: Blender, recorder, panel |
+| `docs/LOGICA.md` | the full logic, in Spanish |
+| `referencias/noaa_comportamientos/` | the humpback behaviour references |
+
+The datasets (≈ 250 MB) and the behaviour videos are not in the repository. The Blender file `whale.blend` and the
+camera script `ballena3.py` live in the companion Huk project.
+
+## Hardware
+
+Luxonis OAK‑D · EmotiBit MD‑V7 on an Adafruit Feather ESP32 · Apple Silicon Mac · Blender 5.1 · Python 3.11 with
+depthai, mediapipe, scikit‑learn and PyTorch.
+
+## Status (October 2026)
+
+Two sessions recorded: 63 minutes over the ten moods, 26 minutes with valid biometrics. Within a session the moods
+are clearly separable from the face (≈ 75 %); across sessions not yet, so a third session and more performers are
+next. Then a sequence model, in the spirit of the llama trainers, to learn the whale's motion from the data.
+
+---
+
+# Guía de uso (español)
 
 ## Arrancar todo con un doble clic
 `Yakumama.command` (doble clic en el Finder) abre Blender con `whale.blend` y el receptor ya cargado, el EmotiBit
