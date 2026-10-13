@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13c root: giro eje 2, rolido eje 1"
+VERSION = "2026-10-13e animo del actor"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -674,6 +674,10 @@ def sm(key, target, factor=SMOOTH):
     current_rots[key] = new
     return new
 LIMITES = {}   # 'hueso:eje': (min, max) en radianes
+# SIN ARQUEAR HACIA ATRAS: la nariz sube como mucho ~26 grados (0.45), baja hasta ~40 (-0.7); la columna no se curva
+# con la cola arriba mas de 0.12 por hueso; la cabeza no se echa atras mas de 0.35.
+LIMITES['root:0'] = (-0.7, 0.45); LIMITES['head:0'] = (-0.5, 0.35)
+for _b in ('spine', 'spine.001', 'spine.002', 'spine.003', 'spine.004', 'spine.005'): LIMITES[f'{_b}:0'] = (-0.12, 0.3)
 for _suf, _sg in (('.L', 1), ('.R', -1)):
     for _b, _k in (('side_fine' + _suf, 1.0), ('side_fine' + _suf + '.001', 0.7), ('side_fine' + _suf + '.002', 0.5)):
         _lo, _hi = -0.35 * _k, 0.3 * _k            # barrido (eje 2): medido con la malla, mas alla entra en el flanco o la cabeza
@@ -823,11 +827,11 @@ def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s (foto:
     sube = _pulso(t, 12, 0.22, 0.0)            # 0..1: se eleva vertical
     cae = _pulso(t, 12, 0.22, -0.2)            # justo despues: se tumba de espalda
     salto = max(sube, cae); slap = _onda(t, 1.6) * (1 - salto)
-    return dict(pitch=1.1 * sube + 0.3 * cae, roll=0.25 * _onda(t, 4) * (1 - salto) + 0.9 * cae, yaw=0.0, head=0.2 * sube,
-                spine=[-k * sube for k in (0.02, 0.04, 0.06, 0.1, 0.15, 0.2)], fluke=-0.3 * sube,
+    return dict(pitch=0.45 * sube + 0.15 * cae, roll=0.25 * _onda(t, 4) * (1 - salto) + 0.7 * cae, yaw=0.0, head=0.15 * sube,
+                spine=[-k * sube for k in (0.02, 0.03, 0.05, 0.07, 0.09, 0.1)], fluke=-0.25 * sube,
                 flap=0.2 + 0.3 * slap + 0.7 * salto, ladeo=0.25 * _onda(t, 1.6, 0.25) * (1 - salto), jaw=0.1 * sube)
 def comp_curious(t):   # SPYHOPPING: vertical, saca la cabeza, gira despacio
-    return dict(pitch=0.85, roll=0.0, yaw=0.3 * _onda(t, 12), head=0.15, spine=[0.05, 0.05, 0.03, 0, -0.02, -0.03],
+    return dict(pitch=0.45, roll=0.0, yaw=0.3 * _onda(t, 12), head=0.15, spine=[0.05, 0.05, 0.03, 0, -0.02, -0.03],
                 fluke=0.0, flap=0.15 + 0.1 * _onda(t, 3), ladeo=0.0, jaw=0.05)
 def comp_feeding(t):   # LUNGE: embestida con la boca abierta, cierra despacio filtrando (snaking)
     emb = _pulso(t, 6, 0.3); cierra = _rampa(t, 6, 0.3, 0.45)
@@ -890,6 +894,10 @@ def breathe():
         for k in m:
             brain_val = float(d.get(f'whale_{k}', m[k]))
             m[k] = m[k] * 0.7 + brain_val * 0.3
+    actor = d.get('actor_animo')   # el reconocedor del grabador: el animo que ve en la cara del actor manda, entero
+    if actor in m:
+        for k in m: m[k] = 1.0 if k == actor else 0.0
+        whale_mood.update(m)
 
     dominant = max(m, key=m.get)
     bpy.app.driver_namespace["_ballena_dominant"] = dominant
@@ -898,7 +906,7 @@ def breathe():
     sec_name = sorted_moods[1][0] if len(sorted_moods) > 1 else dom_name
     # COMPORTAMIENTO del animo (movimiento real, ver arriba); en solo cara el cuerpo descansa
     if not hasattr(breathe, '_t0'): breathe._t0 = t
-    comp = COMP_CERO if solo_cara else comportamiento(t - breathe._t0, dom_name, sec_name)
+    comp = COMP_CERO if solo_cara else comportamiento(t - breathe._t0, dom_name, sec_name, 1.0 if actor in m else 0.8)   # con actor: un solo animo, sin mezcla
     spine_bones = ['spine', 'spine.001', 'spine.002', 'spine.003', 'spine.004', 'spine.005']
     for i, bone in enumerate(spine_bones):
         rot(bone, comp["spine"][i], 0, 0.04); rot(bone, 0.0, 1, 0.04); rot(bone, 0.0, 2, 0.04)   # eje 2: la ola de nado se suma abajo
@@ -1229,7 +1237,8 @@ def breathe():
         except Exception: pass
     if breathe._fc % 90 == 0:
         yd = math.degrees(breathe._wy) % 360
-        if cabeza_fija: mode = "SOLO CARA (cabeza fija)"
+        if actor in m: mode = f"ACTOR:{actor}"
+        elif cabeza_fija: mode = "SOLO CARA (cabeza fija)"
         elif solo_cara: mode = "SOLO CARA"
         elif anclada: mode = "ANCLADA"
         elif hand_follow_active: mode = "FOLLOW"

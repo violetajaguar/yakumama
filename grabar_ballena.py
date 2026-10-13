@@ -296,6 +296,30 @@ if os.path.exists(MODELO) and not a.prueba:
     except Exception as e: print(f"   (sin lengua/blendshapes: {e})")
 else: print("   (sin modelos/face_landmarker.task: no hay lengua ni blendshapes)") if not a.prueba else None
 
+# --- RECONOCEDOR DE ANIMO (modelos/animo_rf.pkl, de entrenar_animo.py): cada 0.5 s mira los ultimos 2 s de cara y
+# manos y decide el animo del actor. Cambia solo cuando el nuevo gana 3 veces seguidas (1.5 s): cortes limpios.
+reconocedor = {"ok": False, "animo": None, "prob": {}, "racha": None, "n": 0, "ultimo": 0.0, "ventana": []}
+try:
+    import pickle, numpy as np
+    _rf = pickle.load(open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "rb")); sys.path.insert(0, AQUI); from entrenar_animo import rasgos as _rasgos
+    reconocedor["ok"] = True; print("   RECONOCEDOR de animo cargado (modelos/animo_rf.pkl): la ballena sigue el animo que ve en tu cara")
+except Exception as e: print(f"   (sin reconocedor de animo: {e})")
+def reconocer(pkt, crudo):
+    if not reconocedor["ok"]: return
+    v = reconocedor["ventana"]; v.append({**pkt, "todo": crudo}); del v[:-_rf["W"]]
+    if len(v) < _rf["W"] or time.time() - reconocedor["ultimo"] < 0.5: return
+    reconocedor["ultimo"] = time.time()
+    try: x = _rasgos(v, v, _rf["BS"])
+    except Exception: return
+    if x is None: reconocedor["prob"] = {}; return   # sin cara: no opina
+    p = _rf["modelo"].predict_proba(x.reshape(1, -1))[0]; moods = _rf["moods"]
+    reconocedor["prob"] = {m: round(float(q), 3) for m, q in zip(moods, p)}
+    top = moods[int(p.argmax())]
+    if top == reconocedor["racha"]: reconocedor["n"] += 1
+    else: reconocedor["racha"] = top; reconocedor["n"] = 1
+    if reconocedor["n"] >= 3 and reconocedor["animo"] != top:
+        reconocedor["animo"] = top; print(f"   la ballena ve: {top}")
+
 # --- el tee: socket.sendto hacia 9998 sigue llegando a Blender y ademas se copia aqui
 _sendto = socket.socket.sendto
 def sendto_tee(self, data, *args):
@@ -303,7 +327,9 @@ def sendto_tee(self, data, *args):
         dest = args[-1]
         if isinstance(dest, tuple) and dest[1] == PUERTO_BLENDER:
             try:
-                crudo = json.loads(data.decode()); pkt = parpadeo(calibrar({**crudo, **extra})); registrar(pkt, crudo)
+                crudo = json.loads(data.decode()); pkt = parpadeo(calibrar({**crudo, **extra})); reconocer(pkt, crudo)
+                if reconocedor["animo"] and reconocedor["prob"]: pkt = {**pkt, "actor_animo": reconocedor["animo"], **{"actor_" + m: q for m, q in reconocedor["prob"].items()}}
+                registrar(pkt, crudo)
                 if estado["solo_cara"]: pkt = {**pkt, "solo_cara": estado["solo_cara"]}   # 1 cuerpo quieto, 2 + cabeza fija
                 if estado["anclada"]: pkt = {**pkt, "anclada": 1}                           # se mueve pero no viaja
                 if emotibit_vivo(): pkt = {**pkt, **emotibit_vivo()}                            # latido y senales al receptor (solo si llegan)
@@ -412,7 +438,7 @@ def estado_json():
     estado["_yaw_prev"] = u.get("head_yaw") if u else None
     return {"modo": ("cuerpo", "solo cara", "solo cara, cabeza fija")[estado["solo_cara"]] + (" + anclada" if estado["anclada"] else ""),
             "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
-            "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs,
+            "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
             "emotibit": {"hz": round(_emo["hz"]), "hr": emotibit.get("emotibit_hr"), "eda": emotibit.get("emotibit_eda"), "therm": emotibit.get("emotibit_therm")} if emotibit_vivo() else None,
             "valores": {k: u.get(k) for k in ("head_yaw", "head_pitch", "jaw_open", "blink", "brow_up", "mouth_smile", "tongue_out")} if u else {}}
 PANEL_HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Yakumama</title>
@@ -459,6 +485,7 @@ async function est(){try{const s=await (await fetch('/estado')).json();
  const e=s.emotibit;const v=s.valores||{};
  document.getElementById('st').innerHTML=
   `<div class=k><b>Cara</b><span class="${s.cara?'ok':'bad'}">${s.cara?'vista':'NO VISTA'}</span></div>`+
+  `<div class=k><b>La ballena ve</b><span class="${s.detectado?'ok':''}">${s.detectado||'—'}</span>${s.prob&&s.detectado?'<small class=small>'+Math.round((s.prob[s.detectado]||0)*100)+' %</small>':''}</div>`+
   `<div class=k><b>Neutral</b><span class="${s.neutral?'ok':'bad'}">${s.neutral?'tomado':'falta: Neutral'}</span></div>`+
   `<div class=k><b>Blender</b><span class="${s.blender?'ok':'bad'}">${s.blender?'recibiendo':'sin receptor'}</span></div>`+
   `<div class=k><b>EmotiBit</b><span class="${e?'ok':'bad'}">${e?e.hz+'/s · hr '+f(e.hr,0)+' · eda '+f(e.eda,1):'SIN DATOS'}</span></div>`+

@@ -51,6 +51,14 @@ mismo cuadro de la OAK-D que `ballena3.py` le pasa a FaceMesh, sin tocar `ballen
 ballena3, que casi siempre era 0) y `face_<nombre>` con los 52. En modo solo cara, `tongue_out` saca la lengua
 (empuja la raíz hacia adelante y abre un poco la boca). Si tarda más de 20 ms por cuadro, corre cuadro por medio.
 
+## La ballena reconoce el ánimo del actor
+`venv/bin/python entrenar_animo.py` entrena un reconocedor (random forest sobre ventanas de 2 s: 51 blendshapes,
+cabeza y manos) con todo `datasets/` y lo guarda en `modelos/animo_rf.pkl`. Con ese archivo presente, el grabador lo
+corre en vivo: cada 0.5 s decide el ánimo que ve en tu cara (cambia solo si gana 3 veces seguidas) y se lo manda al
+receptor como `actor_animo`, que entonces usa ese ánimo entero, sin mezclar con colores ni cerebro. El panel muestra
+"La ballena ve". Acierto dentro de sesión ~75 %; entre sesiones distintas todavía ~5 % (falta una tercera sesión con
+la cámara de frente y neutral tomado para que generalice).
+
 ## Ver un tramo en la ballena
 `venv/bin/python reproducir.py playful_001` manda el tramo a Blender con su tiempo original (`--modo cara|fija|cuerpo|anclada`,
 `--velocidad 2`, `--loop`). Cerrar antes el grabador (`q`) para que no manden los dos a la vez.
