@@ -32,14 +32,25 @@ if con_bs:   # parpadeo con curva y mirada centrada en la mediana del tramo (no 
     print(f"parpadeo y mirada recalculados de los blendshapes (mirada centrada en yaw {y0:+.2f}, pitch {p0:+.2f})")
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 print(f"{a.tramo}: {len(cara)} cuadros, {cara[-1]['t'] - cara[0]['t']:.0f} s, modo {a.modo}, x{a.velocidad}{' en loop' if a.loop else ''}  (Ctrl-C para parar)")
+ESTADO = "/tmp/ballena_reproduciendo.json"; _ult = 0.0
+def estado(c):
+    global _ult
+    if time.time() - _ult < 1.0: return
+    _ult = time.time()
+    try: json.dump({"tramo": a.tramo, "modo": a.modo, "t": round(c["t"] - cara[0]["t"]), "dur": round(cara[-1]["t"] - cara[0]["t"]), "loop": a.loop, "hora": time.time()}, open(ESTADO, "w"))
+    except Exception: pass
 try:
     while True:
         t0 = time.time(); tb = cara[0]["t"]
         for c, b in zip(cara, cuerpo):
+            estado(c)
             pkt = {**c.get("todo", {}), **{k: v for k, v in b.items() if k not in ("t", "animo", "video_t")}, **{k: v for k, v in c.items() if k not in ("t", "animo", "todo", "video_t")}, **flags}
             espera = (c["t"] - tb) / a.velocidad - (time.time() - t0)
             if espera > 0: time.sleep(min(espera, 0.5))
             s.sendto(json.dumps(pkt).encode(), ("127.0.0.1", a.puerto))
         if not a.loop: break
 except KeyboardInterrupt: pass
+finally:
+    try: os.remove(ESTADO)
+    except Exception: pass
 print("fin")
