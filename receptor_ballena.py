@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13r colores fuertes"
+VERSION = "2026-10-13t boca del animo completa tambien con actor"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1086,9 +1086,9 @@ def breathe():
     # JAW
     singing = m.get("singing", 0); feeding = m.get("feeding", 0)
     calm = m.get("calm", 0)
-    jaw = max(0.0, comp["jaw"])
+    jaw = max(0.0, comp["jaw"]); mouth_scale = 1.0   # la boca del animo a escala completa (el slider Mouth era del sistema viejo)
     if cara_actor:   # boca = la del actor, rango completo (ignora el slider Mouth del panel)
-        jaw = max(max(0.0, min(1.0, float(d.get('jaw_open', 0)))) * 0.25, comp["jaw"] * 0.5); mouth_scale = 1.0   # tope 0.3 rad; la boca del animo por debajo
+        jaw = max(max(0.0, min(1.0, float(d.get('jaw_open', 0)))) * 0.25, comp["jaw"]); mouth_scale = 1.0   # actor tope 0.25 rad (boca -40%); la boca del animo a escala completa, gana la mas abierta
         tongue_scale = 0.0   # el sway automatico no: la lengua sale con tongue_out (Face Landmarker via grabar_ballena.py)
         lengua = max(0.0, min(1.0, float(d.get('tongue_out', 0))))
         if lengua > 0.2: jaw = max(jaw, 0.1 + 0.2 * lengua)   # para que se vea, la boca se abre un poco
