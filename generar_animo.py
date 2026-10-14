@@ -14,6 +14,7 @@ AQUI = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, AQUI)
 from entrenar_movimiento import Red, entrada, MOODS, SALIDAS, PERIODOS
 ap = argparse.ArgumentParser(); ap.add_argument("animo", nargs="?", default=None); ap.add_argument("--segundos", type=float, default=60); ap.add_argument("--modo", default="anclada", choices=["anclada", "cuerpo", "cara"])
 ap.add_argument("--todos", action="store_true"); ap.add_argument("--puerto", type=int, default=9998); ap.add_argument("--seco", action="store_true", help="no manda: imprime estadisticas por animo")
+ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia (TouchDesigner / ballena fisica)")
 a = ap.parse_args()
 m = torch.load(os.path.join(AQUI, "modelos", "movimiento.pt"), map_location="cpu", weights_only=False)
 red = Red(m["n_in"], m["n_out"]); red.load_state_dict(m["estado"]); red.eval()
@@ -40,7 +41,10 @@ def generar(animo, segundos, dur_ref=120.0):
         if a.seco: continue
         if time.time() - ult > 1.0:
             ult = time.time(); json.dump({"tramo": f"red:{animo}", "modo": a.modo, "t": round(t), "dur": round(segundos), "loop": False, "hora": time.time()}, open("/tmp/ballena_reproduciendo.json", "w"))
-        s.sendto(json.dumps(pkt).encode(), ("127.0.0.1", a.puerto))
+        datos_pkt = json.dumps(pkt).encode(); s.sendto(datos_pkt, ("127.0.0.1", a.puerto))
+        for e in a.espejo:
+            try: h, pt = e.rsplit(":", 1); s.sendto(datos_pkt, (h, int(pt)))
+            except Exception: pass
         espera = t0 + t - time.time()
         if espera > 0: time.sleep(espera)
     return salida

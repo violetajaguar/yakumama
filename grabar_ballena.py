@@ -58,6 +58,7 @@ ap.add_argument("--emotibit", type=int, default=12345, help="puerto OSC donde es
 ap.add_argument("--emotibit-directo", type=int, default=1, help="1 = conectar directo al EmotiBit por WiFi, sin Oscilloscope (0 = no)")
 ap.add_argument("--emotibit-ip", default="", help="IP del EmotiBit (vacio = buscarlo por broadcast)")
 ap.add_argument("--panel", type=int, default=8765, help="puerto del panel web (0 = sin panel)")
+ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia de cada paquete (TouchDesigner, ballena fisica); repetible")
 ap.add_argument("--video", type=int, default=0, help="1 = grabar la ventana de Blender de g a f (apagado por defecto)")
 a = ap.parse_args()
 
@@ -320,6 +321,11 @@ def reconocer(pkt, crudo):
     if reconocedor["n"] >= 3 and reconocedor["animo"] != top:
         reconocedor["animo"] = top; print(f"   la ballena ve: {top}")
 
+# --- espejos: copias del paquete a otras maquinas (TouchDesigner / ballena fisica), --espejo 192.168.50.20:9998
+ESPEJOS = []
+for e in a.espejo:
+    try: h, pt = e.rsplit(":", 1); ESPEJOS.append((h, int(pt))); print(f"   ESPEJO: cada paquete tambien a {h}:{pt}")
+    except Exception: print(f"   (espejo invalido: {e})")
 # --- el tee: socket.sendto hacia 9998 sigue llegando a Blender y ademas se copia aqui
 _sendto = socket.socket.sendto
 def sendto_tee(self, data, *args):
@@ -334,6 +340,9 @@ def sendto_tee(self, data, *args):
                 if estado["anclada"]: pkt = {**pkt, "anclada": 1}                           # se mueve pero no viaja
                 if emotibit_vivo(): pkt = {**pkt, **emotibit_vivo()}                            # latido y senales al receptor (solo si llegan)
                 if pkt is not crudo: data = json.dumps(pkt).encode()
+                for h, pt in ESPEJOS:
+                    try: _sendto(self, data, (h, pt))
+                    except Exception: pass
             except Exception: pass
     except Exception: pass
     return _sendto(self, data, *args)

@@ -1,0 +1,271 @@
+{
+ "version_receptor": "2026-10-13r colores fuertes",
+ "moods": [
+  "calm",
+  "singing",
+  "playful",
+  "curious",
+  "feeding",
+  "sad",
+  "angry",
+  "alert",
+  "diving",
+  "surfacing"
+ ],
+ "colores_rgb_0_1": {
+  "angry": [
+   0.95,
+   0.08,
+   0.06
+  ],
+  "playful": [
+   1.0,
+   0.45,
+   0.0
+  ],
+  "curious": [
+   1.0,
+   0.85,
+   0.0
+  ],
+  "feeding": [
+   0.05,
+   0.8,
+   0.15
+  ],
+  "surfacing": [
+   0.0,
+   0.9,
+   0.95
+  ],
+  "calm": [
+   0.92,
+   0.94,
+   0.98
+  ],
+  "singing": [
+   0.62,
+   0.1,
+   0.95
+  ],
+  "alert": [
+   1.0,
+   0.25,
+   0.65
+  ],
+  "diving": [
+   0.02,
+   0.1,
+   0.55
+  ],
+  "sad": [
+   0.1,
+   0.12,
+   0.2
+  ]
+ },
+ "color_a_animo_escena": {
+  "red": "angry",
+  "orange": "playful",
+  "yellow": "curious",
+  "green": "feeding",
+  "cyan": "surfacing",
+  "blue": "calm",
+  "purple": "singing",
+  "pink": "alert",
+  "white": "diving",
+  "black": "sad"
+ },
+ "latido_fuerza_por_animo_0_1": {
+  "calm": 0.1,
+  "sad": 0.2,
+  "singing": 0.3,
+  "diving": 0.3,
+  "surfacing": 0.5,
+  "curious": 0.5,
+  "alert": 0.8,
+  "playful": 0.8,
+  "feeding": 1.0,
+  "angry": 1.0
+ },
+ "cola_turbina_rad_por_s_o_pulso": {
+  "calm": 0.6,
+  "sad": 0.25,
+  "diving": 0.9,
+  "surfacing": 1.8,
+  "curious": 1.4,
+  "feeding": 2.5,
+  "alert": 3.0,
+  "playful": 4.0,
+  "angry": 7.0,
+  "singing": "pulso"
+ },
+ "pulso_mediano_del_actor_lpm": {
+  "calm": 84,
+  "singing": 88,
+  "playful": 86,
+  "curious": 89,
+  "feeding": 118,
+  "sad": 101,
+  "angry": 87,
+  "alert": 102,
+  "diving": 57,
+  "surfacing": 78
+ },
+ "comportamientos_descripcion": {
+  "calm": "LOGGING: quieta en la superficie, respiracion lenta; ojos entrecerrados",
+  "singing": "CANTO: cabeza abajo, casi inmovil; ojos casi cerrados, boca al ritmo",
+  "playful": "FLIPPER SLAPPING + rolido, y un BREACH cada 12 s con DOS VUELTAS sobre su eje (foto: sube, aletas abiertas, gira, cae)",
+  "curious": "SPYHOPPING: vertical, saca la cabeza, gira despacio; ojos muy abiertos mirando alrededor",
+  "feeding": "LUNGE: embestida con la boca abierta, cierra despacio filtrando (snaking); ojos abajo",
+  "sad": "colgando: cabeza y cola caidas, lentisima; cara triste, parpados caidos, mirada al fondo",
+  "angry": "LOBTAILING: levanta la cola despacio y la golpea; cara furiosa, mirada fija al frente",
+  "alert": "ROUNDING OUT: lomo arqueado, cabeza escaneando rapido; ojos bien abiertos, mirada que barre",
+  "diving": "HIGH FLUKING DIVE: nariz abajo, cola vertical, y BAJA de verdad; ojos entornados, mirada abajo",
+  "surfacing": "sube, SOPLA, se nivela; SUBE de verdad, ojos abiertos al salir"
+ },
+ "limites_huesos_rad": {
+  "root:0": [
+   -0.7,
+   0.45
+  ],
+  "head:0": [
+   -0.5,
+   0.35
+  ],
+  "spine:0": [
+   -0.12,
+   0.3
+  ],
+  "spine.001:0": [
+   -0.12,
+   0.3
+  ],
+  "spine.002:0": [
+   -0.12,
+   0.3
+  ],
+  "spine.003:0": [
+   -0.12,
+   0.3
+  ],
+  "spine.004:0": [
+   -0.12,
+   0.3
+  ],
+  "spine.005:0": [
+   -0.12,
+   0.3
+  ],
+  "side_fine.L:2": [
+   -0.35,
+   0.3
+  ],
+  "side_fine.L:1": [
+   -0.5,
+   0.9
+  ],
+  "side_fine.L:0": [
+   -0.35,
+   0.35
+  ],
+  "side_fine.L.001:2": [
+   -0.24499999999999997,
+   0.21
+  ],
+  "side_fine.L.001:1": [
+   -0.35,
+   0.63
+  ],
+  "side_fine.L.001:0": [
+   -0.24499999999999997,
+   0.24499999999999997
+  ],
+  "side_fine.L.002:2": [
+   -0.175,
+   0.15
+  ],
+  "side_fine.L.002:1": [
+   -0.25,
+   0.45
+  ],
+  "side_fine.L.002:0": [
+   -0.175,
+   0.175
+  ],
+  "side_fine.R:2": [
+   -0.3,
+   0.35
+  ],
+  "side_fine.R:1": [
+   -0.9,
+   0.5
+  ],
+  "side_fine.R:0": [
+   -0.35,
+   0.35
+  ],
+  "side_fine.R.001:2": [
+   -0.21,
+   0.24499999999999997
+  ],
+  "side_fine.R.001:1": [
+   -0.63,
+   0.35
+  ],
+  "side_fine.R.001:0": [
+   -0.24499999999999997,
+   0.24499999999999997
+  ],
+  "side_fine.R.002:2": [
+   -0.15,
+   0.175
+  ],
+  "side_fine.R.002:1": [
+   -0.45,
+   0.25
+  ],
+  "side_fine.R.002:0": [
+   -0.175,
+   0.175
+  ]
+ },
+ "suavizado_entrada_ema": {
+  "head_yaw": 0.15,
+  "head_pitch": 0.15,
+  "jaw_open": 0.25,
+  "brow_up": 0.15,
+  "brow_down": 0.15,
+  "mouth_sad": 0.15,
+  "mouth_smile": 0.15,
+  "eye_yaw": 0.12,
+  "eye_pitch": 0.12,
+  "tongue_out": 0.2,
+  "l_palm_y": 0.1,
+  "r_palm_y": 0.1,
+  "l_palm_x": 0.1,
+  "r_palm_x": 0.1,
+  "l_depth": 0.1,
+  "r_depth": 0.1
+ },
+ "mirada_amplitud_rad": 0.35,
+ "tempo": "reloj = hr/75 acotado 0.6..1.6",
+ "energia": "(hr-60)/60 acotado 0..1",
+ "tension": "(eda-2)/8 acotado 0..1",
+ "fuerza_latido": "LATIDO_ANIMO[animo] * (0.5 + 0.5*(0.6*energia + 0.4*tension))",
+ "latido_escala": "spine 4.5%, spine.001 3.5%, spine.002 2% * fuerza, forma sin(fase)^4 a hr/60 Hz",
+ "ejes_root": {
+  "0": "cabeceo (+ nariz arriba)",
+  "1": "rolido",
+  "2": "giro"
+ },
+ "ejes_columna": {
+  "0": "negativo sube la cola, positivo baja",
+  "2": "ola lateral de nado"
+ },
+ "ejes_aletas": {
+  "1": "aleteo (+ arriba)",
+  "0": "ladeo",
+  "2": "barrido"
+ }
+}
