@@ -12,6 +12,7 @@ import os, sys, json, time, socket, argparse
 AQUI = os.path.dirname(os.path.abspath(__file__))
 ap = argparse.ArgumentParser(); ap.add_argument("tramo", help="p. ej. playful_001"); ap.add_argument("--modo", default="cara", choices=["cara", "fija", "cuerpo", "anclada"])
 ap.add_argument("--velocidad", type=float, default=1.0); ap.add_argument("--loop", action="store_true"); ap.add_argument("--puerto", type=int, default=9998)
+ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia (TouchDesigner / ballena fisica)")
 a = ap.parse_args()
 fc = os.path.join(AQUI, "datasets", "cara", a.tramo + ".jsonl"); fb = os.path.join(AQUI, "datasets", "cuerpo", a.tramo + ".jsonl")
 if not os.path.exists(fc): sys.exit(f"no existe {fc}")
@@ -49,7 +50,10 @@ try:
             pkt = {**c.get("todo", {}), **{k: v for k, v in b.items() if k not in ("t", "animo", "video_t")}, **{k: v for k, v in c.items() if k not in ("t", "animo", "todo", "video_t")}, **flags}
             espera = (c["t"] - tb) / a.velocidad - (time.time() - t0)
             if espera > 0: time.sleep(min(espera, 0.5))
-            s.sendto(json.dumps(pkt).encode(), ("127.0.0.1", a.puerto))
+            datos_pkt = json.dumps(pkt).encode(); s.sendto(datos_pkt, ("127.0.0.1", a.puerto))
+            for e in a.espejo:
+                try: h, pt = e.rsplit(":", 1); s.sendto(datos_pkt, (h, int(pt)))
+                except Exception: pass
         if not a.loop: break
 except KeyboardInterrupt: pass
 finally:
