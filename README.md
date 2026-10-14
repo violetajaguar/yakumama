@@ -28,6 +28,19 @@ Part of a series of characters driven by human performance (the llama, the gecko
  recorded takes ──► reproducir ──► UDP            face: mood expression + performer's face on top
 ```
 
+## See her move
+
+**[▶ All ten moods, 2 min 20 s (mp4, 20 MB)](videos_comportamientos/16x9/todos_los_animos_16x9.mp4)** — rendered
+with the neural net as performer, no camera: body on the left, face on the right, skin in the colour of the mood.
+
+| calm | singing | playful | curious | feeding |
+|---|---|---|---|---|
+| ![calm](docs/animos/yakumama_calm.jpg) | ![singing](docs/animos/yakumama_singing.jpg) | ![playful](docs/animos/yakumama_playful.jpg) | ![curious](docs/animos/yakumama_curious.jpg) | ![feeding](docs/animos/yakumama_feeding.jpg) |
+
+| sad | angry | alert | diving | surfacing |
+|---|---|---|---|---|
+| ![sad](docs/animos/yakumama_sad.jpg) | ![angry](docs/animos/yakumama_angry.jpg) | ![alert](docs/animos/yakumama_alert.jpg) | ![diving](docs/animos/yakumama_diving.jpg) | ![surfacing](docs/animos/yakumama_surfacing.jpg) |
+
 ## Repository
 
 | file | role |
@@ -132,8 +145,8 @@ receptor como `actor_animo`, que entonces usa ese ánimo entero, sin mezclar con
 la cámara de frente y neutral tomado para que generalice).
 
 ## Videos de los comportamientos
-`videos_comportamientos/` tiene un video por ánimo (cuerpo + cara de cerca) y `todos_los_animos.mp4` con los diez
-seguidos, renderizados sin actor para ver el comportamiento, la cara y el color de cada ánimo. Ver su README.
+`videos_comportamientos/16x9/` tiene un video por ánimo (cuerpo entero a la izquierda, cara a la derecha, fondo negro) y
+`todos_los_animos_16x9.mp4` con los diez seguidos (2 min 20 s, está en el repo); la red neuronal hace de actor. Ver su README.
 
 ## Ver un tramo en la ballena
 `venv/bin/python reproducir.py playful_001` manda el tramo a Blender con su tiempo original (`--modo cara|fija|cuerpo|anclada`,
