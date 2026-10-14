@@ -19,3 +19,6 @@ con `receptor_ballena.py` tal cual corre en Blender, en modo Workbench (sin mate
 
 La piel vira al color del ánimo (azul calm, violeta singing, naranja playful, amarillo curious, verde feeding, gris sad,
 rojo angry, rosa alert, blanco diving, cian surfacing).
+
+## 16:9
+`16x9/`: los mismos diez ánimos en 1280×720 con materiales y luces reales, colores fuertes, y la cara de cerca como recuadro arriba a la derecha. `todos_los_animos_16x9.mp4` los encadena (2 min 20 s).
