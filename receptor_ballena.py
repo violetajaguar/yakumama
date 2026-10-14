@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13p cola por animo, calm plateada"
+VERSION = "2026-10-13q color visible en cualquier sombreado"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -715,6 +715,14 @@ for obj in bpy.data.objects:
             break
 if whale_mesh:
     print(f"  Mesh: {whale_mesh.name}")
+    try:   # que la vista 3D muestre el color del material (en Solido con color Aleatorio/Unico/Textura el tinte no se ve)
+        for _scr in bpy.data.screens:
+            for _ar in _scr.areas:
+                if _ar.type == 'VIEW_3D':
+                    for _sp in _ar.spaces:
+                        if _sp.type == 'VIEW_3D' and _sp.shading.type == 'SOLID' and _sp.shading.color_type in ('RANDOM', 'SINGLE', 'TEXTURE', 'VERTEX'):
+                            _sp.shading.color_type = 'MATERIAL'; print("  vista 3D: color del sombreado -> Material (para ver el color del animo)")
+    except Exception as e: print("  (sombreado:", e, ")")
 
 # ============================================================
 # STATE
@@ -836,6 +844,9 @@ def read_controls():
 
 def tint_body(target_rgb, lerp_amount):
     if not whale_mesh: return
+    try:   # color de objeto (sombreado Solido en modo Objeto) tambien, para que se vea en cualquier vista
+        c = whale_mesh.color; whale_mesh.color = (c[0] + (target_rgb[0] - c[0]) * lerp_amount, c[1] + (target_rgb[1] - c[1]) * lerp_amount, c[2] + (target_rgb[2] - c[2]) * lerp_amount, 1.0)
+    except Exception: pass
     for slot in whale_mesh.material_slots:
         mat = slot.material
         if not mat: continue
@@ -1411,7 +1422,15 @@ def breathe():
             with open("/tmp/ballena_receptor.json", "w") as f:
                 try: _manual = bpy.context.scene.ballena.comportamiento
                 except Exception: _manual = "?"
-                json.dump({"version": VERSION, "t": time.time(), "dominante": dominant, "manual": _manual, "actor": d.get('actor_animo'), "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
+                _col = None
+                try:
+                    for _sl in whale_mesh.material_slots:
+                        if _sl.material and _sl.material.use_nodes:
+                            for _n in _sl.material.node_tree.nodes:
+                                if _n.type == 'BSDF_PRINCIPLED': _col = [round(v, 2) for v in _n.inputs["Base Color"].default_value[:3]]; break
+                        if _col: break
+                except Exception: pass
+                json.dump({"version": VERSION, "t": time.time(), "dominante": dominant, "manual": _manual, "actor": d.get('actor_animo'), "color": _col, "color_follow": round(color_follow, 2), "material": [sl.material.name for sl in whale_mesh.material_slots if sl.material] if whale_mesh else None, "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
                            "cara": bool(cara_actor), "fin_L": [round(v, 2) for v in armature.pose.bones['side_fine.L'].rotation_euler], "fin_R": [round(v, 2) for v in armature.pose.bones['side_fine.R'].rotation_euler],
                            "pose": {pb.name: [round(v, 3) for v in pb.rotation_euler] for pb in armature.pose.bones},
                            "root_loc": [round(v, 3) for v in armature.pose.bones['root'].location],
