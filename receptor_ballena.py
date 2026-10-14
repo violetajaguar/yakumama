@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13o latido por animo, canto mueve el cuerpo"
+VERSION = "2026-10-13p cola por animo, calm plateada"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -82,10 +82,10 @@ MOOD_RGB = {
     "curious":   (0.93, 0.82, 0.22),
     "feeding":   (0.30, 0.70, 0.32),
     "surfacing": (0.30, 0.78, 0.82),
-    "calm":      (0.28, 0.42, 0.80),
+    "calm":      (0.80, 0.82, 0.86),   # plateada
     "singing":   (0.58, 0.32, 0.78),
     "alert":     (0.92, 0.55, 0.72),
-    "diving":    (0.86, 0.88, 0.92),
+    "diving":    (0.12, 0.20, 0.45),   # azul profundo
     "sad":       (0.22, 0.24, 0.30),
 }
 SCENE_COLORS_RGB = {
@@ -967,6 +967,8 @@ def comp_surfacing(t): # sube, SOPLA, se nivela; SUBE de verdad, ojos abiertos a
 COMPORTAMIENTOS = {"calm": comp_calm, "singing": comp_singing, "playful": comp_playful, "curious": comp_curious, "feeding": comp_feeding,
                    "sad": comp_sad, "angry": comp_angry, "alert": comp_alert, "diving": comp_diving, "surfacing": comp_surfacing}
 # cuanto se nota el latido en cada animo (0..1), por lo que midio el EmotiBit al actor: calm casi nada, angry/feeding todo
+# la cola (turbina) gira distinto en cada animo: radianes por segundo, o "pulso" = una vuelta por latido del actor
+TURBINA_ANIMO = {"calm": 0.6, "sad": 0.25, "diving": 0.9, "surfacing": 1.8, "curious": 1.4, "feeding": 2.5, "alert": 3.0, "playful": 4.0, "angry": 7.0, "singing": "pulso"}
 LATIDO_ANIMO = {"calm": 0.1, "sad": 0.2, "singing": 0.3, "diving": 0.3, "surfacing": 0.5, "curious": 0.5, "alert": 0.8, "playful": 0.8, "feeding": 1.0, "angry": 1.0}
 COMP_CERO = dict(pitch=0.0, roll=0.0, yaw=0.0, head=0.0, spine=[0.0] * 6, fluke=0.0, flap=0.0, ladeo=0.0, jaw=0.0, cara=(0.0, 0.0, 0.0, 0.0), mirada=(0.0, 0.0), spin=0.0, depth=0.0)
 def comportamiento(t, dom, sec, w_dom=0.8):
@@ -1343,8 +1345,11 @@ def breathe():
     prev_btn = jbtn
     manual_turbine = bpy.app.driver_namespace.get("_ballena_turbine_manual", False)
     energy = m.get("playful",0)*0.7 + m.get("feeding",0)*0.5 + m.get("alert",0)*0.4 + m.get("singing",0)*0.3
-    if (turbine_active or manual_turbine or energy > 0.6) and not solo_cara:
-        turbine_angle += 15.0 * 0.033
+    # COLA (turbina): velocidad por animo, al ritmo del pulso en singing; el boton manual y el joystick la aceleran
+    if not solo_cara:
+        vel = TURBINA_ANIMO.get(dom_name, 1.0)
+        if vel == "pulso": turbine_angle = breathe._latido if (30 < hr < 220) else turbine_angle + 1.2 * 0.033   # una vuelta por latido
+        else: turbine_angle += (vel * tempo + (15.0 if (turbine_active or manual_turbine) else 0.0)) * 0.033
         rot('turbine', turbine_angle, 2, 1.0)
 
     # LATIDO: el cuerpo late al ritmo del corazon del actor (emotibit_hr, EmotiBit via grabar_ballena.py)
