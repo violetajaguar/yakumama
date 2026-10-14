@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13n actuar con la red"
+VERSION = "2026-10-13o latido por animo, canto mueve el cuerpo"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -966,6 +966,8 @@ def comp_surfacing(t): # sube, SOPLA, se nivela; SUBE de verdad, ojos abiertos a
                 fluke=0.0, flap=0.25 + 0.15 * soplo, ladeo=0.0, jaw=0.08 + 0.3 * soplo, cara=(0.1, 0.0, 0.0, 0.3 + 0.4 * soplo), mirada=(0.0, 0.6), spin=0.0, depth=1.0 * sube)
 COMPORTAMIENTOS = {"calm": comp_calm, "singing": comp_singing, "playful": comp_playful, "curious": comp_curious, "feeding": comp_feeding,
                    "sad": comp_sad, "angry": comp_angry, "alert": comp_alert, "diving": comp_diving, "surfacing": comp_surfacing}
+# cuanto se nota el latido en cada animo (0..1), por lo que midio el EmotiBit al actor: calm casi nada, angry/feeding todo
+LATIDO_ANIMO = {"calm": 0.1, "sad": 0.2, "singing": 0.3, "diving": 0.3, "surfacing": 0.5, "curious": 0.5, "alert": 0.8, "playful": 0.8, "feeding": 1.0, "angry": 1.0}
 COMP_CERO = dict(pitch=0.0, roll=0.0, yaw=0.0, head=0.0, spine=[0.0] * 6, fluke=0.0, flap=0.0, ladeo=0.0, jaw=0.0, cara=(0.0, 0.0, 0.0, 0.0), mirada=(0.0, 0.0), spin=0.0, depth=0.0)
 def comportamiento(t, dom, sec, w_dom=0.8):
     a = COMPORTAMIENTOS.get(dom, comp_calm)(t); b = COMPORTAMIENTOS.get(sec, comp_calm)(t); w = 1.0 - w_dom
@@ -1038,9 +1040,17 @@ def breathe():
     else: beat = 0.0
     # COMPORTAMIENTO del animo (movimiento real, ver arriba); en solo cara el cuerpo descansa
     comp = COMP_CERO if solo_cara else comportamiento(breathe._tiempo, dom_name, sec_name, 1.0 if actor in m else 0.8)   # con actor: un solo animo, sin mezcla
+    excitacion = max(0.0, min(1.0, 0.6 * energia + 0.4 * tension))
+    fuerza_latido = LATIDO_ANIMO.get(dom_name, 0.5) * (0.5 + 0.5 * excitacion)   # calm ~0.05-0.1, angry/feeding hasta 1
+    beat *= fuerza_latido
     if not solo_cara:
         comp = dict(comp); comp["head"] = comp["head"] + 0.03 * beat + 0.06 * tension * _onda(t, 0.9)   # el latido asoma en la cabeza; la tension la hace vibrar
         comp["flap"] = comp["flap"] + 0.06 * beat + 0.1 * energia; comp["fluke"] = comp["fluke"] - 0.05 * beat
+        if dom_name == "singing" and cara_actor:   # CANTO: el cuerpo se mueve con la boca del actor
+            canto = max(0.0, min(1.0, float(d.get('jaw_open', 0))))
+            comp["head"] += 0.35 * canto; comp["flap"] += 0.3 * canto; comp["fluke"] -= 0.1 * canto   # (la cabeza del animo pesa 30% cuando hay actor: por eso 0.35)
+            comp["spine"] = [v - 0.04 * canto * (i / 5.0) for i, v in enumerate(comp["spine"])]   # la cola se levanta apenas con la nota
+            comp["roll"] += 0.08 * canto * _onda(t, 2.5)                                          # y se mece
     spine_bones = ['spine', 'spine.001', 'spine.002', 'spine.003', 'spine.004', 'spine.005']
     for i, bone in enumerate(spine_bones):
         rot(bone, comp["spine"][i], 0, 0.04); rot(bone, 0.0, 1, 0.04); rot(bone, 0.0, 2, 0.04)   # eje 2: la ola de nado se suma abajo
