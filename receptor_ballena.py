@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13q color visible en cualquier sombreado"
+VERSION = "2026-10-13r colores fuertes"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -76,17 +76,17 @@ COLOR_TO_MOOD = {
 }
 
 # color de piel por animo (inverso de COLOR_TO_MOOD, aclarado para que siga leyendose como piel)
-MOOD_RGB = {
-    "angry":     (0.80, 0.22, 0.20),
-    "playful":   (0.95, 0.55, 0.18),
-    "curious":   (0.93, 0.82, 0.22),
-    "feeding":   (0.30, 0.70, 0.32),
-    "surfacing": (0.30, 0.78, 0.82),
-    "calm":      (0.80, 0.82, 0.86),   # plateada
-    "singing":   (0.58, 0.32, 0.78),
-    "alert":     (0.92, 0.55, 0.72),
-    "diving":    (0.12, 0.20, 0.45),   # azul profundo
-    "sad":       (0.22, 0.24, 0.30),
+MOOD_RGB = {   # saturados: se ven desde lejos y en cualquier luz
+    "angry":     (0.95, 0.08, 0.06),
+    "playful":   (1.00, 0.45, 0.00),
+    "curious":   (1.00, 0.85, 0.00),
+    "feeding":   (0.05, 0.80, 0.15),
+    "surfacing": (0.00, 0.90, 0.95),
+    "calm":      (0.92, 0.94, 0.98),   # plateada, clara
+    "singing":   (0.62, 0.10, 0.95),
+    "alert":     (1.00, 0.25, 0.65),
+    "diving":    (0.02, 0.10, 0.55),
+    "sad":       (0.10, 0.12, 0.20),
 }
 SCENE_COLORS_RGB = {
     "red":     (0.85, 0.15, 0.15),
@@ -1240,7 +1240,7 @@ def breathe():
     if color_follow >= 0.5 and seen_color in COLOR_TO_MOOD:   # solo si el slider esta bien subido y es un color real (no neutral/gris)
         tint_body(SCENE_COLORS_RGB[seen_color], lerp_amount=0.04 * color_follow)
     elif dominant in MOOD_RGB:
-        tint_body(MOOD_RGB[dominant], lerp_amount=0.02)   # ~2 s de transicion
+        tint_body(MOOD_RGB[dominant], lerp_amount=0.04)   # ~1 s de transicion
 
     # SMILE → APPROACH
     perf_sad = float(d.get('mouth_sad', 0))
