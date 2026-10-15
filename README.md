@@ -158,6 +158,11 @@ En el panel (http://localhost:8765) escribir el nombre en **quien actua** y apre
 `<animo>_NNN`) y cada línea lleva `"actor"`. Al cambiar de actor se cierra el tramo en curso y hay que tomar el
 **Neutral** con la cara nueva antes de grabar. `entrenar_animo.py` mide además el acierto con un actor entero fuera.
 
+## Cómo se siente la persona (autoinforme)
+Antes de cada toma, en el panel: dos deslizadores de 0 a 10, **desagradable ↔ agradable** (valencia) y **calma ↔ activada**
+(activación), y **Guardar cómo me siento**. Van en cada línea de `cuerpo/` como `auto_valencia` y `auto_activacion`,
+junto al pulso y la piel, y se borran al guardar el tramo para que la toma siguiente vuelva a preguntar.
+
 ## Qué se graba
 - `datasets/cara/<ánimo>_NNN.jsonl`: head_yaw, head_pitch, jaw_open, blink, brow_up, brow_down, mouth_sad (y el
   paquete entero en `todo`).

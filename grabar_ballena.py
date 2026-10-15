@@ -66,7 +66,7 @@ a = ap.parse_args()
 def nombre_actor(x):
     """'Ana María' -> 'anamaria': sin acentos, espacios ni guiones bajos (el _ separa animo, actor y numero)."""
     return re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode().lower())
-estado = {"actor": nombre_actor(a.actor), "animo": None, "grabando": False, "solo_cara": 0, "anclada": False, "cara": [], "cuerpo": [], "t0": time.time(), "n": {}, "ultimo": {}, "seg": {}}
+estado = {"auto": {"valencia": None, "activacion": None}, "actor": nombre_actor(a.actor), "animo": None, "grabando": False, "solo_cara": 0, "anclada": False, "cara": [], "cuerpo": [], "t0": time.time(), "n": {}, "ultimo": {}, "seg": {}}
 def segundos(ts):
     """segundos reales de una lista de tiempos t (sin contar huecos de pausa > 0.5 s). No supone 30 paquetes/s."""
     return sum(b - a for a, b in zip(ts, ts[1:]) if 0 <= b - a < 0.5)
@@ -116,18 +116,29 @@ CAL_KEYS = ("head_yaw", "head_pitch", "brow_up", "brow_down", "mouth_sad", "jaw_
 cal = {"base": None, "muestras": None}
 def clamp(v, lo, hi): return max(lo, min(hi, v))
 _parp = {"base": 0.0, "pico": 0.25, "hold": 0, "alto": 0}
+_pc = {"base": None}
+def parpadeo_reiniciar():
+    """otra persona: olvidar los niveles de ojos abiertos aprendidos."""
+    _parp.update(base=0.0, pico=0.25, hold=0, alto=0); _pc["base"] = None
 def parpadeo(pkt):
-    """ballena3 da parpadeos debiles (0.1-0.3) y de 2-3 cuadros: se mide entre el nivel de ojos abiertos (base,
-    minimo lento) y el pico reciente, y se sostiene 5 cuadros. Un nivel constante nunca cierra los ojos."""
-    if "blink" not in pkt or "blink_l" in pkt: return pkt   # con blendshapes el parpadeo ya viene bien (curva)
+    """Dos fuentes, se toma la mayor: el EAR de ballena3 (cada cuadro, debil: 0.1-0.3) y el eyeBlink de MediaPipe
+    (blink_bs, mas lento). Cada una se mide sobre el nivel de ojos abiertos de ESTA persona (minimo lento): hay caras
+    que abiertas dan eyeBlink 0.6 y nunca llegarian a un umbral fijo. Un cierre se sostiene 5 cuadros; un nivel
+    constante (>12 cuadros) no es parpadeo sino el nuevo nivel de abiertos."""
+    if "blink" not in pkt: return pkt
     b = float(pkt["blink"])
     _parp["base"] = min(b, _parp["base"] + 0.002)                      # ojos abiertos: sube despacio, baja al toque
     _parp["pico"] = max(_parp["pico"] * 0.998, b, _parp["base"] + 0.15)   # pico reciente, al menos 0.15 sobre la base
     n = clamp((b - _parp["base"]) / (_parp["pico"] - _parp["base"]), 0, 1)
+    bs = None
+    if "blink_bs" in pkt:
+        bs = float(pkt["blink_bs"]); _pc["base"] = bs if _pc["base"] is None else min(bs, _pc["base"] + 0.002)
+        n = max(n, clamp((bs - _pc["base"]) / max(0.2, 0.9 - _pc["base"]), 0, 1))   # cerrado del todo: 0.9 o base+0.2
     _parp["alto"] = _parp["alto"] + 1 if n > 0.5 else 0      # cuadros seguidos "cerrado"
     if _parp["alto"] == 1: _parp["hold"] = 5                   # arranca un cierre: parpadeo, se sostiene 5 cuadros
-    if _parp["alto"] > 12:                                     # sigue cerrado: no es parpadeo, es el nuevo nivel de
-        _parp["base"] = b; _parp["pico"] = b + 0.15; _parp["alto"] = 0; _parp["hold"] = 0; n = 0.0   # ojos abiertos
+    if _parp["alto"] > 12:                                     # sigue cerrado: no es parpadeo, es el nuevo nivel de abiertos
+        _parp["base"] = b; _parp["pico"] = b + 0.15; _parp["alto"] = 0; _parp["hold"] = 0; n = 0.0
+        if bs is not None: _pc["base"] = bs
     if _parp["hold"] > 0: _parp["hold"] -= 1; n = 1.0
     return {**pkt, "blink": round(n, 4)}
 def calibrar(pkt):
@@ -164,7 +175,8 @@ def guardar():
             with open(os.path.join(carpeta, f"{nombre}.jsonl"), "w") as fh:
                 for r in recs: fh.write(json.dumps(r, ensure_ascii=False) + "\n")
         n = len(estado["cara"]); d = segundos([r["t"] for r in estado["cara"]]); estado["seg"][an] = estado["seg"].get(an, 0) + d
-        print(f"\n   guardado {nombre}.jsonl en cara/ y cuerpo/ ({n} paquetes, {d:.0f} s)")
+        print(f"\n   guardado {nombre}.jsonl en cara/ y cuerpo/ ({n} paquetes, {d:.0f} s)" + (f"  autoinforme valencia {estado['auto']['valencia']} activacion {estado['auto']['activacion']}" if estado["auto"]["valencia"] is not None else ""))
+        estado["auto"] = {"valencia": None, "activacion": None}
         estado["cara"] = []; estado["cuerpo"] = []
 
 def resumen():
@@ -183,7 +195,8 @@ def registrar(pkt, crudo):
     cuerpo = {k: pkt[k] for k in pkt if k not in cara and k not in ("t", "mocap_mode")}
     with lock:
         estado["cara"].append({"t": t, "animo": estado["animo"], "actor": estado["actor"], **vt, **cara, "todo": crudo})
-        estado["cuerpo"].append({"t": t, "animo": estado["animo"], "actor": estado["actor"], **vt, **cuerpo, **emotibit_vivo()})
+        auto = {f"auto_{k}": v for k, v in estado["auto"].items() if v is not None}   # autoinforme (0-10) antes de la toma
+        estado["cuerpo"].append({"t": t, "animo": estado["animo"], "actor": estado["actor"], **vt, **cuerpo, **emotibit_vivo(), **auto})
 
 # --- EmotiBit: OSC (sin dependencias) desde el EmotiBit Oscilloscope. Ultimo valor por senal en `emotibit`.
 import struct
@@ -285,18 +298,25 @@ def blendshapes(rgb, lm=None):
     extra["tongue_out"] = bs.get("tongueOut", 0.0)
     extra["mouth_smile"] = round((bs.get("mouthSmileLeft", 0.0) + bs.get("mouthSmileRight", 0.0)) / 2, 4)
     extra["blink_l"] = bs.get("eyeBlinkLeft", 0.0); extra["blink_r"] = bs.get("eyeBlinkRight", 0.0)
-    extra["blink"] = parpadeo_curva(max(extra["blink_l"], extra["blink_r"]))   # cerrado solo con parpadeo real, no con la sonrisa entrecerrada
+    extra["blink_bs"] = round(max(extra["blink_l"], extra["blink_r"]), 4)   # crudo; parpadeo() lo mide sobre el nivel de abiertos de la persona
     extra["eye_yaw"], extra["eye_pitch"] = mirada(bs)
 if os.path.exists(MODELO) and not a.prueba:
     try:
         import mediapipe as _mp
         _process = _mp.solutions.face_mesh.FaceMesh.process
+        _lm_q = {"img": None}; _lm_ev = threading.Event()
+        def _lm_hilo():   # procesa siempre el ultimo cuadro; si no da abasto, salta los intermedios
+            while True:
+                _lm_ev.wait(); _lm_ev.clear(); img = _lm_q["img"]
+                if img is None: continue
+                try: blendshapes(img)
+                except Exception as e:
+                    if _lm["error"] != str(e): _lm["error"] = str(e); print(f"   (sin lengua/blendshapes: {e})")
+        threading.Thread(target=_lm_hilo, daemon=True).start()
         def process_tee(self, image):
             res = _process(self, image)
             _lm["cuadro"] = image; _lm["res"] = res
-            try: blendshapes(image)
-            except Exception as e:
-                if _lm["error"] != str(e): _lm["error"] = str(e); print(f"   (sin lengua/blendshapes: {e})")
+            _lm_q["img"] = image.copy(); _lm_ev.set()   # copia: ballena3 reutiliza el buffer
             return res
         _mp.solutions.face_mesh.FaceMesh.process = process_tee
     except Exception as e: print(f"   (sin lengua/blendshapes: {e})")
@@ -451,7 +471,7 @@ def estado_json():
     cara = bool(u) and u.get("head_yaw") is not None and estado.get("_yaw_prev") != u.get("head_yaw")
     estado["_yaw_prev"] = u.get("head_yaw") if u else None
     return {"modo": ("cuerpo", "solo cara", "solo cara, cabeza fija")[estado["solo_cara"]] + (" + anclada" if estado["anclada"] else ""),
-            "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
+            "auto": estado["auto"], "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
             "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
             "emotibit": {"hz": round(_emo["hz"]), "hr": emotibit.get("emotibit_hr"), "eda": emotibit.get("emotibit_eda"), "therm": emotibit.get("emotibit_therm")} if emotibit_vivo() else None,
             "valores": {k: u.get(k) for k in ("head_yaw", "head_pitch", "jaw_open", "blink", "brow_up", "mouth_smile", "tongue_out")} if u else {}}
@@ -465,6 +485,12 @@ h1{font-size:20px;margin:0 0 8px}.row{display:flex;flex-wrap:wrap;gap:8px;margin
 <div class=st id=st></div>
 <div class=row id=animos></div>
 <div class=row><input id=actor placeholder="quien actua (nombre)" style="border:0;border-radius:12px;padding:14px 16px;font-size:17px;background:var(--card);color:var(--fg);min-width:200px"><button class=b onclick="setActor()">Cambiar actor</button></div>
+<div class=k style="margin:10px 0"><b>Antes de grabar: ¿cómo te sentís ahora? (0-10)</b>
+ <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:6px">
+  <label style="flex:1;min-width:220px">desagradable ← <b style="display:inline;text-transform:none">agradable</b> → <span id=vv>5</span><br><input type=range id=val min=0 max=10 value=5 style="width:100%" oninput="document.getElementById('vv').textContent=this.value"></label>
+  <label style="flex:1;min-width:220px">calma ← <b style="display:inline;text-transform:none">activada</b> → <span id=va>5</span><br><input type=range id=act min=0 max=10 value=5 style="width:100%" oninput="document.getElementById('va').textContent=this.value"></label>
+  <button class=b onclick="setAuto()">Guardar cómo me siento</button><span id=auto class=small></span>
+ </div></div>
 <div class=row><button class="b rec" id=rec onclick="t('g')">● GRABAR</button><button class=b onclick="t('f')">■ Guardar tramo</button><button class=b onclick="t('n')">Neutral (mirar a la camara)</button></div>
 <div class=row><button class=b id=modo onclick="t('c')">Modo: …</button><button class=b id=ancla onclick="t('a')">Anclada</button><button class=b onclick="t('t')">Guardar cuadro</button><button class="b off" onclick="if(confirm('Guardar y salir?'))t('q')">Salir</button></div>
 <div class=st style="margin-top:10px">
@@ -492,11 +518,13 @@ setInterval(sen,500);
 const A={"1":"calm","2":"singing","3":"playful","4":"curious","5":"feeding","6":"sad","7":"angry","8":"alert","9":"diving","0":"surfacing"};
 const an=document.getElementById('animos');for(const k in A){const b=document.createElement('button');b.className='b';b.id='a'+A[k];b.textContent=A[k];b.onclick=()=>t(k);an.appendChild(b)}
 async function t(c){await fetch('/tecla?c='+c,{method:'POST'});setTimeout(est,150)}
+async function setAuto(){const v=document.getElementById('val').value,a=document.getElementById('act').value;await fetch('/auto?valencia='+v+'&activacion='+a,{method:'POST'});setTimeout(est,150)}
 async function setActor(){const n=document.getElementById('actor').value;await fetch('/actor?nombre='+encodeURIComponent(n),{method:'POST'});setTimeout(est,150)}
 function f(v,d=2){return v==null?'—':(+v).toFixed(d)}
 async function est(){try{const s=await (await fetch('/estado')).json();
  for(const k in A){document.getElementById('a'+A[k]).className='b'+(s.animo==A[k]?' on':'')}
  if(document.activeElement.id!='actor')document.getElementById('actor').value=s.actor||'';
+ const au=s.auto||{};document.getElementById('auto').textContent=au.valencia==null?'falta para esta toma':'guardado: '+au.valencia+' / '+au.activacion;
  const r=document.getElementById('rec');r.textContent=s.grabando?'■ PAUSAR  '+Math.round(s.tramo_s)+' s':'● GRABAR';r.style.background=s.grabando?'#ff4d5a':'#2a3a4a';
  document.getElementById('modo').textContent='Modo: '+s.modo;document.getElementById('ancla').className='b'+(s.modo.includes('anclada')?' on':'');
  const e=s.emotibit;const v=s.valores||{};
@@ -529,10 +557,15 @@ def panel_web(puerto):
         def do_POST(self):
             u = urlparse(self.path); c = parse_qs(u.query).get("c", [""])[0].lower()
             if u.path == "/tecla" and len(c) == 1 and c in TECLAS + "gfnrcatq": tecla(c); self._send(200, "{}")
+            elif u.path == "/auto":   # autoinforme antes de la toma: valencia (0 desagradable - 10 agradable), activacion (0 calma - 10 activada)
+                q = parse_qs(u.query)
+                try: estado["auto"] = {"valencia": int(q.get("valencia", [""])[0]), "activacion": int(q.get("activacion", [""])[0])}
+                except ValueError: self._send(400, "{}"); return
+                print(f"   autoinforme: valencia {estado['auto']['valencia']}/10  activacion {estado['auto']['activacion']}/10"); self._send(200, "{}")
             elif u.path == "/actor":   # cambiar de actor: cierra el tramo en curso y pide neutral nuevo
                 nombre = nombre_actor(parse_qs(u.query).get("nombre", [""])[0])
                 if estado["grabando"]: guardar(); estado["grabando"] = False
-                estado["actor"] = nombre; cal["base"] = None; cal["muestras"] = None
+                estado["actor"] = nombre; cal["base"] = None; cal["muestras"] = None; parpadeo_reiniciar()
                 print(f"   ACTOR: {nombre or '(sin nombre)'} - tomar NEUTRAL con esta persona antes de grabar"); self._send(200, "{}")
             else: self._send(400, "{}")
     try:
