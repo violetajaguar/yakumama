@@ -17,26 +17,37 @@ MOODS = ["calm","singing","playful","curious","feeding","sad","angry","alert","d
 SALIDAS = ["head_yaw","head_pitch","jaw_open","blink","brow_up","brow_down","mouth_sad","mouth_smile","eye_yaw","eye_pitch","l_palm_y","r_palm_y","l_palm_x","r_palm_x","mano_l","mano_r","hr","eda"]
 PERIODOS = (0.5, 1.0, 2.0, 4.0, 8.0, 16.0)
 HR_ANIMO = {"calm": 84, "singing": 88, "playful": 86, "curious": 89, "feeding": 118, "sad": 101, "angry": 87, "alert": 102, "diving": 57, "surfacing": 78}
-def entrada(animo, t, dur=120.0, hr_prev=85.0):
+def entrada(animo, t, dur=120.0, hr_prev=85.0, actor=None, actores=()):
+    """actor: nombre de un actor grabado o None = estilo promedio (1/n en cada uno)"""
     x = [0.0] * 10; x[MOODS.index(animo)] = 1.0; x.append(t / max(dur, 1.0))
     for P in PERIODOS: x += [math.sin(2 * math.pi * t / P), math.cos(2 * math.pi * t / P)]
-    x.append((hr_prev - 85.0) / 30.0); return np.array(x, np.float32)
+    x.append((hr_prev - 85.0) / 30.0)
+    if len(actores): x += [1.0 if a == actor else (0.0 if actor is not None else 1.0 / len(actores)) for a in actores]
+    return np.array(x, np.float32)
 class Modelo:
     def __init__(self, ruta="modelos/movimiento_pesos.npz"):
         z = np.load(ruta); self.capas = [(z[f"W{i}"], z[f"b{i}"]) for i in range(int(z["n_capas"]))]
+        self.actores = [str(a) for a in z["actores"]] if "actores" in z else []
+        self.hr_animo = json.loads(str(z["hr_animo"])) if "hr_animo" in z else {}
         self.hr_prev = {m: float(HR_ANIMO[m]) for m in MOODS}; self.ult_parpadeo = {m: -9.0 for m in MOODS}
+    def ancla(self, animo, actor=None):
+        """pulso mediano del actor en ese animo (o media de los actores)"""
+        vals = [self.hr_animo[actor][animo]] if actor and self.hr_animo.get(actor, {}).get(animo) else [d[animo] for d in self.hr_animo.values() if d.get(animo)]
+        return float(np.mean(vals)) if vals else float(HR_ANIMO[animo])
     def forward(self, x):
         h = x
         for i, (W, b) in enumerate(self.capas):
             h = h @ W.T + b
             if i < len(self.capas) - 1: h = np.maximum(h, 0.0)
         return h
-    def paso(self, animo, t, dur=120.0):
-        y = self.forward(entrada(animo, t % dur, dur, self.hr_prev[animo])); v = dict(zip(SALIDAS, [float(a) for a in y]))
-        hr = max(HR_ANIMO[animo] - 15, min(HR_ANIMO[animo] + 20, 85.0 + 30.0 * v["hr"])); self.hr_prev[animo] = 0.9 * self.hr_prev[animo] + 0.1 * hr
+    def paso(self, animo, t, dur=120.0, actor=None):
+        actor = actor if actor in self.actores else None
+        y = self.forward(entrada(animo, t % dur, dur, self.hr_prev[animo], actor, self.actores)); v = dict(zip(SALIDAS, [float(a) for a in y]))
+        an = self.ancla(animo, actor); hr = max(an - 15, min(an + 20, 85.0 + 30.0 * v["hr"])); self.hr_prev[animo] = 0.9 * self.hr_prev[animo] + 0.1 * hr
         v["hr_bpm"] = hr; v["eda_uS"] = max(0.2, v["eda"] * 10); return v
-    def paquete(self, animo, t, dur=120.0, modo="anclada"):
-        v = self.paso(animo, t, dur); c = lambda a, lo=0.0, hi=1.0: max(lo, min(hi, a))
+    def paquete(self, animo, t, dur=120.0, modo="anclada", actor=None):
+        """actor: 'violeta', 'sanam', 'suri', 'dan'... o None = estilo promedio"""
+        v = self.paso(animo, t, dur, actor); c = lambda a, lo=0.0, hi=1.0: max(lo, min(hi, a))
         p = {"head_yaw": c(v["head_yaw"], -1, 1), "head_pitch": c(v["head_pitch"], -1, 1), "jaw_open": c(v["jaw_open"]), "blink": 1.0 if v["blink"] > 0.6 else 0.0,
              "brow_up": c(v["brow_up"]), "brow_down": c(v["brow_down"]), "mouth_sad": c(v["mouth_sad"]), "mouth_smile": c(v["mouth_smile"]), "eye_yaw": c(v["eye_yaw"], -1, 1), "eye_pitch": c(v["eye_pitch"], -1, 1),
              "emotibit_hr": round(v["hr_bpm"], 1), "emotibit_eda": round(v["eda_uS"], 2), "actor_animo": animo, "water": 0.8}

@@ -15,19 +15,27 @@ from entrenar_movimiento import Red, entrada, MOODS, SALIDAS, PERIODOS
 ap = argparse.ArgumentParser(); ap.add_argument("animo", nargs="?", default=None); ap.add_argument("--segundos", type=float, default=60); ap.add_argument("--modo", default="anclada", choices=["anclada", "cuerpo", "cara"])
 ap.add_argument("--todos", action="store_true"); ap.add_argument("--puerto", type=int, default=9998); ap.add_argument("--seco", action="store_true", help="no manda: imprime estadisticas por animo")
 ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia (TouchDesigner / ballena fisica)")
+ap.add_argument("--actor", default="promedio", help="con el estilo de quien: un actor grabado (violeta, sanam, suri, dan...) o 'promedio'")
 a = ap.parse_args()
 m = torch.load(os.path.join(AQUI, "modelos", "movimiento.pt"), map_location="cpu", weights_only=False)
 red = Red(m["n_in"], m["n_out"]); red.load_state_dict(m["estado"]); red.eval()
+ACTORES = list(m.get("actores", [])); ACTOR = a.actor if a.actor in ACTORES else None   # None = promedio
+if a.actor not in ACTORES and a.actor != "promedio": print(f"   (actor '{a.actor}' no esta en el modelo {ACTORES}: uso el promedio)")
+_hr = m.get("hr_animo") or {}
+def hr_ancla(animo):
+    """pulso mediano del actor elegido en ese animo (o la media de todos los actores)"""
+    vals = [_hr[ACTOR][animo]] if ACTOR and _hr.get(ACTOR, {}).get(animo) else [d[animo] for d in _hr.values() if d.get(animo)]
+    return float(np.mean(vals)) if vals else None
 flags = {"anclada": {"anclada": 1}, "cuerpo": {}, "cara": {"solo_cara": 1}}[a.modo]
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 HR_ANIMO = {"calm": 84, "singing": 88, "playful": 86, "curious": 89, "feeding": 118, "sad": 101, "angry": 87, "alert": 102, "diving": 57, "surfacing": 78}   # medianas medidas al actor
 def generar(animo, segundos, dur_ref=120.0):
-    ai = MOODS.index(animo); hr_prev = float(HR_ANIMO[animo]); t0 = time.time(); ult = 0.0; salida = []; ult_parpadeo = -9.0; prox = 3.0
+    ai = MOODS.index(animo); ancla = hr_ancla(animo) or HR_ANIMO[animo]; hr_prev = float(ancla); t0 = time.time(); ult = 0.0; salida = []; ult_parpadeo = -9.0; prox = 3.0
     for i in range(int(segundos * 30)):
         t = i / 30.0
-        with torch.no_grad(): y = red(torch.tensor([entrada(ai, t % dur_ref, dur_ref, hr_prev)], dtype=torch.float32))[0].numpy()
+        with torch.no_grad(): y = red(torch.tensor([entrada(ai, t % dur_ref, dur_ref, hr_prev, ACTOR, ACTORES)], dtype=torch.float32))[0].numpy()
         v = dict(zip(SALIDAS, [float(x) for x in y]))
-        hr = max(HR_ANIMO[animo] - 15, min(HR_ANIMO[animo] + 20, 85.0 + 30.0 * v["hr"]))   # la red modula alrededor del pulso medido del animo
+        hr = max(ancla - 15, min(ancla + 20, 85.0 + 30.0 * v["hr"]))   # la red modula alrededor del pulso medido del actor en ese animo
         blink = 1.0 if v["blink"] > 0.6 else 0.0
         if t - ult_parpadeo > prox: blink = 1.0   # parpadeo forzado cada 3-5 s si la red no lo da
         if blink and t - ult_parpadeo > 1.5: ult_parpadeo = t; prox = 3.0 + (hash((animo, i)) % 20) / 10.0   # nunca mas de uno cada 1.5 s

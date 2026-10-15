@@ -36,6 +36,9 @@ In TouchDesigner: UDP In DAT on that port → JSON DAT (or a Script DAT with `js
 ## 3. The neural net (performs a mood in the performer's style, no camera needed)
 
 - `yakumama_modelo.py` + `modelos/movimiento_pesos.npz`: NumPy only. `Modelo().paquete(mood, t)` returns a packet.
+  Since 15 Oct the net knows four performers: `Modelo().paquete(mood, t, actor="sanam")` acts in that performer's
+  style (`Modelo().actores` lists the names; `actor=None` is the average of all of them). Each performer's median
+  pulse per mood is in the file too (`Modelo().ancla(mood, actor)`), so the heartbeat anchor follows the style.
 - `modelos/movimiento.pt` (PyTorch) and `entrenar_movimiento.py` if you want to retrain.
 - `modelos/animo_rf.pkl` + `entrenar_animo.py`: the mood recogniser (scikit‑learn) from 2 s of face/hands.
 
