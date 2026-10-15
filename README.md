@@ -152,6 +152,12 @@ la cámara de frente y neutral tomado para que generalice).
 `venv/bin/python reproducir.py playful_001` manda el tramo a Blender con su tiempo original (`--modo cara|fija|cuerpo|anclada`,
 `--velocidad 2`, `--loop`). Cerrar antes el grabador (`q`) para que no manden los dos a la vez.
 
+## Grabar a otra persona
+En el panel (http://localhost:8765) escribir el nombre en **quien actua** y apretar **Cambiar actor** (o arrancar con
+`--actor nombre`). Los tramos se guardan como `<animo>_<actor>_NNN.jsonl` (los míos, sin actor, siguen siendo
+`<animo>_NNN`) y cada línea lleva `"actor"`. Al cambiar de actor se cierra el tramo en curso y hay que tomar el
+**Neutral** con la cara nueva antes de grabar. `entrenar_animo.py` mide además el acierto con un actor entero fuera.
+
 ## Qué se graba
 - `datasets/cara/<ánimo>_NNN.jsonl`: head_yaw, head_pitch, jaw_open, blink, brow_up, brow_down, mouth_sad (y el
   paquete entero en `todo`).

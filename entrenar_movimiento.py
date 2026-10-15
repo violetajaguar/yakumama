@@ -38,7 +38,7 @@ def cargar():
     for f in sorted(os.listdir(os.path.join(AQUI, "datasets", "cara"))):
         if not f.endswith(".jsonl"): continue
         cara = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cara", f))]; cuerpo = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cuerpo", f))]
-        animo = f.rsplit("_", 1)[0]; ai = MOODS.index(animo); t0 = cara[0]["t"]; dur = cara[-1]["t"] - t0; hr_prev = 85.0
+        animo = f.split("_")[0]; ai = MOODS.index(animo); t0 = cara[0]["t"]; dur = cara[-1]["t"] - t0; hr_prev = 85.0
         for i in range(min(len(cara), len(cuerpo))):
             c, b = cara[i], cuerpo[i]
             if i > 0 and c["todo"]["head_yaw"] == cara[i-1]["todo"]["head_yaw"]: continue   # cara perdida: no ensena nada

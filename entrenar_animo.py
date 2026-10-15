@@ -20,7 +20,7 @@ def rasgos(cw, bw, BS):
     hands = np.array([[float(r.get("l_palm_y", 0.5)), float(r.get("r_palm_y", 0.5)), ("l_palm_y" in r) + ("r_palm_y" in r)] for r in bw])
     return np.concatenate([M.mean(0), M.std(0), np.abs(np.diff(M, axis=0)).mean(0), H.std(0), np.abs(np.diff(H, axis=0)).mean(0), hands.mean(0), hands.std(0)])
 if __name__ == "__main__":
-    BS = None; X, y, grp = [], [], []
+    BS = None; X, y, grp, acts = [], [], [], []
     for f in sorted(os.listdir(os.path.join(AQUI, "datasets", "cara"))):
         if not f.endswith(".jsonl"): continue
         cara = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cara", f))]; cuerpo = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cuerpo", f))]
@@ -28,12 +28,14 @@ if __name__ == "__main__":
         n = min(len(cara), len(cuerpo))
         for i in range(0, n - W, W // 2):
             v = rasgos(cara[i:i+W], cuerpo[i:i+W], BS)
-            if v is not None: X.append(v); y.append(MOODS.index(f.rsplit("_", 1)[0])); grp.append(f[:-6])
-    X, y, grp = np.array(X), np.array(y), np.array(grp)
+            if v is not None: X.append(v); y.append(MOODS.index(f.split("_")[0])); grp.append(f[:-6]); acts.append(f.split("_")[1] if f.count("_") == 2 else "violeta")
+    X, y, grp, acts = np.array(X), np.array(y), np.array(grp), np.array(acts)
     rf = lambda: RandomForestClassifier(n_estimators=300, random_state=0, class_weight="balanced")
     bloques = np.array([f"{g}_{i//10}" for i, g in enumerate(grp)])
     p = cross_val_predict(rf(), X, y, groups=bloques, cv=GroupKFold(5)); print(f"ventanas {len(X)} | acierto dentro de sesion (trozos de 20 s fuera): {(p==y).mean():.0%}")
     p2 = cross_val_predict(rf(), X, y, groups=grp, cv=LeaveOneGroupOut()); print(f"acierto con tomas enteras fuera (entre sesiones): {(p2==y).mean():.0%}")
+    if len(set(acts)) > 1:
+        p3 = cross_val_predict(rf(), X, y, groups=acts, cv=LeaveOneGroupOut()); print(f"acierto con un actor entero fuera ({len(set(acts))} actores: {', '.join(sorted(set(acts)))}): {(p3==y).mean():.0%}")
     modelo = rf().fit(X, y)
     pickle.dump({"modelo": modelo, "BS": BS, "moods": MOODS, "W": W}, open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "wb"))
     print("guardado modelos/animo_rf.pkl")

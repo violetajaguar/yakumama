@@ -11,7 +11,7 @@ ANIMOS = ["calm", "singing", "playful", "curious", "feeding", "sad", "angry", "a
 def seg(carp):
     out = {}
     for f in glob.glob(os.path.join(AQUI, "datasets", carp, "*.jsonl")):
-        a = os.path.basename(f).rsplit("_", 1)[0]; out[a] = out.get(a, 0) + segundos(f)
+        a = os.path.basename(f).split("_")[0]; out[a] = out.get(a, 0) + segundos(f)
     return out
 c, b, w = seg("cara"), seg("cuerpo"), seg("cara_webcam")
 print(f"{'animo':10s} {'cara':>6s} {'cuerpo':>7s} {'webcam':>7s}   (segundos; meta 60 por animo)")
