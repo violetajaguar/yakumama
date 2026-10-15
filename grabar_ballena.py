@@ -44,7 +44,7 @@ EN ESTA TERMINAL (una tecla, sin Enter)
   macOS pide permiso de Grabacion de pantalla para la Terminal. Apagado por defecto: --video 1 lo enciende.
   --prueba  sin OAK-D: manda paquetes sinteticos 5 s para probar que todo se escribe
 """
-import os, sys, json, time, socket, threading, runpy, argparse
+import os, sys, json, time, socket, threading, runpy, argparse, re, unicodedata
 AQUI = os.path.dirname(os.path.abspath(__file__)); HUK = os.path.expanduser("~/Desktop/Huk")
 SAL_CARA = os.path.join(AQUI, "datasets", "cara"); SAL_CUERPO = os.path.join(AQUI, "datasets", "cuerpo"); SAL_VIDEO = os.path.join(AQUI, "datasets", "video")
 os.makedirs(SAL_CARA, exist_ok=True); os.makedirs(SAL_CUERPO, exist_ok=True); os.makedirs(SAL_VIDEO, exist_ok=True)
@@ -59,10 +59,14 @@ ap.add_argument("--emotibit-directo", type=int, default=1, help="1 = conectar di
 ap.add_argument("--emotibit-ip", default="", help="IP del EmotiBit (vacio = buscarlo por broadcast)")
 ap.add_argument("--panel", type=int, default=8765, help="puerto del panel web (0 = sin panel)")
 ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia de cada paquete (TouchDesigner, ballena fisica); repetible")
+ap.add_argument("--actor", default="", help="nombre de quien actua; va en el nombre del tramo: <animo>_<actor>_NNN (tambien se cambia en el panel)")
 ap.add_argument("--video", type=int, default=0, help="1 = grabar la ventana de Blender de g a f (apagado por defecto)")
 a = ap.parse_args()
 
-estado = {"animo": None, "grabando": False, "solo_cara": 0, "anclada": False, "cara": [], "cuerpo": [], "t0": time.time(), "n": {}, "ultimo": {}, "seg": {}}
+def nombre_actor(x):
+    """'Ana María' -> 'anamaria': sin acentos, espacios ni guiones bajos (el _ separa animo, actor y numero)."""
+    return re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode().lower())
+estado = {"actor": nombre_actor(a.actor), "animo": None, "grabando": False, "solo_cara": 0, "anclada": False, "cara": [], "cuerpo": [], "t0": time.time(), "n": {}, "ultimo": {}, "seg": {}}
 def segundos(ts):
     """segundos reales de una lista de tiempos t (sin contar huecos de pausa > 0.5 s). No supone 30 paquetes/s."""
     return sum(b - a for a, b in zip(ts, ts[1:]) if 0 <= b - a < 0.5)
@@ -153,13 +157,14 @@ def calibrar(pkt):
 def guardar():
     with lock:
         if not estado["animo"] or not estado["cara"]: estado["cara"] = []; estado["cuerpo"] = []; video_terminar(None); return
-        an = estado["animo"]; k = len([f for f in os.listdir(SAL_CARA) if f.startswith(an + "_")]) + 1
-        video_terminar(os.path.join(SAL_VIDEO, f"{an}_{k:03d}.mov"))
+        an = estado["animo"]; pref = f"{an}_{estado['actor']}_" if estado["actor"] else f"{an}_"   # <animo>_<actor>_NNN o <animo>_NNN
+        k = len([f for f in os.listdir(SAL_CARA) if f.startswith(pref)]) + 1; nombre = f"{pref}{k:03d}"
+        video_terminar(os.path.join(SAL_VIDEO, f"{nombre}.mov"))
         for carpeta, recs in ((SAL_CARA, estado["cara"]), (SAL_CUERPO, estado["cuerpo"])):
-            with open(os.path.join(carpeta, f"{an}_{k:03d}.jsonl"), "w") as fh:
+            with open(os.path.join(carpeta, f"{nombre}.jsonl"), "w") as fh:
                 for r in recs: fh.write(json.dumps(r, ensure_ascii=False) + "\n")
         n = len(estado["cara"]); d = segundos([r["t"] for r in estado["cara"]]); estado["seg"][an] = estado["seg"].get(an, 0) + d
-        print(f"\n   guardado {an}_{k:03d}.jsonl en cara/ y cuerpo/ ({n} paquetes, {d:.0f} s)")
+        print(f"\n   guardado {nombre}.jsonl en cara/ y cuerpo/ ({n} paquetes, {d:.0f} s)")
         estado["cara"] = []; estado["cuerpo"] = []
 
 def resumen():
@@ -177,8 +182,8 @@ def registrar(pkt, crudo):
     cara = {k: pkt[k] for k in pkt if k in CARA or k.startswith("face_")}
     cuerpo = {k: pkt[k] for k in pkt if k not in cara and k not in ("t", "mocap_mode")}
     with lock:
-        estado["cara"].append({"t": t, "animo": estado["animo"], **vt, **cara, "todo": crudo})
-        estado["cuerpo"].append({"t": t, "animo": estado["animo"], **vt, **cuerpo, **emotibit_vivo()})
+        estado["cara"].append({"t": t, "animo": estado["animo"], "actor": estado["actor"], **vt, **cara, "todo": crudo})
+        estado["cuerpo"].append({"t": t, "animo": estado["animo"], "actor": estado["actor"], **vt, **cuerpo, **emotibit_vivo()})
 
 # --- EmotiBit: OSC (sin dependencias) desde el EmotiBit Oscilloscope. Ultimo valor por senal en `emotibit`.
 import struct
@@ -446,7 +451,7 @@ def estado_json():
     cara = bool(u) and u.get("head_yaw") is not None and estado.get("_yaw_prev") != u.get("head_yaw")
     estado["_yaw_prev"] = u.get("head_yaw") if u else None
     return {"modo": ("cuerpo", "solo cara", "solo cara, cabeza fija")[estado["solo_cara"]] + (" + anclada" if estado["anclada"] else ""),
-            "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
+            "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
             "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
             "emotibit": {"hz": round(_emo["hz"]), "hr": emotibit.get("emotibit_hr"), "eda": emotibit.get("emotibit_eda"), "therm": emotibit.get("emotibit_therm")} if emotibit_vivo() else None,
             "valores": {k: u.get(k) for k in ("head_yaw", "head_pitch", "jaw_open", "blink", "brow_up", "mouth_smile", "tongue_out")} if u else {}}
@@ -459,6 +464,7 @@ h1{font-size:20px;margin:0 0 8px}.row{display:flex;flex-wrap:wrap;gap:8px;margin
 <h1>Yakumama · grabador</h1>
 <div class=st id=st></div>
 <div class=row id=animos></div>
+<div class=row><input id=actor placeholder="quien actua (nombre)" style="border:0;border-radius:12px;padding:14px 16px;font-size:17px;background:var(--card);color:var(--fg);min-width:200px"><button class=b onclick="setActor()">Cambiar actor</button></div>
 <div class=row><button class="b rec" id=rec onclick="t('g')">● GRABAR</button><button class=b onclick="t('f')">■ Guardar tramo</button><button class=b onclick="t('n')">Neutral (mirar a la camara)</button></div>
 <div class=row><button class=b id=modo onclick="t('c')">Modo: …</button><button class=b id=ancla onclick="t('a')">Anclada</button><button class=b onclick="t('t')">Guardar cuadro</button><button class="b off" onclick="if(confirm('Guardar y salir?'))t('q')">Salir</button></div>
 <div class=st style="margin-top:10px">
@@ -486,13 +492,16 @@ setInterval(sen,500);
 const A={"1":"calm","2":"singing","3":"playful","4":"curious","5":"feeding","6":"sad","7":"angry","8":"alert","9":"diving","0":"surfacing"};
 const an=document.getElementById('animos');for(const k in A){const b=document.createElement('button');b.className='b';b.id='a'+A[k];b.textContent=A[k];b.onclick=()=>t(k);an.appendChild(b)}
 async function t(c){await fetch('/tecla?c='+c,{method:'POST'});setTimeout(est,150)}
+async function setActor(){const n=document.getElementById('actor').value;await fetch('/actor?nombre='+encodeURIComponent(n),{method:'POST'});setTimeout(est,150)}
 function f(v,d=2){return v==null?'—':(+v).toFixed(d)}
 async function est(){try{const s=await (await fetch('/estado')).json();
  for(const k in A){document.getElementById('a'+A[k]).className='b'+(s.animo==A[k]?' on':'')}
+ if(document.activeElement.id!='actor')document.getElementById('actor').value=s.actor||'';
  const r=document.getElementById('rec');r.textContent=s.grabando?'■ PAUSAR  '+Math.round(s.tramo_s)+' s':'● GRABAR';r.style.background=s.grabando?'#ff4d5a':'#2a3a4a';
  document.getElementById('modo').textContent='Modo: '+s.modo;document.getElementById('ancla').className='b'+(s.modo.includes('anclada')?' on':'');
  const e=s.emotibit;const v=s.valores||{};
  document.getElementById('st').innerHTML=
+  `<div class=k><b>Actor</b><span class="${s.actor?'ok':'bad'}">${s.actor||'sin nombre'}</span></div>`+
   `<div class=k><b>Cara</b><span class="${s.cara?'ok':'bad'}">${s.cara?'vista':'NO VISTA'}</span></div>`+
   `<div class=k><b>La ballena ve</b><span class="${s.detectado?'ok':''}">${s.detectado||'—'}</span>${s.prob&&s.detectado?'<small class=small>'+Math.round((s.prob[s.detectado]||0)*100)+' %</small>':''}</div>`+
   `<div class=k><b>Neutral</b><span class="${s.neutral?'ok':'bad'}">${s.neutral?'tomado':'falta: Neutral'}</span></div>`+
@@ -520,6 +529,11 @@ def panel_web(puerto):
         def do_POST(self):
             u = urlparse(self.path); c = parse_qs(u.query).get("c", [""])[0].lower()
             if u.path == "/tecla" and len(c) == 1 and c in TECLAS + "gfnrcatq": tecla(c); self._send(200, "{}")
+            elif u.path == "/actor":   # cambiar de actor: cierra el tramo en curso y pide neutral nuevo
+                nombre = nombre_actor(parse_qs(u.query).get("nombre", [""])[0])
+                if estado["grabando"]: guardar(); estado["grabando"] = False
+                estado["actor"] = nombre; cal["base"] = None; cal["muestras"] = None
+                print(f"   ACTOR: {nombre or '(sin nombre)'} - tomar NEUTRAL con esta persona antes de grabar"); self._send(200, "{}")
             else: self._send(400, "{}")
     try:
         srv = HTTPServer(("127.0.0.1", puerto), H); print(f"   PANEL: http://localhost:{puerto}"); srv.serve_forever()
