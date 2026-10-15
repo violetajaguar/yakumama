@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-13t boca del animo completa tambien con actor"
+VERSION = "2026-10-14u ruta de sonidos portable"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -38,7 +38,7 @@ SMOOTH = 0.15
 # ============================================================
 # SOUND LIBRARY
 # ============================================================
-SOUNDS_DIR = "/Users/jaguar/Desktop/Huk/whale sound"
+SOUNDS_DIR = os.path.expanduser("~/Desktop/Huk/whale sound")   # misma ruta en cualquier Mac
 
 SOUNDS = {
     "singing":   ["singing.wav"],
