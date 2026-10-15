@@ -66,6 +66,8 @@ what the performer did at that instant, head, mouth, blinks, brows, smile, gaze,
 conductance (18 channels, 56 000 frames, PyTorch on the Apple GPU). `generar_animo.py <mood>` then runs the net
 and feeds the whale those channels as if the performer were there: she acts the mood on her own, in the performer's
 style, over the NOAA body behaviour. In Blender: choose a mood under Comportamiento and press **Actuar con la red**.
+Since the third session the net also takes **who is acting** as an input: in Blender, the field *Estilo de* next to
+**Actuar con la red** takes a performer's name (violeta, sanam, suri, dan) or `promedio`, the average of all of them.
 The mood recogniser (`entrenar_animo.py`, random forest on 2‑second windows) is the other learned piece.
 
 ## Hardware
@@ -75,9 +77,9 @@ depthai, mediapipe, scikit‑learn and PyTorch.
 
 ## Status (October 2026)
 
-Two sessions recorded: 63 minutes over the ten moods, 26 minutes with valid biometrics. Within a session the moods
-are clearly separable from the face (≈ 75 %); across sessions not yet, so a third session and more performers are
-next. Then a sequence model, in the spirit of the llama trainers, to learn the whale's motion from the data.
+Three sessions, four performers, 102 minutes over the ten moods (39 minutes with valid biometrics). Within a session
+the moods are separable from the face (≈ 70 %); with one performer held out the recogniser reaches 24 % (chance 10 %),
+up from 15 % with two performers. More performers, with the same spoken whale instructions, are the next step.
 
 ---
 

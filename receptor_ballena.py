@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-14u ruta de sonidos portable"
+VERSION = "2026-10-15v la red actua con el estilo de un actor o el promedio"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -121,6 +121,7 @@ class BallenaProps(bpy.types.PropertyGroup):
     toma: bpy.props.EnumProperty(name="Toma", items=_tomas_items, description="Tramo grabado en datasets/ (cara + cuerpo)")
     modo_toma: bpy.props.EnumProperty(name="Modo", items=[("anclada", "Anclada", "cuerpo entero, sin viajar"), ("cuerpo", "Cuerpo", "cuerpo entero, viaja"), ("cara", "Solo cara", "cuerpo quieto"), ("fija", "Cara, cabeza fija", "solo boca, parpadeo y cejas")], default="anclada")
     loop_toma: bpy.props.BoolProperty(name="Repetir", default=False)
+    actor_red: bpy.props.StringProperty(name="Estilo de", default="promedio", description="Con el estilo de que actor actua la red: violeta, sanam, suri, dan... o promedio")
     comportamiento: bpy.props.EnumProperty(name="Comportamiento", default="auto", description="Posicion y movimiento del cuerpo, de las fotos de NOAA (referencias/noaa_comportamientos)", items=[
         ("auto", "Automático (ánimo)", "el animo viene del actor, los colores o el cerebro"),
         ("calm", "calm · logging", "quieta en la superficie, respiracion lenta"),
@@ -179,7 +180,7 @@ class BALLENA_OT_actuar(bpy.types.Operator):
         import subprocess
         p = context.scene.ballena; ns = bpy.app.driver_namespace; bpy.ops.ballena.parar()
         animo = p.comportamiento if p.comportamiento != "auto" else None
-        cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "generar_animo.py")] + ([animo] if animo else ["--todos"]) + ["--segundos", "60" if animo else "30", "--modo", p.modo_toma if p.modo_toma in ("anclada", "cuerpo", "cara") else "anclada"]
+        cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "generar_animo.py")] + ([animo] if animo else ["--todos"]) + ["--segundos", "60" if animo else "30", "--modo", p.modo_toma if p.modo_toma in ("anclada", "cuerpo", "cara") else "anclada"] + ["--actor", (p.actor_red or "promedio").strip().lower()]
         p.comportamiento = "auto"
         ns["_ballena_reproductor"] = subprocess.Popen(cmd, cwd=YAKUMAMA, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.report({'INFO'}, f"actuando {animo or 'los diez'}"); return {'FINISHED'}
@@ -261,6 +262,7 @@ class BALLENA_PT_panel(bpy.types.Panel):
         col.separator()
         col.label(text="Comportamiento (fotos NOAA)")
         col.prop(p, "comportamiento", text="")
+        col.prop(p, "actor_red")
         col.operator("ballena.actuar", text="Actuar con la red (lo aprendido del actor)", icon='OUTLINER_OB_ARMATURE')
         col.separator()
         col.label(text="Mouth + Tongue")
@@ -321,7 +323,7 @@ class BALLENA_PT_panel(bpy.types.Panel):
 _guardado = {}
 try:   # al re-ejecutar el script, re-registrar BallenaProps borra los ajustes del panel: se guardan y se restauran
     _p = bpy.context.scene.ballena
-    _guardado = {k: getattr(_p, k) for k in ("mouth_scale", "tongue_scale", "auto_turn_scale", "follow_hand", "color_track", "color_follow", "use_brain", "virtual_joy_x", "virtual_joy_y", "music_volume", "sound_volume", "toma", "modo_toma", "loop_toma", "comportamiento")}
+    _guardado = {k: getattr(_p, k) for k in ("mouth_scale", "tongue_scale", "auto_turn_scale", "follow_hand", "color_track", "color_follow", "use_brain", "virtual_joy_x", "virtual_joy_y", "music_volume", "sound_volume", "toma", "modo_toma", "loop_toma", "actor_red", "comportamiento")}
 except Exception: pass
 for cls in (BALLENA_PT_panel, BALLENA_OT_reset_vjoy, BALLENA_OT_test_sound, BALLENA_OT_turbine, BALLENA_OT_reproducir, BALLENA_OT_parar, BALLENA_OT_actuar, BallenaProps):
     try: bpy.utils.unregister_class(cls)

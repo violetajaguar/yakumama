@@ -115,29 +115,33 @@ def video_terminar(destino=None):
 CAL_KEYS = ("head_yaw", "head_pitch", "brow_up", "brow_down", "mouth_sad", "jaw_open", "blink")
 cal = {"base": None, "muestras": None}
 def clamp(v, lo, hi): return max(lo, min(hi, v))
-_parp = {"base": 0.0, "pico": 0.25, "hold": 0, "alto": 0}
+_parp = {"base": 0.0, "pico": 0.25, "hold": 0, "alto": 0, "t": None, "dt": 0.1}
 _pc = {"base": None}
 def parpadeo_reiniciar():
     """otra persona: olvidar los niveles de ojos abiertos aprendidos."""
-    _parp.update(base=0.0, pico=0.25, hold=0, alto=0); _pc["base"] = None
+    _parp.update(base=0.0, pico=0.25, hold=0, alto=0, t=None); _pc["base"] = None
 def parpadeo(pkt):
     """Dos fuentes, se toma la mayor: el EAR de ballena3 (cada cuadro, debil: 0.1-0.3) y el eyeBlink de MediaPipe
-    (blink_bs, mas lento). Cada una se mide sobre el nivel de ojos abiertos de ESTA persona (minimo lento): hay caras
-    que abiertas dan eyeBlink 0.6 y nunca llegarian a un umbral fijo. Un cierre se sostiene 5 cuadros; un nivel
-    constante (>12 cuadros) no es parpadeo sino el nuevo nivel de abiertos."""
+    (blink_bs, mas lento). Cada una se mide sobre el nivel de ojos abiertos de ESTA persona (minimo lento) y ademas
+    tiene que saltar un minimo absoluto (EAR 0.2, eyeBlink 0.3): hay caras que abiertas dan eyeBlink 0.5-0.7 y
+    oscilan, y con un umbral relativo parpadeaban todo el tiempo. Un cierre se sostiene 0.15 s (en cuadros segun el
+    ritmo real: a 10 cuadros/s son 1-2, no 5); un nivel constante (> 1 s) no es parpadeo sino el nuevo nivel de abiertos."""
     if "blink" not in pkt: return pkt
+    ahora = time.time()
+    if _parp["t"]: _parp["dt"] = 0.9 * _parp["dt"] + 0.1 * min(0.5, ahora - _parp["t"])
+    _parp["t"] = ahora; fps = 1.0 / max(0.01, _parp["dt"])
     b = float(pkt["blink"])
     _parp["base"] = min(b, _parp["base"] + 0.002)                      # ojos abiertos: sube despacio, baja al toque
-    _parp["pico"] = max(_parp["pico"] * 0.998, b, _parp["base"] + 0.15)   # pico reciente, al menos 0.15 sobre la base
-    n = clamp((b - _parp["base"]) / (_parp["pico"] - _parp["base"]), 0, 1)
+    _parp["pico"] = max(_parp["pico"] * 0.998, b, _parp["base"] + 0.2)    # pico reciente, al menos 0.2 sobre la base
+    n = clamp((b - _parp["base"]) / (_parp["pico"] - _parp["base"]), 0, 1) if b - _parp["base"] >= 0.2 else 0.0
     bs = None
     if "blink_bs" in pkt:
         bs = float(pkt["blink_bs"]); _pc["base"] = bs if _pc["base"] is None else min(bs, _pc["base"] + 0.002)
-        n = max(n, clamp((bs - _pc["base"]) / max(0.2, 0.9 - _pc["base"]), 0, 1))   # cerrado del todo: 0.9 o base+0.2
+        if bs - _pc["base"] >= 0.3: n = max(n, clamp((bs - _pc["base"]) / max(0.3, 0.9 - _pc["base"]), 0, 1))
     _parp["alto"] = _parp["alto"] + 1 if n > 0.5 else 0      # cuadros seguidos "cerrado"
-    if _parp["alto"] == 1: _parp["hold"] = 5                   # arranca un cierre: parpadeo, se sostiene 5 cuadros
-    if _parp["alto"] > 12:                                     # sigue cerrado: no es parpadeo, es el nuevo nivel de abiertos
-        _parp["base"] = b; _parp["pico"] = b + 0.15; _parp["alto"] = 0; _parp["hold"] = 0; n = 0.0
+    if _parp["alto"] == 1: _parp["hold"] = max(1, round(0.15 * fps))   # arranca un cierre: se sostiene 0.15 s
+    if _parp["alto"] > max(3, round(1.0 * fps)):                # sigue cerrado mas de 1 s: nuevo nivel de abiertos
+        _parp["base"] = b; _parp["pico"] = b + 0.2; _parp["alto"] = 0; _parp["hold"] = 0; n = 0.0
         if bs is not None: _pc["base"] = bs
     if _parp["hold"] > 0: _parp["hold"] -= 1; n = 1.0
     return {**pkt, "blink": round(n, 4)}
@@ -519,11 +523,12 @@ const A={"1":"calm","2":"singing","3":"playful","4":"curious","5":"feeding","6":
 const an=document.getElementById('animos');for(const k in A){const b=document.createElement('button');b.className='b';b.id='a'+A[k];b.textContent=A[k];b.onclick=()=>t(k);an.appendChild(b)}
 async function t(c){await fetch('/tecla?c='+c,{method:'POST'});setTimeout(est,150)}
 async function setAuto(){const v=document.getElementById('val').value,a=document.getElementById('act').value;await fetch('/auto?valencia='+v+'&activacion='+a,{method:'POST'});setTimeout(est,150)}
+let ACTOR_VISTO='';
 async function setActor(){const n=document.getElementById('actor').value;await fetch('/actor?nombre='+encodeURIComponent(n),{method:'POST'});setTimeout(est,150)}
 function f(v,d=2){return v==null?'—':(+v).toFixed(d)}
 async function est(){try{const s=await (await fetch('/estado')).json();
  for(const k in A){document.getElementById('a'+A[k]).className='b'+(s.animo==A[k]?' on':'')}
- if(document.activeElement.id!='actor')document.getElementById('actor').value=s.actor||'';
+ if(document.activeElement.id!='actor'&&ACTOR_VISTO!==(s.actor||'')){document.getElementById('actor').value=s.actor||'';ACTOR_VISTO=s.actor||''}   // solo cuando cambia en el grabador: no borrar lo que se esta escribiendo
  const au=s.auto||{};document.getElementById('auto').textContent=au.valencia==null?'falta para esta toma':'guardado: '+au.valencia+' / '+au.activacion;
  const r=document.getElementById('rec');r.textContent=s.grabando?'■ PAUSAR  '+Math.round(s.tramo_s)+' s':'● GRABAR';r.style.background=s.grabando?'#ff4d5a':'#2a3a4a';
  document.getElementById('modo').textContent='Modo: '+s.modo;document.getElementById('ancla').className='b'+(s.modo.includes('anclada')?' on':'');
