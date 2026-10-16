@@ -58,7 +58,7 @@ class Red(nn.Module):
         self.net = nn.Sequential(nn.Linear(n_in, h), nn.ReLU(), nn.Dropout(0.05), nn.Linear(h, h), nn.ReLU(), nn.Dropout(0.05), nn.Linear(h, h), nn.ReLU(), nn.Linear(h, h // 2), nn.ReLU(), nn.Linear(h // 2, n_out))
     def forward(self, x): return self.net(x)
 def cargar():
-    archivos = sorted(f for f in os.listdir(os.path.join(AQUI, "datasets", "cara")) if f.endswith(".jsonl"))
+    archivos = sorted(f for f in os.listdir(os.path.join(AQUI, "datasets", "cara")) if f.endswith(".jsonl") and "_ravdess" not in f)   # RAVDESS: caras sin manos ni pulso, no son estilos de la ballena
     actores = sorted(set(actor_de(f) for f in archivos)); X, Y, G, A = [], [], [], []
     hr_animo = {a: {m: [] for m in MOODS} for a in actores}   # pulso mediano de cada actor en cada animo (ancla para generar)
     for f in archivos:
