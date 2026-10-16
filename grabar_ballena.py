@@ -422,6 +422,7 @@ def parecido(x):
 ventana = {"lineas": [], "poema": "", "poema_t": 0.0, "ocupado": False, "ultimo_gatillo": 0.0}
 FRASES = {"llega": ["alguien se acerca. todavia no se quien.", "una cara nueva en la costra.", "te veo llegar. me quedo quieta."],
           "conocida": ["ya viniste. te recuerdo por los huesos de la cara.", "volviste. la sal no olvida.", "te conozco. la otra vez te conteste como {estilo_previo}."],
+          "nombre": ["{nombre}. te conozco por tu nombre.", "volviste, {nombre}.", "{nombre}, otra vez frente a mi."],
           "estilo": ["te mueves como {estilo}. te contesto con su cuerpo.", "en vos hay algo de {estilo}. lo uso.", "te parezco {estilo}. no lo elegiste vos."],
           "animo": ["te leo {animo}.", "ahora te veo {animo}. cambio.", "hay {animo} en tu cara. lo tomo."],
           "ropa": ["me gusta tu color. me lo quedo un rato.", "tu ropa tiene agua adentro. me tino.", "ese color lo quiero. lo llevo puesto."],
@@ -429,7 +430,8 @@ FRASES = {"llega": ["alguien se acerca. todavia no se quien.", "una cara nueva e
 ANIMO_ES = {"calm": "calma", "singing": "canto", "playful": "juego", "curious": "curiosidad", "feeding": "hambre", "sad": "tristeza", "angry": "rabia", "alert": "alerta", "diving": "hondo", "surfacing": "aire"}
 def ventana_evento(gatillo):
     import random
-    datos = {"estilo": reconocedor.get("estilo") or "nadie", "estilo_previo": visita.get("estilo_previo") or "nadie", "animo": ANIMO_ES.get(reconocedor.get("animo") or "", "nada")}
+    datos = {"estilo": reconocedor.get("estilo") or "nadie", "estilo_previo": visita.get("estilo_previo") or "nadie", "animo": ANIMO_ES.get(reconocedor.get("animo") or "", "nada"), "nombre": visita.get("nombre") or ""}
+    if gatillo == "conocida" and visita.get("nombre"): gatillo = "nombre"
     frase = random.choice(FRASES.get(gatillo, ["..."])).format(**datos)
     ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": frase, "gatillo": gatillo}])[-6:]
     if gatillo in ("llega", "conocida", "ropa") or (gatillo == "animo" and time.time() - ventana["poema_t"] > 45):
@@ -440,7 +442,7 @@ def ventana_poema(gatillo, datos):
     ventana["ocupado"] = True
     try:
         sys.path.insert(0, HUK); import yakumama_alma as A
-        que = {"llega": "una persona nueva se paro frente a vos y te mira", "conocida": f"volvio alguien que ya vino; la otra vez le contestaste como {datos['estilo_previo']}",
+        que = {"llega": "una persona nueva se paro frente a vos y te mira", "conocida": f"volvio alguien que ya vino; la otra vez le contestaste como {datos['estilo_previo']}", "nombre": f"volvio {datos['nombre']}, que ya vino {mem.personas.get(visita.get('id') or '', {}).get('visitas', 0)} veces; la conoces por su nombre",
                "ropa": "te gusta el color de la ropa de quien tienes enfrente y te tines de ese color", "animo": f"en la cara de quien te mira lees {datos['animo']}"}[gatillo]
         r = _pose.get("ropa") or {}; cuerpo = _pose.get("ultimo") or {}
         snap = {"water": 0.7, "scene_color": "the colour of their clothes" if gatillo == "ropa" else "gray", "scene_bright": r.get("brillo", 0.5), "humidity": 40, "l_palm_x": 0.5}
@@ -496,7 +498,7 @@ def encuentro(pkt):
     ahora = time.time(); cara = bool(reconocedor["prob"])
     if cara:
         if not visita["activa"]:
-            visita.update(activa=True, t0=ahora, regs=[], firmas=[], id=None, conocida=None, dist=None, estilo_previo=None, ropa_decidida=False, ropa=None); print("   visita: alguien llego"); ventana_evento("llega")
+            visita.update(activa=True, t0=ahora, regs=[], firmas=[], id=None, conocida=None, dist=None, estilo_previo=None, nombre=None, ropa_decidida=False, ropa=None); print("   visita: alguien llego"); ventana_evento("llega")
         visita["ultima_cara"] = ahora
         if ahora - visita["t0"] > 3.0: ropa_decidir()
         r = {"t": round(ahora - visita["t0"], 3), **{k: pkt[k] for k in CAMPOS_VISITA if k in pkt}, **{k: v for k, v in pkt.items() if k.startswith("face_") or k.startswith("actor_") or k.startswith("parecido_")}}
@@ -519,7 +521,8 @@ def memoria_reconocer():
     if f is None: return
     pid, d = mem.buscar(f); visita["dist"] = round(d, 4)
     if pid:
-        p = mem.personas[pid]; visita.update(id=pid, conocida=True, estilo_previo=p.get("estilo")); ventana_evento("conocida")
+        p = mem.personas[pid]; visita.update(id=pid, conocida=True, estilo_previo=p.get("estilo"), nombre=p.get("nombre")); ventana_evento("conocida")
+        if p.get("nombre") and _pr and p["nombre"] in _pr["actores"]: reconocedor["estilo"] = p["nombre"]; reconocedor["estilo_n"] = 99; print(f"   es {p['nombre']}: le contesta con su propio estilo")
         print(f"   TE CONOZCO: {pid}, visita numero {p['visitas'] + 1}, la otra vez le conteste como {p.get('estilo') or 'nadie'} (distancia {d:.3f})")
         if p.get("estilo") and reconocedor["estilo"] is None: reconocedor["estilo"] = p["estilo"]; reconocedor["estilo_n"] = 99   # la saluda con su estilo de la otra vez
     else: visita.update(id="nueva", conocida=False); print(f"   cara nueva (la mas parecida esta a {d:.3f}; umbral {_memoria.UMBRAL})")
@@ -716,7 +719,7 @@ def estado_json():
             "auto": estado["auto"], "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
             "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
             "cuerpo": _pose["ultimo"] or None, "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"], "sin_emotibit": not (a.emotibit or a.emotibit_directo),
-            "memoria": {"aprender": bool(a.visitas) and not estado["actor"], "activa": visita["activa"], "id": visita["id"], "conocida": visita["conocida"], "dist": visita["dist"],
+            "memoria": {"aprender": bool(a.visitas) and not estado["actor"], "activa": visita["activa"], "id": visita["id"], "conocida": visita["conocida"], "dist": visita["dist"], "nombre": visita.get("nombre"),
                         "visitas": (mem.personas.get(visita["id"], {}).get("visitas", 0) + 1) if visita["conocida"] else None, "estilo_previo": visita["estilo_previo"],
                         "guardadas": visita["guardadas"], "personas": len(mem.personas)},
             "emotibit": {"hz": round(_emo["hz"]), "hr": emotibit.get("emotibit_hr"), "eda": emotibit.get("emotibit_eda"), "therm": emotibit.get("emotibit_therm")} if emotibit_vivo() else None,
@@ -730,7 +733,7 @@ h1{font-size:20px;margin:0 0 8px}.row{display:flex;flex-wrap:wrap;gap:8px;margin
 <h1>Yakumama · grabador</h1>
 <div class=st id=st></div>
 <div class=row id=animos></div>
-<div class=row><input id=actor placeholder="quien actua (nombre)" style="border:0;border-radius:12px;padding:14px 16px;font-size:17px;background:var(--card);color:var(--fg);min-width:200px"><button class=b onclick="setActor()">Cambiar actor</button><button class="b off" onclick="if(confirm('Olvidar a la persona que esta ahora?'))fetch('/olvidar',{method:'POST'})">Olvidar a esta persona</button></div>
+<div class=row><input id=actor placeholder="quien actua (nombre)" style="border:0;border-radius:12px;padding:14px 16px;font-size:17px;background:var(--card);color:var(--fg);min-width:200px"><button class=b onclick="setActor()">Cambiar actor</button><button class="b off" onclick="if(confirm('Olvidar a la persona que esta ahora?'))fetch('/olvidar',{method:'POST'})">Olvidar a esta persona</button><button class=b onclick="const n=prompt('Como se llama la persona que esta ahora?');if(n)fetch('/nombrar?nombre='+encodeURIComponent(n),{method:'POST'})">Ponerle nombre</button></div>
 <div class=k style="margin:10px 0"><b>Antes de grabar: ¿cómo te sentís ahora? (0-10)</b>
  <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:6px">
   <label style="flex:1;min-width:220px">desagradable ← <b style="display:inline;text-transform:none">agradable</b> → <span id=vv>5</span><br><input type=range id=val min=0 max=10 value=5 style="width:100%" oninput="document.getElementById('vv').textContent=this.value"></label>
@@ -779,7 +782,7 @@ async function est(){try{const s=await (await fetch('/estado')).json();
   `<div class=k><b>Actor</b><span class="${s.actor?'ok':'bad'}">${s.actor||'sin nombre'}</span></div>`+
   `<div class=k><b>Cara</b><span class="${s.cara?'ok':'bad'}">${s.cara?'vista':'NO VISTA'}</span></div>`+
   `<div class=k><b>La ballena ve</b><span class="${s.detectado?'ok':''}">${s.detectado||'—'}</span>${s.prob&&s.detectado?'<small class=small>'+Math.round((s.prob[s.detectado]||0)*100)+' %</small>':''}</div>`+
-  `<div class=k><b>Memoria</b><span class="${s.memoria&&s.memoria.conocida?'ok':''}">${!s.memoria||!s.memoria.aprender?'apagada':(!s.memoria.activa?'nadie':(s.memoria.conocida?'te conozco · visita '+s.memoria.visitas+(s.memoria.estilo_previo?' · estilo '+s.memoria.estilo_previo:''):(s.memoria.id=='nueva'?'cara nueva':'mirando…')))}</span><small class=small>${s.memoria?s.memoria.personas+' personas · '+s.memoria.guardadas+' visitas guardadas hoy':''}</small></div>`+
+  `<div class=k><b>Memoria</b><span class="${s.memoria&&s.memoria.conocida?'ok':''}">${!s.memoria||!s.memoria.aprender?'apagada':(!s.memoria.activa?'nadie':(s.memoria.conocida?'te conozco · '+(s.memoria.nombre?s.memoria.nombre+' · ':'')+'visita '+s.memoria.visitas+(s.memoria.estilo_previo?' · estilo '+s.memoria.estilo_previo:''):(s.memoria.id=='nueva'?'cara nueva':'mirando…')))}</span><small class=small>${s.memoria?s.memoria.personas+' personas · '+s.memoria.guardadas+' visitas guardadas hoy':''}</small></div>`+
   `<div class=k><b>Se parece a</b><span class="${s.estilo?'ok':''}">${s.estilo||'—'}</span>${s.estilo_prob&&s.estilo?'<small class=small>'+Math.round((s.estilo_prob[s.estilo]||0)*100)+' %</small>':''}</div>`+
   `<div class=k><b>Neutral</b><span class="${s.neutral?'ok':'bad'}">${s.neutral?'tomado':'falta: Neutral'}</span></div>`+
   `<div class=k><b>Blender</b><span class="${s.blender?'ok':'bad'}">${s.blender?'recibiendo':'sin receptor'}</span></div>`+
@@ -815,6 +818,15 @@ def panel_web(puerto):
                 except ValueError: self._send(400, "{}"); return
                 print(f"   autoinforme: valencia {estado['auto']['valencia']}/10  activacion {estado['auto']['activacion']}/10"); self._send(200, "{}")
             elif u.path == "/olvidar": memoria_olvidar(); self._send(200, "{}")
+            elif u.path == "/nombrar":   # ponerle nombre a la persona que esta ahora (conocida o nueva: se registra en el acto)
+                nombre = nombre_actor(parse_qs(u.query).get("nombre", [""])[0])
+                if not nombre or not visita["activa"]: self._send(400, "{}"); return
+                pid = visita["id"] if visita["conocida"] else None
+                if not pid:
+                    f = _memoria.firma_encuentro(visita["firmas"])
+                    if f is None: self._send(400, "{}"); return
+                    pid = mem.registrar(f); visita.update(id=pid, conocida=True)
+                mem.nombrar(pid, nombre); visita["nombre"] = nombre; print(f"   {pid} se llama {nombre}"); ventana_evento("nombre"); self._send(200, "{}")
             elif u.path == "/actor":   # cambiar de actor: cierra el tramo en curso y pide neutral nuevo
                 nombre = nombre_actor(parse_qs(u.query).get("nombre", [""])[0])
                 if estado["grabando"]: guardar(); estado["grabando"] = False
