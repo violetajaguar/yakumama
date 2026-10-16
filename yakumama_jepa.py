@@ -30,6 +30,8 @@ class Jepa:
         h = _gelu(_conv1d(h, self.w[f"{pref}.c1.weight"], self.w[f"{pref}.c1.bias"], 1, 2))
         h = _gelu(_conv1d(h, self.w[f"{pref}.c2.weight"], self.w[f"{pref}.c2.bias"], 2, 2))
         h = _gelu(_conv1d(h, self.w[f"{pref}.c3.weight"], self.w[f"{pref}.c3.bias"], 2, 1))
+        if f"{pref}.fc.weight" in self.w and self.w[f"{pref}.fc.weight"].shape[1] == h.shape[0] * 6:   # pool adaptativo a 6 posiciones (LeJEPA)
+            L = h.shape[1]; h = np.stack([h[:, (i * L) // 6:max((i * L) // 6 + 1, ((i + 1) * L + 5) // 6)].mean(1) for i in range(6)], 1)
         return h.flatten() @ self.w[f"{pref}.fc.weight"].T + self.w[f"{pref}.fc.bias"]
     def _mlp(self, pref, v, capas):
         for i in capas: v = v @ self.w[f"{pref}.net.{i}.weight"].T + self.w[f"{pref}.net.{i}.bias"]; v = _gelu(v) if i != capas[-1] else v
