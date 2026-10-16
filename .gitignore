@@ -4,3 +4,4 @@ __pycache__/
 .DS_Store
 videos_comportamientos/*.mp4
 videos_comportamientos/**/*.mp4
+modelos/jepa_datos.npz

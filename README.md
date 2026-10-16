@@ -84,6 +84,21 @@ Since the third session the net also takes **who is acting** as an input: in Ble
 **Actuar con la red** takes a performer's name (violeta, sanam, suri, dan) or `promedio`, the average of all of them.
 The mood recogniser (`entrenar_animo.py`, random forest on 2‑second windows) is the other learned piece.
 
+## The JEPA (16 Oct, first version)
+
+`jepa_datos.py` joins everything into one 24‑channel sequence per take at 12 fps with a mask: the four performers' faces,
+hands and pulse (113 min), the llama session with Violeta's torso (35 min) and 239 Paqarina dancer skeletons translated
+into body qualities (292 min, `cuerpo_cualidades.py`). `jepa_entrenar.py` trains a small JEPA (context 4 s → latent →
+predicted latent of the next 2 s, decoded as a change from the last frame; modalities hidden at random in the context
+so it learns face→body and body→face). `yakumama_jepa.py` runs it in NumPy; `generar_animo.py --jepa` makes her act a
+mood by chaining 2 s predictions.
+
+Honest numbers, held‑out takes: at 1 s ahead it ties "repeat the last frame" (blink is the only channel it beats) and
+beats the channel mean everywhere; it keeps the mouth–head relation of singing (real −0.35, predicted −0.27) better than
+earlier versions; face→body, learned only from the llama session, is not yet better than guessing the mean. Chained
+generation is smooth but drifts toward stillness. What would change this: body and face recorded together (pose in the
+recorder), more minutes per person, and sampling instead of the mean when generating.
+
 ## Hardware
 
 Luxonis OAK‑D · EmotiBit MD‑V7 on an Adafruit Feather ESP32 · Apple Silicon Mac · Blender 5.1 · Python 3.11 with
