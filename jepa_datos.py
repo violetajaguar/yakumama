@@ -89,7 +89,7 @@ if __name__ == "__main__":
     Xs, Ms, SEQ, ANIMO, ACTOR, FUENTE, NOMBRE = [], [], [], [], [], [], []; pos = 0
     for f in sorted(os.listdir(os.path.join(AQUI, "datasets", "cara"))):
         if not f.endswith(".jsonl"): continue
-        r = toma_yakumama(f)
+        r = toma_yakumama(f)   # (RAVDESS entra tambien: caras con animo de 24 personas mas)
         if r is None: continue
         X, M, an, ac, fu, no = r; Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
     for ruta in sorted(glob.glob(os.path.join(AQUI, "datasets", "caras_libres", "*.jsonl"))):
