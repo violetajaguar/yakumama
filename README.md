@@ -106,9 +106,10 @@ depthai, mediapipe, scikit‑learn and PyTorch.
 
 ## Status (October 2026)
 
-Three sessions, four performers, 102 minutes over the ten moods (39 minutes with valid biometrics). Within a session
-the moods are separable from the face (≈ 70 %); with one performer held out the recogniser reaches 24 % (chance 10 %),
-up from 15 % with two performers. More performers, with the same spoken whale instructions, are the next step.
+Four performers (137 min over the ten moods, incl. Violeta's llama session), 18 RAVDESS actors (six moods each) and
+six BEAT speakers (face and body together, JEPA only). The mood recogniser reaches 37 % with one person held out
+(chance 10 %; 24 % with four people, 35 % with 17). The resemblance between the four performers stays at 90 %. The
+JEPA now trains on 823 minutes from five sources; it is still a research line (see below).
 
 ---
 
