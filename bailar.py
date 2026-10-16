@@ -57,21 +57,27 @@ vel = np.nanmean(np.linalg.norm(np.diff(B, axis=0), axis=2), axis=1) * fps   # m
 vel = np.concatenate([[vel[0]], vel]); vel = np.where(np.isfinite(vel), vel, 0.0)
 ema = np.zeros_like(vel); e = 0.0
 for i, v in enumerate(vel): e = 0.9 * e + 0.1 * min(v, 3.0); ema[i] = e
-energia = np.clip(ema / 1.5, 0, 1)
+energia = np.clip((ema - 0.2) / 1.2, 0, 1)   # 0.2 m/s = quieto, 1.4 m/s = explosivo
+# SUAVIDAD de la toma: cuanta potencia del movimiento del torso esta por encima de 3 Hz (golpes, acentos). Poca = suave.
+_torso = [J[k] for k in ("pelvis", "neck", "shoulder_l", "shoulder_r", "hip_l", "hip_r") if k in J]
+_v = np.nan_to_num(np.diff(B[:, _torso, :], axis=0) * fps); _F = np.abs(np.fft.rfft(_v - _v.mean(0), axis=0)) ** 2; _f = np.fft.rfftfreq(len(_v), 1 / fps)
+hf = float(_F[_f > 3].sum() / max(1e-9, _F[1:].sum())); suavidad = float(np.clip(1 - (hf - 0.08) / 0.3, 0, 1))
+alpha = 0.3 - 0.2 * suavidad   # cuanto mas suave la bailarina, mas redondas las transiciones de la ballena
 def animo_de(en): return "calm" if en < 0.15 else ("curious" if en < 0.45 else "playful")
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); espejos = []
 for esp in a.espejo:
     h, pt = esp.rsplit(":", 1); espejos.append((h, int(pt)))
 f0 = int(a.desde * fps); f1 = int(min(len(B), f0 + a.segundos * fps)) if a.segundos else len(B)
-nombre = os.path.basename(a.npz).replace(".npz", ""); print(f"   {nombre}: {len(B)} cuadros a {fps:.0f} fps, cuadros {f0}-{f1}, animo {a.animo}, velocidad x{a.velocidad}")
+nombre = os.path.basename(a.npz).replace(".npz", ""); print(f"   {nombre}: {len(B)} cuadros a {fps:.0f} fps, cuadros {f0}-{f1}, animo {a.animo}, velocidad x{a.velocidad} | suavidad {suavidad:.2f} (potencia del torso >3 Hz {hf:.0%})")
 suave = {}; prev = None; stats = {}
 while True:
     t0 = time.time()
     for f in range(f0, f1):
         q, prev = cualidades(f, prev)
         if q is None: continue
-        q["cuerpo_energia"] = round(float(energia[f]), 3)
-        for k, v in q.items(): suave[k] = v if k not in suave else 0.7 * suave[k] + 0.3 * v   # sin temblor
+        q["cuerpo_energia"] = round(float(energia[f]) * (1 - 0.4 * suavidad), 3)   # una bailarina suave mueve a la ballena con menos fuerza
+        for k, v in q.items(): suave[k] = v if k not in suave else (1 - alpha) * suave[k] + alpha * v   # sin temblor; mas lento si es suave
+        suave["cuerpo_suavidad"] = suavidad
         animo = a.animo if a.animo != "auto" else animo_de(suave["cuerpo_energia"])
         pkt = {**{k: round(v, 3) for k, v in suave.items()}, "actor_animo": animo, "emotibit_hr": round(60 + 70 * suave["cuerpo_energia"], 1), "emotibit_eda": round(1 + 6 * suave["cuerpo_energia"], 2),
                "anclada": 1, "water": 0.8, "bailarin": nombre, "soltar_manual": 1 if f < f0 + 30 else 0}
