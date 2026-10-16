@@ -38,7 +38,7 @@ SMOOTH = 0.15
 # ============================================================
 # SOUND LIBRARY
 # ============================================================
-SOUNDS_DIR = os.path.expanduser("~/Desktop/Huk/whale sound")   # misma ruta en cualquier Mac
+SOUNDS_DIR = next((d for d in (os.path.join(os.path.dirname(bpy.data.filepath) if bpy.data.filepath else "", "whale sound"), os.path.expanduser("~/Desktop/Huk/whale sound")) if os.path.isdir(d)), os.path.expanduser("~/Desktop/Huk/whale sound"))   # al lado de whale.blend, o en Huk
 
 SOUNDS = {
     "singing":   ["singing.wav"],
@@ -106,7 +106,7 @@ SCENE_COLORS_RGB = {
 # ============================================================
 # N-PANEL CONTROLS
 # ============================================================
-YAKUMAMA = "/Users/jaguar/Desktop/Yakumama"
+YAKUMAMA = globals().get("YAKUMAMA_DIR") or (os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() and __file__ else os.path.expanduser("~/Desktop/Yakumama"))   # la carpeta de este archivo (el add-on la pasa)
 def _tomas_items(self, context):
     try: fs = sorted(f[:-6] for f in os.listdir(os.path.join(YAKUMAMA, "datasets", "cara")) if f.endswith(".jsonl"))
     except Exception: fs = []
@@ -1523,7 +1523,7 @@ print()
 # ============================================================
 # AUTO-RECARGA: si este archivo cambia en disco, se vuelve a ejecutar solo (no hace falta pegar nada en Blender)
 # ============================================================
-RUTA_RECEPTOR = "/Users/jaguar/Desktop/Yakumama/receptor_ballena.py"
+RUTA_RECEPTOR = os.path.join(YAKUMAMA, "receptor_ballena.py")
 _ns = bpy.app.driver_namespace
 if "_ballena_recarga" in _ns and bpy.app.timers.is_registered(_ns["_ballena_recarga"]):
     bpy.app.timers.unregister(_ns["_ballena_recarga"])
