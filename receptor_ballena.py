@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-16c a veces se tine de la ropa de la visita"
+VERSION = "2026-10-16d la ropa a veces; el animo siempre habla 6 s al cambiar"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1293,7 +1293,9 @@ def breathe():
     seen_color = str(d.get('scene_color', 'neutral'))
     bpy.app.driver_namespace["_ballena_seen_color"] = seen_color
     ropa = d.get('color_ropa')   # el grabador lo manda solo cuando a ella le gusta la ropa de la visita (a veces, no siempre)
-    if isinstance(ropa, (list, tuple)) and len(ropa) == 3 and bool(d.get('visita')):
+    if getattr(breathe, "_dom_color", None) != dominant: breathe._dom_color = dominant; breathe._color_animo_hasta = t + 6.0   # cambio de animo: 6 s con SU color, aunque lleve la ropa
+    habla_el_animo = t < getattr(breathe, "_color_animo_hasta", 0.0)
+    if isinstance(ropa, (list, tuple)) and len(ropa) == 3 and bool(d.get('visita')) and not habla_el_animo:
         mr = MOOD_RGB.get(dominant, (0.5, 0.5, 0.5)); mezcla = tuple(0.75 * float(ropa[i]) + 0.25 * mr[i] for i in range(3))   # su ropa, con un cuarto del animo
         tint_body(mezcla, lerp_amount=0.02)   # ~2 s: se tine despacio
     elif color_follow >= 0.5 and seen_color in COLOR_TO_MOOD:   # solo si el slider esta bien subido y es un color real (no neutral/gris)
