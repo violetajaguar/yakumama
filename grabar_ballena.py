@@ -69,7 +69,8 @@ HUK = os.path.dirname(os.path.abspath(a.script))   # la carpeta de ballena3.py (
 def nombre_actor(x):
     """'Ana María' -> 'anamaria': sin acentos, espacios ni guiones bajos (el _ separa animo, actor y numero)."""
     return re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode().lower())
-estado = {"auto": {"valencia": None, "activacion": None}, "actor": nombre_actor(a.actor), "animo": None, "grabando": False, "solo_cara": 0, "anclada": not nombre_actor(a.actor),   # visitas: anclada (se mueve, no viaja); sesion con actor: libre "cara": [], "cuerpo": [], "t0": time.time(), "n": {}, "ultimo": {}, "seg": {}}
+# anclada por defecto en modo visita (se mueve, no viaja por el espacio); en sesion con actor, libre
+estado = {"auto": {"valencia": None, "activacion": None}, "actor": nombre_actor(a.actor), "animo": None, "grabando": False, "solo_cara": 0, "anclada": not nombre_actor(a.actor), "cara": [], "cuerpo": [], "t0": time.time(), "n": {}, "ultimo": {}, "seg": {}}
 def segundos(ts):
     """segundos reales de una lista de tiempos t (sin contar huecos de pausa > 0.5 s). No supone 30 paquetes/s."""
     return sum(b - a for a, b in zip(ts, ts[1:]) if 0 <= b - a < 0.5)
