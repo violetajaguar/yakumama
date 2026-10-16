@@ -82,7 +82,7 @@ while True:
         animo = a.animo if a.animo != "auto" else animo_de(suave["cuerpo_energia"])
         pkt = {**{k: round(v, 3) for k, v in suave.items()}, "actor_animo": animo, "emotibit_hr": round(60 + 70 * suave["cuerpo_energia"], 1), "emotibit_eda": round(1 + 6 * suave["cuerpo_energia"], 2),
                "anclada": 1, "water": 0.8, "bailarin": nombre, "soltar_manual": 1 if f < f0 + 30 else 0}
-        if a.solo_cuerpo: pkt = {k: v for k, v in pkt.items() if k.startswith("cuerpo_") or k in ("bailarin",)}   # el torso nada mas
+        if a.solo_cuerpo: pkt = {k: v for k, v in pkt.items() if k.startswith("cuerpo_") or k in ("bailarin", "anclada")}   # el torso nada mas (y anclada)
         for k, v in pkt.items():
             if isinstance(v, float): stats.setdefault(k, []).append(v)
         if not a.seco:
