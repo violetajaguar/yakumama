@@ -4,7 +4,9 @@ import bpy, os, sys
 def _ruta():
     """receptor_ballena.py: donde diga YAKUMAMA_DIR, o ~/Desktop/Yakumama, o una carpeta Yakumama al lado de la de whale.blend"""
     c = [os.environ.get("YAKUMAMA_DIR", ""), os.path.expanduser("~/Desktop/Yakumama")]
-    if bpy.data.filepath: c.append(os.path.join(os.path.dirname(os.path.dirname(bpy.data.filepath)), "Yakumama"))
+    try:
+        if bpy.data.filepath: c.append(os.path.join(os.path.dirname(os.path.dirname(bpy.data.filepath)), "Yakumama"))
+    except AttributeError: pass   # al registrar el add-on bpy.data todavia esta restringido
     return next((os.path.join(d, "receptor_ballena.py") for d in c if d and os.path.exists(os.path.join(d, "receptor_ballena.py"))), os.path.expanduser("~/Desktop/Yakumama/receptor_ballena.py"))
 RUTA = _ruta()
 _estado = {"cargado_para": None}
