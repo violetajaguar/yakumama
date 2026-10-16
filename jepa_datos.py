@@ -33,7 +33,7 @@ def toma_yakumama(f):
     if n < 24: return None
     parp = parpadeo_offline(cara); t = np.array([r["t"] for r in cara]); t = t + np.arange(n) * 1e-6
     S = {c: np.full(n, np.nan) for c in CANALES}; P = {c: np.ones(n, bool) for c in CANALES}
-    llama = "origen" in cara[0] and str(cara[0]["origen"]).startswith("llama")
+    llama = "origen" in cara[0] and str(cara[0]["origen"]).startswith("llama"); con_cuerpo = "cuerpo_pitch" in cuerpo[0]   # BEAT: cuerpo_* ya calculado
     for i, (c, b) in enumerate(zip(cara, cuerpo)):
         vista = ("jaw_open" in c) and not (i > 0 and (c.get("todo") or {}).get("head_yaw") == (cara[i-1].get("todo") or {}).get("head_yaw"))   # cara vista y no congelada
         y = salida_de({**c, "blink": parp[i]}, b)
@@ -46,6 +46,9 @@ def toma_yakumama(f):
         for k in ("l_palm_y", "r_palm_y", "l_palm_x", "r_palm_x"): P[k][i] = manos
         emo = bool(b.get("emotibit_hr")) and 35 < float(b.get("emotibit_hr") or 0) < 190
         P["hr"][i] = emo; P["eda"][i] = emo and bool(b.get("emotibit_eda"))
+        if con_cuerpo:
+            for k in CUERPO:
+                if b.get(k) is not None: S[k][i] = float(b[k])
         if llama:   # el torso de la llama -> cualidades del cuerpo (aproximado)
             S["cuerpo_pitch"][i] = max(-1, min(1, float(b.get("llama_spine_y", 0)) / 0.5)); S["cuerpo_roll"][i] = max(-1, min(1, float(b.get("llama_spine_x", 0)) / 0.5))
             S["cuerpo_profundidad"][i] = max(-1, min(1, float(b.get("llama_body_depth", 0)) / 0.3))
@@ -57,10 +60,10 @@ def toma_yakumama(f):
         S["cuerpo_energia"] = np.clip(en / max(1e-6, np.percentile(en, 90)), 0, 1)
         hy = np.where(np.isfinite(S["head_yaw"]), S["head_yaw"], 0); F = np.abs(np.fft.rfft(hy - hy.mean())) ** 2; fr = np.fft.rfftfreq(n, 1 / 12.0)
         hf = float(F[fr > 3].sum() / max(1e-9, F[1:].sum())); S["cuerpo_suavidad"] = np.full(n, float(np.clip(1 - (hf - 0.08) / 0.3, 0, 1)))
-    else:
+    elif not con_cuerpo:
         for k in CUERPO: P[k][:] = False
     X, M = rejilla(t, S, P)
-    return X, M, MOODS.index(f.split("_")[0]), actor_de(f), ("llama" if llama else "yakumama"), f[:-6]
+    return X, M, MOODS.index(f.split("_")[0]), actor_de(f), ("llama" if llama else ("beat" if con_cuerpo else "yakumama")), f[:-6]
 def toma_libre(ruta):
     """una cara sin animo (datasets/caras_libres, de importar_video.py): solo la cara y la cabeza; sin manos, pulso ni cuerpo"""
     cara = [json.loads(l) for l in open(ruta)]
@@ -104,7 +107,7 @@ if __name__ == "__main__":
     X = np.concatenate(Xs); M = np.concatenate(Ms); SEQ = np.array(SEQ); ANIMO = np.array(ANIMO); ACTOR = np.array(ACTOR); FUENTE = np.array(FUENTE); NOMBRE = np.array(NOMBRE)
     media = np.array([X[M[:, j], j].mean() if M[:, j].any() else 0.0 for j in range(NC)], np.float32); desvio = np.array([X[M[:, j], j].std() + 1e-3 if M[:, j].any() else 1.0 for j in range(NC)], np.float32)
     np.savez(os.path.join(AQUI, "modelos", "jepa_datos.npz"), X=X, M=M, SEQ=SEQ, ANIMO=ANIMO, ACTOR=ACTOR, FUENTE=FUENTE, NOMBRE=NOMBRE, CANALES=np.array(CANALES), media=media, desvio=desvio, fps=FPS)
-    for fu in ("yakumama", "llama", "libre", "bailarin"):
+    for fu in ("yakumama", "llama", "beat", "libre", "bailarin"):
         m = FUENTE == fu; n = sum(SEQ[m][:, 1] - SEQ[m][:, 0]) if m.any() else 0; print(f"  {fu:9s} {m.sum():4d} tomas  {n / FPS / 60:6.1f} min")
     print(f"total {len(X)} cuadros a {FPS:.0f}/s = {len(X) / FPS / 60:.0f} min | canales {NC} | presencia por canal:", " ".join(f"{c}:{M[:, j].mean():.0%}" for j, c in enumerate(CANALES)))
     print("guardado modelos/jepa_datos.npz")

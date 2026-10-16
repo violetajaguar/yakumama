@@ -67,3 +67,5 @@ The mood recogniser is `modelos/animo_rf.pkl` (scikit‑learn random forest); it
   manos y pulso en ese estilo, y el cuerpo se mueve con su energia (violeta 0.7, sanam 1.0, suri 1.15, dan 1.35).
 - `visita`: id de la persona en la memoria de la ballena (`v0007`) o `nueva`; `conocida`: 1 si ya habia venido. La memoria
   es una firma de 210 distancias de la cara (sin imagenes), solo en la Mac del grabador; ver memoria.py.
+- `cuerpo_pitch cuerpo_roll cuerpo_yaw cuerpo_profundidad cuerpo_energia cuerpo_suavidad`: el cuerpo de quien esta frente a la
+  camara (MediaPipe Pose), las mismas cualidades que bailar.py saca de un esqueleto. -1..1 (energia y suavidad 0..1).
