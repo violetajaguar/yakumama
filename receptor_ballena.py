@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-16d la ropa a veces; el animo siempre habla 6 s al cambiar"
+VERSION = "2026-10-16e con una cara manda el color del animo, no la luz de la sala"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1298,7 +1298,7 @@ def breathe():
     if isinstance(ropa, (list, tuple)) and len(ropa) == 3 and bool(d.get('visita')) and not habla_el_animo:
         mr = MOOD_RGB.get(dominant, (0.5, 0.5, 0.5)); mezcla = tuple(0.75 * float(ropa[i]) + 0.25 * mr[i] for i in range(3))   # su ropa, con un cuarto del animo
         tint_body(mezcla, lerp_amount=0.02)   # ~2 s: se tine despacio
-    elif color_follow >= 0.5 and seen_color in COLOR_TO_MOOD:   # solo si el slider esta bien subido y es un color real (no neutral/gris)
+    elif color_follow >= 0.5 and seen_color in COLOR_TO_MOOD and not cara_actor:   # el color de la escena solo cuando NO hay nadie: con una cara, manda el animo (la luz de la sala la dejaba dorada)
         tint_body(SCENE_COLORS_RGB[seen_color], lerp_amount=0.04 * color_follow)
     elif dominant in MOOD_RGB:
         tint_body(MOOD_RGB[dominant], lerp_amount=0.04)   # ~1 s de transicion
