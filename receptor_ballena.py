@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-15x estilo con energia propia; la red actua con boca y cabeza mas amplias"
+VERSION = "2026-10-15y memoria: te conozco / cara nueva en el panel"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -265,6 +265,8 @@ class BALLENA_PT_panel(bpy.types.Panel):
         col.prop(p, "actor_red")
         _e = bpy.app.driver_namespace.get("_ballena_estilo")
         col.label(text=f"Ahora es: {_e}" if _e else "Ahora es: nadie (promedio)", icon='USER')
+        _v = latest_data.get('visita') if 'latest_data' in globals() else None
+        if _v: col.label(text=("Te conozco: " + str(_v)) if latest_data.get('conocida') else "Cara nueva", icon='HEART' if latest_data.get('conocida') else 'ADD')
         col.operator("ballena.actuar", text="Actuar con la red (lo aprendido del actor)", icon='OUTLINER_OB_ARMATURE')
         col.separator()
         col.label(text="Mouth + Tongue")

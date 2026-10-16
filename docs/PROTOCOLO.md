@@ -65,3 +65,5 @@ The mood recogniser is `modelos/animo_rf.pkl` (scikit‑learn random forest); it
 - `red`: 1 cuando el paquete lo genera la red (generar_animo.py / yakumama_modelo.py) y no una persona.
 - La ballena fisica puede usar `estilo` igual que Blender: con ese nombre, `Modelo().paquete(animo, t, actor=estilo)` da
   manos y pulso en ese estilo, y el cuerpo se mueve con su energia (violeta 0.7, sanam 1.0, suri 1.15, dan 1.35).
+- `visita`: id de la persona en la memoria de la ballena (`v0007`) o `nueva`; `conocida`: 1 si ya habia venido. La memoria
+  es una firma de 210 distancias de la cara (sin imagenes), solo en la Mac del grabador; ver memoria.py.

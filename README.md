@@ -71,6 +71,15 @@ face and hands resemble most (90 % on held-out takes). The recorder decides it a
 it for the whole encounter and sends it as `estilo`; the whale answers in that performer's style: the net fills the hands,
 pulse and skin the visitor doesn't bring, and the body moves with that performer's energy. In Blender, *Estilo de* =
 `auto` follows it; a name forces a style; `promedio` is the average whale.
+**She keeps learning from the people who come.** Every person who sits in front of the camera is an *encounter*: the
+recorder saves it on its own (`datasets/visitas/`, face, hands, pulse, the mood and the style she gave them; no images)
+and remembers the person in `datasets/memoria.json` as a signature of 210 distances between points of the face mesh,
+taken with the face at rest (`memoria.py`). If they come back she knows them within seconds, says so on the panel
+("te conozco · visita 3") and greets them with the style she used the last time. Nothing is saved while a named
+performer is recording. `aprender.py` retrains the mood recogniser with the windows where she was sure of a visitor's
+mood (never more than half the set), so she gets better with every day of the installation; `python memoria.py` lists
+who she knows and `python memoria.py olvidar v0003` forgets someone, as does the **Olvidar** button on the panel.
+The memory stays on this Mac, is never in a package, and a sign at the installation should say she remembers.
 Since the third session the net also takes **who is acting** as an input: in Blender, the field *Estilo de* next to
 **Actuar con la red** takes a performer's name (violeta, sanam, suri, dan) or `promedio`, the average of all of them.
 The mood recogniser (`entrenar_animo.py`, random forest on 2‑second windows) is the other learned piece.
