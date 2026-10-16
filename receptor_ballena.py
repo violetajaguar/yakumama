@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-15y memoria: te conozco / cara nueva en el panel"
+VERSION = "2026-10-15z un cuerpo humano conduce (bailar.py)"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1099,6 +1099,15 @@ def breathe():
         if k_est != 1.0:
             for kk in ("head", "flap", "ladeo", "fluke"): comp[kk] = comp[kk] * k_est
             comp["spine"] = [v * k_est for v in comp["spine"]]
+        if 'cuerpo_pitch' in d:   # UN CUERPO HUMANO CONDUCE (bailar.py): no copia el esqueleto, suma sus cualidades al comportamiento del animo
+            q = lambda k, lo=-1.0, hi=1.0: max(lo, min(hi, float(d.get(k, 0) or 0)))
+            comp["pitch"] -= 0.45 * q('cuerpo_pitch')          # inclinado adelante -> nariz abajo
+            comp["roll"] += 0.35 * q('cuerpo_roll')             # torcido -> se ladea
+            comp["yaw"] += 0.5 * q('cuerpo_yaw')                # gira el cuerpo -> gira ella
+            comp["depth"] += 1.2 * q('cuerpo_profundidad')      # agachado -> baja; salto -> sube
+            ke = 0.4 + 1.3 * q('cuerpo_energia', 0.0, 1.0)      # la energia del cuerpo escala todo lo demas
+            for kk in ("flap", "ladeo", "fluke"): comp[kk] = comp[kk] * ke
+            comp["spine"] = [v * ke for v in comp["spine"]]
         comp["head"] = comp["head"] + 0.03 * beat + 0.06 * tension * _onda(t, 0.9)   # el latido asoma en la cabeza; la tension la hace vibrar
         comp["flap"] = comp["flap"] + 0.06 * beat + 0.1 * energia; comp["fluke"] = comp["fluke"] - 0.05 * beat
         if dom_name == "singing" and cara_actor:   # CANTO: el cuerpo se mueve con la boca del actor
@@ -1450,7 +1459,7 @@ def breathe():
             _wb = {k[6:]: float(v) for k, v in d.items() if k.startswith('whale_')}
             bpy.app.driver_namespace["_ballena_sentidos"] = {
                 "dominante": dominant, "fuente": ("menú" if (manual != "auto") else ("actor (reconocedor)" if d.get('actor_animo') else ("cerebro Qwen" if use_brain and _wb else "color de la escena"))),
-                "cara": bool(cara_actor), "actor": d.get('actor_animo'), "estilo": d.get('estilo'), "manos": ("2" if ('l_palm_y' in d and 'r_palm_y' in d) else ("1" if ('l_palm_y' in d or 'r_palm_y' in d) else "")),
+                "cara": bool(cara_actor), "actor": d.get('actor_animo'), "estilo": d.get('estilo'), "bailarin": d.get('bailarin'), "manos": ("2" if ('l_palm_y' in d and 'r_palm_y' in d) else ("1" if ('l_palm_y' in d or 'r_palm_y' in d) else "")),
                 "hr": float(d.get('emotibit_hr') or 0) or None, "eda": float(d.get('emotibit_eda') or 0), "therm": float(d.get('emotibit_therm') or 0),
                 "color": d.get('scene_color', '—'), "agua": wl if 'wl' in dir() else d.get('water', '—'), "cerebro": (max(_wb, key=_wb.get) if _wb else "—")}
         except Exception: pass
