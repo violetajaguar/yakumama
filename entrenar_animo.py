@@ -22,7 +22,7 @@ def rasgos(cw, bw, BS):
 if __name__ == "__main__":
     BS = None; X, y, grp, acts = [], [], [], []
     for f in sorted(os.listdir(os.path.join(AQUI, "datasets", "cara"))):
-        if not f.endswith(".jsonl"): continue
+        if not f.endswith(".jsonl") or "_beat" in f: continue   # BEAT: blendshapes de otro sistema de captura (no MediaPipe), confunden al reconocedor; van al JEPA
         cara = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cara", f))]; cuerpo = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cuerpo", f))]
         if BS is None: BS = sorted(k for k in next(r for r in cara if any(k.startswith("face_") for k in r)) if k.startswith("face_"))
         n = min(len(cara), len(cuerpo))
@@ -30,7 +30,7 @@ if __name__ == "__main__":
             v = rasgos(cara[i:i+W], cuerpo[i:i+W], BS)
             if v is not None: X.append(v); y.append(MOODS.index(f.split("_")[0])); grp.append(f[:-6]); acts.append(f.split("_")[1] if f.count("_") == 2 else "violeta")
     X, y, grp, acts = np.array(X), np.array(y), np.array(grp), np.array(acts)
-    rf = lambda: RandomForestClassifier(n_estimators=300, random_state=0, class_weight="balanced")
+    rf = lambda: RandomForestClassifier(n_estimators=200, min_samples_leaf=2, random_state=0, class_weight="balanced", n_jobs=-1)   # hojas de 2: el pkl queda chico (GitHub: < 100 MB)
     bloques = np.array([f"{g}_{i//10}" for i, g in enumerate(grp)])
     p = cross_val_predict(rf(), X, y, groups=bloques, cv=GroupKFold(5)); print(f"ventanas {len(X)} | acierto dentro de sesion (trozos de 20 s fuera): {(p==y).mean():.0%}")
     p2 = cross_val_predict(rf(), X, y, groups=grp, cv=LeaveOneGroupOut()); print(f"acierto con tomas enteras fuera (entre sesiones): {(p2==y).mean():.0%}")
