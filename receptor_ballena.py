@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-16e con una cara manda el color del animo, no la luz de la sala"
+VERSION = "2026-10-16f playful vuelve a dar dos vueltas en el breach"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -947,7 +947,7 @@ def comp_calm(t):      # LOGGING: quieta en la superficie, respiracion lenta; oj
 def comp_singing(t):   # CANTO: cabeza abajo, casi inmovil; ojos casi cerrados, boca al ritmo
     return dict(pitch=-0.45, roll=0.02 * _onda(t, 9), yaw=0.0, head=-0.1, spine=[0, 0, 0, -0.03, -0.06, -0.08],
                 fluke=-0.1, flap=0.05 * _onda(t, 6), ladeo=0.0, jaw=0.15 + 0.1 * _onda(t, 2.5), cara=(0.75, 0.0, 0.0, 0.1), mirada=(0.0, -0.4), spin=0.0, depth=-0.3)
-PLAYFUL_VUELTAS = 0   # vueltas completas en el breach (2 = como la foto de NOAA; 0 = salta y se ladea hasta 30 grados, nunca queda boca abajo)
+PLAYFUL_VUELTAS = 2   # vueltas completas en el breach (2 = como la foto de NOAA; 0 = salta y se ladea hasta 30 grados, nunca queda boca abajo)
 def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s con DOS VUELTAS sobre su eje (foto: sube, aletas abiertas, gira, cae)
     sube = _pulso(t, 12, 0.22, 0.0); cae = _pulso(t, 12, 0.22, -0.2)
     f = (t / 12) % 1.0; vueltas = PLAYFUL_VUELTAS * 2 * math.pi * _suave01(f / 0.42) if (f < 0.42 and PLAYFUL_VUELTAS) else 0.0
