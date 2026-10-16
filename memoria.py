@@ -16,7 +16,7 @@ ARCHIVO = os.path.join(AQUI, "datasets", "memoria.json")
 # indices de la malla de MediaPipe (478 puntos): puntos estables de la cara
 PUNTOS = [33, 133, 362, 263, 1, 6, 2, 98, 327, 61, 291, 13, 14, 152, 234, 454, 10, 105, 334, 172, 397]
 OJO_IZQ, OJO_DER = 33, 263
-UMBRAL = 0.025      # distancia media por debajo de la cual es la misma persona (se calibra con gente conocida)
+UMBRAL = 0.038     # distancia media por debajo de la cual es la misma persona (calibrado el 16 oct con caras reales: misma persona 0.013-0.036, otra >= 0.040)
 MIN_CUADROS = 25    # cuadros tranquilos necesarios para tener una firma
 def firma_cuadro(puntos):
     """puntos: lista de 478 (x, y, z). Devuelve 210 distancias normalizadas o None."""
@@ -65,6 +65,11 @@ class Memoria:
         if pulso: p["pulso"] = round(float(pulso) if not p["pulso"] else 0.7 * p["pulso"] + 0.3 * float(pulso), 1)
         if archivo: p["encuentros"] = (p["encuentros"] + [archivo])[-50:]
         self.guardar(); return pid
+    def nombrar(self, pid, nombre):
+        """le pone nombre a una persona de la memoria (p. ej. una actriz grabada): la ballena la saluda por su nombre y,
+        si el nombre es el de un actor grabado, le contesta con su propio estilo."""
+        if pid in self.personas: self.personas[pid]["nombre"] = nombre; self.guardar(); return True
+        return False
     def olvidar(self, pid):
         """borra a la persona de la memoria (y sus encuentros guardados)."""
         p = self.personas.pop(pid, None)
@@ -75,11 +80,12 @@ class Memoria:
             self.guardar()
         return p is not None
     def resumen(self):
-        return {pid: {"visitas": p["visitas"], "ultima": p["ultima"], "estilo": p["estilo"], "animos": p["animos"], "pulso": p["pulso"]} for pid, p in self.personas.items()}
+        return {pid: {"nombre": p.get("nombre"), "visitas": p["visitas"], "ultima": p["ultima"], "estilo": p["estilo"], "animos": p["animos"], "pulso": p["pulso"]} for pid, p in self.personas.items()}
 if __name__ == "__main__":
     import sys
     m = Memoria()
     if len(sys.argv) > 2 and sys.argv[1] == "olvidar": print("olvidada" if m.olvidar(sys.argv[2]) else "no estaba", sys.argv[2])
+    elif len(sys.argv) > 3 and sys.argv[1] == "nombrar": print("nombrada" if m.nombrar(sys.argv[2], sys.argv[3]) else "no estaba", sys.argv[2], sys.argv[3])
     else:
         print(f"{len(m.personas)} personas en la memoria")
         for pid, p in m.resumen().items(): print(f"  {pid}: {p['visitas']} visitas, ultima {p['ultima']}, estilo {p['estilo']}, animos {p['animos']}, pulso {p['pulso']}")
