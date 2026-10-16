@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-16a latido con la rotacion del objeto"
+VERSION = "2026-10-16b breach sin vueltas completas; agachado con tope"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -947,11 +947,12 @@ def comp_calm(t):      # LOGGING: quieta en la superficie, respiracion lenta; oj
 def comp_singing(t):   # CANTO: cabeza abajo, casi inmovil; ojos casi cerrados, boca al ritmo
     return dict(pitch=-0.45, roll=0.02 * _onda(t, 9), yaw=0.0, head=-0.1, spine=[0, 0, 0, -0.03, -0.06, -0.08],
                 fluke=-0.1, flap=0.05 * _onda(t, 6), ladeo=0.0, jaw=0.15 + 0.1 * _onda(t, 2.5), cara=(0.75, 0.0, 0.0, 0.1), mirada=(0.0, -0.4), spin=0.0, depth=-0.3)
+PLAYFUL_VUELTAS = 0   # vueltas completas en el breach (2 = como la foto de NOAA; 0 = salta y se ladea hasta 30 grados, nunca queda boca abajo)
 def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s con DOS VUELTAS sobre su eje (foto: sube, aletas abiertas, gira, cae)
     sube = _pulso(t, 12, 0.22, 0.0); cae = _pulso(t, 12, 0.22, -0.2)
-    f = (t / 12) % 1.0; vueltas = 2 * 2 * math.pi * _suave01(f / 0.42) if f < 0.42 else 0.0
+    f = (t / 12) % 1.0; vueltas = PLAYFUL_VUELTAS * 2 * math.pi * _suave01(f / 0.42) if (f < 0.42 and PLAYFUL_VUELTAS) else 0.0
     salto = max(sube, cae); slap = _onda(t, 1.6) * (1 - salto)
-    return dict(pitch=0.45 * sube + 0.15 * cae, roll=0.25 * _onda(t, 4) * (1 - salto), yaw=0.0, head=0.15 * sube,
+    return dict(pitch=0.45 * sube + 0.15 * cae, roll=0.25 * _onda(t, 4) * (1 - salto) + (0.0 if PLAYFUL_VUELTAS else 0.5 * math.sin(math.pi * min(1.0, f / 0.42)) * (1 if f < 0.42 else 0)), yaw=0.0, head=0.15 * sube,
                 spine=[-k * sube for k in (0.02, 0.03, 0.05, 0.07, 0.09, 0.1)], fluke=-0.25 * sube,
                 flap=0.2 + 0.3 * slap + 0.7 * salto, ladeo=0.25 * _onda(t, 1.6, 0.25) * (1 - salto), jaw=0.15 + 0.15 * sube,
                 cara=(0.0, 0.0, 0.0, 0.6), mirada=(0.3 * _onda(t, 1.6), 0.4), spin=vueltas, depth=0.9 * sube)
@@ -1106,7 +1107,7 @@ def breathe():
             comp["pitch"] -= 0.45 * q('cuerpo_pitch')          # inclinado adelante -> nariz abajo
             comp["roll"] += 0.35 * q('cuerpo_roll')             # torcido -> se ladea
             comp["yaw"] += 0.5 * q('cuerpo_yaw')                # gira el cuerpo -> gira ella
-            comp["depth"] += 1.2 * q('cuerpo_profundidad')      # agachado -> baja; salto -> sube
+            comp["depth"] += 0.6 * q('cuerpo_profundidad')      # agachado -> baja; salto -> sube (medio: una visita parada no debe hundirla)
             ke = 0.4 + 1.3 * q('cuerpo_energia', 0.0, 1.0)      # la energia del cuerpo escala todo lo demas
             for kk in ("flap", "ladeo", "fluke"): comp[kk] = comp[kk] * ke
             comp["spine"] = [v * ke for v in comp["spine"]]
