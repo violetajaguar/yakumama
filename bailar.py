@@ -19,6 +19,7 @@ import os, sys, json, time, socket, argparse, math, numpy as np
 ap = argparse.ArgumentParser(); ap.add_argument("npz"); ap.add_argument("--animo", default="auto"); ap.add_argument("--velocidad", type=float, default=1.0)
 ap.add_argument("--desde", type=float, default=0.0); ap.add_argument("--segundos", type=float, default=0.0); ap.add_argument("--puerto", type=int, default=9998)
 ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--seco", action="store_true", help="no manda: imprime estadisticas"); ap.add_argument("--loop", action="store_true")
+ap.add_argument("--solo-cuerpo", action="store_true", help="manda solo el torso (inclinacion, giro, agachado, energia): la cara, las manos y el animo los pone otro (reproducir.py o la camara)")
 a = ap.parse_args()
 z = np.load(a.npz, allow_pickle=True); B = z["body"].astype(np.float64); J = {str(n): i for i, n in enumerate(z["joint_names"])}; fps = float(z["fps"]) if "fps" in z.files else 30.0
 def p(nombre, f): return B[f, J[nombre]]
@@ -81,6 +82,7 @@ while True:
         animo = a.animo if a.animo != "auto" else animo_de(suave["cuerpo_energia"])
         pkt = {**{k: round(v, 3) for k, v in suave.items()}, "actor_animo": animo, "emotibit_hr": round(60 + 70 * suave["cuerpo_energia"], 1), "emotibit_eda": round(1 + 6 * suave["cuerpo_energia"], 2),
                "anclada": 1, "water": 0.8, "bailarin": nombre, "soltar_manual": 1 if f < f0 + 30 else 0}
+        if a.solo_cuerpo: pkt = {k: v for k, v in pkt.items() if k.startswith("cuerpo_") or k in ("bailarin",)}   # el torso nada mas
         for k, v in pkt.items():
             if isinstance(v, float): stats.setdefault(k, []).append(v)
         if not a.seco:
