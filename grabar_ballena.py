@@ -398,8 +398,14 @@ def parecido(x):
     q = _pr["modelo"].predict_proba(x.reshape(1, -1))[0]; ema = reconocedor["estilo_ema"]
     for a, v in zip(_pr["actores"], q): ema[a] = 0.7 * ema.get(a, 1.0 / len(q)) + 0.3 * float(v)
     reconocedor["estilo_prob"] = {a: round(v, 3) for a, v in ema.items()}; reconocedor["estilo_n"] += 1
+    top = max(ema, key=ema.get)
     if reconocedor["estilo"] is None and reconocedor["estilo_n"] >= 4:   # 4 ventanas = 2 s de cara
-        top = max(ema, key=ema.get); reconocedor["estilo"] = top; print(f"   se parece a: {top} ({ema[top]:.0%}) - la ballena le contesta con su estilo")
+        reconocedor["estilo"] = top; print(f"   se parece a: {top} ({ema[top]:.0%}) - la ballena le contesta con su estilo")
+    elif reconocedor["estilo"] and top != reconocedor["estilo"] and ema[top] > 0.45:
+        reconocedor["cambio_n"] = reconocedor.get("cambio_n", 0) + 1
+        if reconocedor["cambio_n"] >= 8:   # 4 s pareciendose a otro: es otra persona, aunque la cara nunca se haya ido
+            print("   otra persona frente a la camara"); encuentro_cerrar(); parecido_olvidar(); reconocedor["cambio_n"] = 0
+    else: reconocedor["cambio_n"] = 0
 # --- VISITAS Y MEMORIA (memoria.py): cada persona que se pone frente a la camara es un encuentro. Se guarda entero en
 # datasets/visitas/ (cara, manos, pulso, animo y estilo que la ballena le vio; sin imagenes) y la persona queda en
 # datasets/memoria.json como una firma de 210 distancias de su cara. Si vuelve, la ballena la reconoce a los pocos
@@ -473,8 +479,9 @@ def reconocer(pkt, crudo):
     top = moods[int(p.argmax())]
     if top == reconocedor["racha"]: reconocedor["n"] += 1
     else: reconocedor["racha"] = top; reconocedor["n"] = 1
-    if reconocedor["n"] >= 3 and reconocedor["animo"] != top:
-        reconocedor["animo"] = top; print(f"   la ballena ve: {top}")
+    seguro = float(p.max()) >= 0.30 or reconocedor["animo"] is None
+    if reconocedor["n"] >= (3 if estado["actor"] else 6) and reconocedor["animo"] != top and seguro:   # visitas: 3 s seguidos y >= 30 %
+        reconocedor["animo"] = top; print(f"   la ballena ve: {top} ({p.max():.0%})")
 
 # --- espejos: copias del paquete a otras maquinas (TouchDesigner / ballena fisica), --espejo 192.168.50.20:9998
 ESPEJOS = []
