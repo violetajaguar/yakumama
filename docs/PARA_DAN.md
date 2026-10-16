@@ -52,3 +52,8 @@ whole logic in Spanish.
 
 `emotibit_cliente.py` talks to the EmotiBit over WiFi without the Oscilloscope (hello / connect / ping, CSV
 packets). The physical whale can read the sensor directly with it if the recorder isn't running.
+
+## 6. Barcelona (15 Oct): the installation on your machine, no EmotiBit, no Blender
+See `INSTALACION_DAN.md`: how to run the camera and the recorder on your computer, the new packet fields `estilo`
+(who the visitor resembles), `visita`/`conocida` (her memory) and `red`, how to get pulse and skin from the net per
+style, and the body energy per style (violeta 0.7 · sanam 1.0 · suri 1.15 · dan 1.35).

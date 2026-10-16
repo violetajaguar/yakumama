@@ -63,6 +63,7 @@ ap.add_argument("--visitas", type=int, default=1, help="1 = guardar cada encuent
 ap.add_argument("--actor", default="", help="nombre de quien actua; va en el nombre del tramo: <animo>_<actor>_NNN (tambien se cambia en el panel)")
 ap.add_argument("--video", type=int, default=0, help="1 = grabar la ventana de Blender de g a f (apagado por defecto)")
 a = ap.parse_args()
+HUK = os.path.dirname(os.path.abspath(a.script))   # la carpeta de ballena3.py (whale.blend, yakumama_alma): --script la fija en otra maquina
 
 def nombre_actor(x):
     """'Ana María' -> 'anamaria': sin acentos, espacios ni guiones bajos (el _ separa animo, actor y numero)."""
@@ -560,7 +561,7 @@ def estado_json():
     return {"modo": ("cuerpo", "solo cara", "solo cara, cabeza fija")[estado["solo_cara"]] + (" + anclada" if estado["anclada"] else ""),
             "auto": estado["auto"], "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
             "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
-            "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"],
+            "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"], "sin_emotibit": not (a.emotibit or a.emotibit_directo),
             "memoria": {"aprender": bool(a.visitas) and not estado["actor"], "activa": visita["activa"], "id": visita["id"], "conocida": visita["conocida"], "dist": visita["dist"],
                         "visitas": (mem.personas.get(visita["id"], {}).get("visitas", 0) + 1) if visita["conocida"] else None, "estilo_previo": visita["estilo_previo"],
                         "guardadas": visita["guardadas"], "personas": len(mem.personas)},
@@ -628,7 +629,7 @@ async function est(){try{const s=await (await fetch('/estado')).json();
   `<div class=k><b>Se parece a</b><span class="${s.estilo?'ok':''}">${s.estilo||'—'}</span>${s.estilo_prob&&s.estilo?'<small class=small>'+Math.round((s.estilo_prob[s.estilo]||0)*100)+' %</small>':''}</div>`+
   `<div class=k><b>Neutral</b><span class="${s.neutral?'ok':'bad'}">${s.neutral?'tomado':'falta: Neutral'}</span></div>`+
   `<div class=k><b>Blender</b><span class="${s.blender?'ok':'bad'}">${s.blender?'recibiendo':'sin receptor'}</span></div>`+
-  `<div class=k><b>EmotiBit</b><span class="${e?'ok':'bad'}">${e?e.hz+'/s · hr '+f(e.hr,0)+' · eda '+f(e.eda,1):'SIN DATOS'}</span></div>`+
+  `<div class=k><b>EmotiBit</b><span class="${e?'ok':(s.sin_emotibit?'':'bad')}">${e?e.hz+'/s · hr '+f(e.hr,0)+' · eda '+f(e.eda,1):(s.sin_emotibit?'apagado: pulso y piel los pone la red':'SIN DATOS')}</span></div>`+
   `<div class=k><b>Cabeza</b><span>${f(v.head_yaw)} / ${f(v.head_pitch)}</span></div><div class=k><b>Boca · sonrisa · lengua</b><span>${f(v.jaw_open)} · ${f(v.mouth_smile)} · ${f(v.tongue_out)}</span></div>`+
   `<div class=k><b>Parpadeo · cejas</b><span>${f(v.blink)} · ${f(v.brow_up)}</span></div>`;
  let h='';for(const k in A){const a=A[k],x=s.segundos[a]||0;h+=`<div class="m ${x>=60?'ok':''}"><span>${a}</span><span>${Math.round(x)} s ${x>=60?'✓':''}</span></div>`}document.getElementById('tot').innerHTML=h;
