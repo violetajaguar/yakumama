@@ -59,6 +59,7 @@ ap.add_argument("--emotibit-directo", type=int, default=1, help="1 = conectar di
 ap.add_argument("--emotibit-ip", default="", help="IP del EmotiBit (vacio = buscarlo por broadcast)")
 ap.add_argument("--panel", type=int, default=8765, help="puerto del panel web (0 = sin panel)")
 ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia de cada paquete (TouchDesigner, ballena fisica); repetible")
+ap.add_argument("--pose", type=int, default=1, help="1 = tambien el cuerpo (MediaPipe Pose): inclinacion, giro, agachado, energia -> cuerpo_* en cada paquete y en cuerpo/")
 ap.add_argument("--visitas", type=int, default=1, help="1 = guardar cada encuentro con una visita (datasets/visitas/) y recordarla en datasets/memoria.json; 0 = no")
 ap.add_argument("--actor", default="", help="nombre de quien actua; va en el nombre del tramo: <animo>_<actor>_NNN (tambien se cambia en el panel)")
 ap.add_argument("--video", type=int, default=0, help="1 = grabar la ventana de Blender de g a f (apagado por defecto)")
@@ -289,6 +290,45 @@ def cargar_landmarker():
     opts = vision.FaceLandmarkerOptions(base_options=mpp.BaseOptions(model_asset_path=MODELO), output_face_blendshapes=True,
                                         num_faces=1, running_mode=vision.RunningMode.VIDEO)
     return vision.FaceLandmarker.create_from_options(opts)
+# --- CUERPO (MediaPipe Pose, en el mismo hilo que el landmarker, un cuadro si y uno no): del esqueleto 3D en metros
+# salen las mismas CUALIDADES con que los bailarines conducen a la ballena (cuerpo_cualidades.py). Van en el paquete
+# como cuerpo_* y quedan en cuerpo/: desde ahora cada toma trae cara y cuerpo juntos (lo que el JEPA necesitaba).
+POSE_MODELO = os.path.join(AQUI, "modelos", "pose_landmarker_lite.task")
+from collections import deque as _deque
+_pose = {"lm": None, "buf": _deque(maxlen=48), "ts": _deque(maxlen=48), "n": 0, "error": None, "ultimo": {}}
+_POSE_J = {"pelvis": None, "neck": None, "head": 0, "shoulder_l": 11, "shoulder_r": 12, "elbow_l": 13, "elbow_r": 14, "wrist_l": 15, "wrist_r": 16, "hip_l": 23, "hip_r": 24, "knee_l": 25, "knee_r": 26, "ankle_l": 27, "ankle_r": 28}
+def cuerpo_pose(rgb):
+    import mediapipe as mp, numpy as np
+    if _pose["lm"] is None:
+        from mediapipe.tasks import python as mpp; from mediapipe.tasks.python import vision
+        _pose["lm"] = vision.PoseLandmarker.create_from_options(vision.PoseLandmarkerOptions(base_options=mpp.BaseOptions(model_asset_path=POSE_MODELO), running_mode=vision.RunningMode.VIDEO, num_poses=1))
+    _pose["n"] += 1
+    if _pose["n"] % 2: return                           # un cuadro si y uno no: el cuerpo cambia despacio
+    t = time.time(); r = _pose["lm"].detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), int((t - _lm["t0"]) * 1000) + 1)
+    if not r.pose_world_landmarks:
+        for k in list(extra):
+            if k.startswith("cuerpo_"): extra.pop(k, None)
+        return
+    L = r.pose_world_landmarks[0]; fila = np.full((26, 3), np.nan)
+    from cuerpo_cualidades import cualidades_toma, CUERPO
+    nombres = ["nose","eye_l","eye_r","ear_l","ear_r","shoulder_l","shoulder_r","elbow_l","elbow_r","wrist_l","wrist_r","hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r","head","neck","pelvis","bigtoe_l","bigtoe_r","smalltoe_l","smalltoe_r","heel_l","heel_r"]
+    J = {n: i for i, n in enumerate(nombres)}
+    def P(i): return np.array([L[i].x, L[i].z, -L[i].y]) if L[i].visibility > 0.4 else np.array([np.nan] * 3)   # MediaPipe: y hacia abajo -> z arriba
+    for nom, i in _POSE_J.items():
+        if i is not None: fila[J[nom]] = P(i)
+    fila[J["pelvis"]] = (P(23) + P(24)) / 2; fila[J["neck"]] = (P(11) + P(12)) / 2
+    _pose["buf"].append(fila); _pose["ts"].append(t)
+    if len(_pose["buf"]) < 12: return
+    B = np.array(_pose["buf"]); fps = (len(B) - 1) / max(0.2, _pose["ts"][-1] - _pose["ts"][0])
+    q = cualidades_toma(B, J, fps); i = len(B) - 1; out = {}
+    for k in CUERPO:
+        v = q[k][i]
+        if np.isfinite(v): out[k] = round(float(v), 3)
+    tob = np.nanmean([fila[J["ankle_l"]][2], fila[J["ankle_r"]][2]])   # agachado: la cadera (origen) se acerca a los tobillos
+    if np.isfinite(tob): out["cuerpo_profundidad"] = round(max(-1.0, min(1.0, ((0.0 - tob) - 0.85) / 0.35)), 3)
+    for k in list(extra):
+        if k.startswith("cuerpo_"): extra.pop(k, None)
+    extra.update(out); _pose["ultimo"] = out
 def blendshapes(rgb, lm=None):
     """llena `extra` a partir del cuadro RGB (numpy HxWx3). lm: landmarker (se carga solo la primera vez)."""
     import mediapipe as mp
@@ -321,6 +361,10 @@ if os.path.exists(MODELO) and not a.prueba:
                 try: blendshapes(img)
                 except Exception as e:
                     if _lm["error"] != str(e): _lm["error"] = str(e); print(f"   (sin lengua/blendshapes: {e})")
+                if a.pose and os.path.exists(POSE_MODELO):
+                    try: cuerpo_pose(img)
+                    except Exception as e:
+                        if _pose["error"] != str(e): _pose["error"] = str(e); print(f"   (sin cuerpo: {e})")
         threading.Thread(target=_lm_hilo, daemon=True).start()
         def process_tee(self, image):
             res = _process(self, image)
@@ -561,7 +605,7 @@ def estado_json():
     return {"modo": ("cuerpo", "solo cara", "solo cara, cabeza fija")[estado["solo_cara"]] + (" + anclada" if estado["anclada"] else ""),
             "auto": estado["auto"], "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
             "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
-            "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"], "sin_emotibit": not (a.emotibit or a.emotibit_directo),
+            "cuerpo": _pose["ultimo"] or None, "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"], "sin_emotibit": not (a.emotibit or a.emotibit_directo),
             "memoria": {"aprender": bool(a.visitas) and not estado["actor"], "activa": visita["activa"], "id": visita["id"], "conocida": visita["conocida"], "dist": visita["dist"],
                         "visitas": (mem.personas.get(visita["id"], {}).get("visitas", 0) + 1) if visita["conocida"] else None, "estilo_previo": visita["estilo_previo"],
                         "guardadas": visita["guardadas"], "personas": len(mem.personas)},
@@ -631,7 +675,8 @@ async function est(){try{const s=await (await fetch('/estado')).json();
   `<div class=k><b>Blender</b><span class="${s.blender?'ok':'bad'}">${s.blender?'recibiendo':'sin receptor'}</span></div>`+
   `<div class=k><b>EmotiBit</b><span class="${e?'ok':(s.sin_emotibit?'':'bad')}">${e?e.hz+'/s · hr '+f(e.hr,0)+' · eda '+f(e.eda,1):(s.sin_emotibit?'apagado: pulso y piel los pone la red':'SIN DATOS')}</span></div>`+
   `<div class=k><b>Cabeza</b><span>${f(v.head_yaw)} / ${f(v.head_pitch)}</span></div><div class=k><b>Boca · sonrisa · lengua</b><span>${f(v.jaw_open)} · ${f(v.mouth_smile)} · ${f(v.tongue_out)}</span></div>`+
-  `<div class=k><b>Parpadeo · cejas</b><span>${f(v.blink)} · ${f(v.brow_up)}</span></div>`;
+  `<div class=k><b>Parpadeo · cejas</b><span>${f(v.blink)} · ${f(v.brow_up)}</span></div>`+
+  `<div class=k><b>Cuerpo</b><span class="${s.cuerpo?'ok':''}">${s.cuerpo?'inclina '+f(s.cuerpo.cuerpo_pitch)+' · gira '+f(s.cuerpo.cuerpo_yaw)+' · baja '+f(s.cuerpo.cuerpo_profundidad)+' · energia '+f(s.cuerpo.cuerpo_energia):'no visto'}</span></div>`;
  let h='';for(const k in A){const a=A[k],x=s.segundos[a]||0;h+=`<div class="m ${x>=60?'ok':''}"><span>${a}</span><span>${Math.round(x)} s ${x>=60?'✓':''}</span></div>`}document.getElementById('tot').innerHTML=h;
 }catch(err){}}
 est();setInterval(est,1000);

@@ -16,7 +16,7 @@ AQUI = E.AQUI; W = E.W
 if __name__ == "__main__":
     BS = None; X, y, grp = [], [], []
     for f in sorted(os.listdir(os.path.join(AQUI, "datasets", "cara"))):
-        if not f.endswith(".jsonl") or "_ravdess" in f: continue   # el parecido es entre los actores de verdad, no los de RAVDESS
+        if not f.endswith(".jsonl") or "_ravdess" in f or "_beat" in f: continue   # el parecido es entre los actores de verdad, no los de RAVDESS
         cara = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cara", f))]; cuerpo = [json.loads(l) for l in open(os.path.join(AQUI, "datasets", "cuerpo", f))]
         if BS is None: BS = sorted(k for k in next(r for r in cara if any(k.startswith("face_") for k in r)) if k.startswith("face_"))
         n = min(len(cara), len(cuerpo))
