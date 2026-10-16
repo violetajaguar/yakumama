@@ -66,6 +66,11 @@ what the performer did at that instant, head, mouth, blinks, brows, smile, gaze,
 conductance (18 channels, 56 000 frames, PyTorch on the Apple GPU). `generar_animo.py <mood>` then runs the net
 and feeds the whale those channels as if the performer were there: she acts the mood on her own, in the performer's
 style, over the NOAA body behaviour. In Blender: choose a mood under Comportamiento and press **Actuar con la red**.
+**Who she is for a visitor.** `entrenar_parecido.py` trains a second recogniser that says which recorded performer a
+face and hands resemble most (90 % on held-out takes). The recorder decides it after two seconds of seeing someone, keeps
+it for the whole encounter and sends it as `estilo`; the whale answers in that performer's style: the net fills the hands,
+pulse and skin the visitor doesn't bring, and the body moves with that performer's energy. In Blender, *Estilo de* =
+`auto` follows it; a name forces a style; `promedio` is the average whale.
 Since the third session the net also takes **who is acting** as an input: in Blender, the field *Estilo de* next to
 **Actuar con la red** takes a performer's name (violeta, sanam, suri, dan) or `promedio`, the average of all of them.
 The mood recogniser (`entrenar_animo.py`, random forest on 2‑second windows) is the other learned piece.

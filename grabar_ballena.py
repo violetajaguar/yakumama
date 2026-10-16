@@ -328,12 +328,30 @@ else: print("   (sin modelos/face_landmarker.task: no hay lengua ni blendshapes)
 
 # --- RECONOCEDOR DE ANIMO (modelos/animo_rf.pkl, de entrenar_animo.py): cada 0.5 s mira los ultimos 2 s de cara y
 # manos y decide el animo del actor. Cambia solo cuando el nuevo gana 3 veces seguidas (1.5 s): cortes limpios.
-reconocedor = {"ok": False, "animo": None, "prob": {}, "racha": None, "n": 0, "ultimo": 0.0, "ventana": []}
+reconocedor = {"ok": False, "animo": None, "prob": {}, "racha": None, "n": 0, "ultimo": 0.0, "ventana": [],
+               "estilo": None, "estilo_prob": {}, "estilo_ema": {}, "estilo_n": 0, "sin_cara_desde": None}
 try:
     import pickle, numpy as np
     _rf = pickle.load(open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "rb")); sys.path.insert(0, AQUI); from entrenar_animo import rasgos as _rasgos
     reconocedor["ok"] = True; print("   RECONOCEDOR de animo cargado (modelos/animo_rf.pkl): la ballena sigue el animo que ve en tu cara")
 except Exception as e: print(f"   (sin reconocedor de animo: {e})")
+# --- PARECIDO (modelos/parecido_rf.pkl, de entrenar_parecido.py): a cual de los actores grabados se parece quien esta
+# frente a la camara. Se decide a los 2 s de verlo y queda fijo mientras la cara siga ahi (un encuentro = un estilo);
+# si la cara se pierde 8 s, se olvida y la proxima persona vuelve a elegirse. Va en el paquete como `estilo`.
+_pr = None
+try:
+    _pr = pickle.load(open(os.path.join(AQUI, "modelos", "parecido_rf.pkl"), "rb")); print(f"   PARECIDO cargado: la ballena contesta con el estilo del actor al que mas se parece la visita ({', '.join(_pr['actores'])})")
+except Exception as e: print(f"   (sin modelo de parecido: {e})")
+def parecido(x):
+    if _pr is None: return
+    q = _pr["modelo"].predict_proba(x.reshape(1, -1))[0]; ema = reconocedor["estilo_ema"]
+    for a, v in zip(_pr["actores"], q): ema[a] = 0.7 * ema.get(a, 1.0 / len(q)) + 0.3 * float(v)
+    reconocedor["estilo_prob"] = {a: round(v, 3) for a, v in ema.items()}; reconocedor["estilo_n"] += 1
+    if reconocedor["estilo"] is None and reconocedor["estilo_n"] >= 4:   # 4 ventanas = 2 s de cara
+        top = max(ema, key=ema.get); reconocedor["estilo"] = top; print(f"   se parece a: {top} ({ema[top]:.0%}) - la ballena le contesta con su estilo")
+def parecido_olvidar():
+    if reconocedor["estilo"]: print("   la cara se fue: la ballena olvida el estilo")
+    reconocedor.update(estilo=None, estilo_prob={}, estilo_ema={}, estilo_n=0)
 def reconocer(pkt, crudo):
     if not reconocedor["ok"]: return
     v = reconocedor["ventana"]; v.append({**pkt, "todo": crudo}); del v[:-_rf["W"]]
@@ -341,7 +359,12 @@ def reconocer(pkt, crudo):
     reconocedor["ultimo"] = time.time()
     try: x = _rasgos(v, v, _rf["BS"])
     except Exception: return
-    if x is None: reconocedor["prob"] = {}; return   # sin cara: no opina
+    if x is None:   # sin cara: no opina; si pasan 8 s sin cara, la visita se fue
+        reconocedor["prob"] = {}
+        if reconocedor["sin_cara_desde"] is None: reconocedor["sin_cara_desde"] = time.time()
+        elif time.time() - reconocedor["sin_cara_desde"] > 8.0: parecido_olvidar()
+        return
+    reconocedor["sin_cara_desde"] = None; parecido(x)
     p = _rf["modelo"].predict_proba(x.reshape(1, -1))[0]; moods = _rf["moods"]
     reconocedor["prob"] = {m: round(float(q), 3) for m, q in zip(moods, p)}
     top = moods[int(p.argmax())]
@@ -364,6 +387,7 @@ def sendto_tee(self, data, *args):
             try:
                 crudo = json.loads(data.decode()); pkt = parpadeo(calibrar({**crudo, **extra})); reconocer(pkt, crudo)
                 if reconocedor["animo"] and reconocedor["prob"]: pkt = {**pkt, "actor_animo": reconocedor["animo"], **{"actor_" + m: q for m, q in reconocedor["prob"].items()}}
+                if reconocedor["estilo"]: pkt = {**pkt, "estilo": reconocedor["estilo"], **{"parecido_" + a: q for a, q in reconocedor["estilo_prob"].items()}}
                 registrar(pkt, crudo)
                 if estado["solo_cara"]: pkt = {**pkt, "solo_cara": estado["solo_cara"]}   # 1 cuerpo quieto, 2 + cabeza fija
                 if estado["anclada"]: pkt = {**pkt, "anclada": 1}                           # se mueve pero no viaja
@@ -477,6 +501,7 @@ def estado_json():
     return {"modo": ("cuerpo", "solo cara", "solo cara, cabeza fija")[estado["solo_cara"]] + (" + anclada" if estado["anclada"] else ""),
             "auto": estado["auto"], "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
             "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
+            "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"],
             "emotibit": {"hz": round(_emo["hz"]), "hr": emotibit.get("emotibit_hr"), "eda": emotibit.get("emotibit_eda"), "therm": emotibit.get("emotibit_therm")} if emotibit_vivo() else None,
             "valores": {k: u.get(k) for k in ("head_yaw", "head_pitch", "jaw_open", "blink", "brow_up", "mouth_smile", "tongue_out")} if u else {}}
 PANEL_HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Yakumama</title>
@@ -537,6 +562,7 @@ async function est(){try{const s=await (await fetch('/estado')).json();
   `<div class=k><b>Actor</b><span class="${s.actor?'ok':'bad'}">${s.actor||'sin nombre'}</span></div>`+
   `<div class=k><b>Cara</b><span class="${s.cara?'ok':'bad'}">${s.cara?'vista':'NO VISTA'}</span></div>`+
   `<div class=k><b>La ballena ve</b><span class="${s.detectado?'ok':''}">${s.detectado||'—'}</span>${s.prob&&s.detectado?'<small class=small>'+Math.round((s.prob[s.detectado]||0)*100)+' %</small>':''}</div>`+
+  `<div class=k><b>Se parece a</b><span class="${s.estilo?'ok':''}">${s.estilo||'—'}</span>${s.estilo_prob&&s.estilo?'<small class=small>'+Math.round((s.estilo_prob[s.estilo]||0)*100)+' %</small>':''}</div>`+
   `<div class=k><b>Neutral</b><span class="${s.neutral?'ok':'bad'}">${s.neutral?'tomado':'falta: Neutral'}</span></div>`+
   `<div class=k><b>Blender</b><span class="${s.blender?'ok':'bad'}">${s.blender?'recibiendo':'sin receptor'}</span></div>`+
   `<div class=k><b>EmotiBit</b><span class="${e?'ok':'bad'}">${e?e.hz+'/s · hr '+f(e.hr,0)+' · eda '+f(e.eda,1):'SIN DATOS'}</span></div>`+

@@ -42,7 +42,7 @@ def generar(animo, segundos, dur_ref=120.0):
         pkt = {"head_yaw": max(-1, min(1, v["head_yaw"])), "head_pitch": max(-1, min(1, v["head_pitch"])), "jaw_open": max(0, min(1, v["jaw_open"])), "blink": 1.0 if (t - ult_parpadeo) < 0.17 else 0.0,
                "brow_up": max(0, min(1, v["brow_up"])), "brow_down": max(0, min(1, v["brow_down"])), "mouth_sad": max(0, min(1, v["mouth_sad"])), "mouth_smile": max(0, min(1, v["mouth_smile"])),
                "eye_yaw": max(-1, min(1, v["eye_yaw"])), "eye_pitch": max(-1, min(1, v["eye_pitch"])), "emotibit_hr": round(max(40, min(180, hr)), 1), "emotibit_eda": round(max(0.2, v["eda"] * 10), 2),
-               "actor_animo": animo, "soltar_manual": 1 if i < 30 else 0, "water": 0.8, **flags}
+               "actor_animo": animo, "soltar_manual": 1 if i < 30 else 0, "water": 0.8, "red": 1, **({"estilo": ACTOR} if ACTOR else {}), **flags}
         if v["mano_l"] > 0.5: pkt["l_palm_y"] = max(0, min(1, v["l_palm_y"])); pkt["l_palm_x"] = max(0, min(1, v["l_palm_x"]))
         if v["mano_r"] > 0.5: pkt["r_palm_y"] = max(0, min(1, v["r_palm_y"])); pkt["r_palm_x"] = max(0, min(1, v["r_palm_x"]))
         salida.append(pkt)

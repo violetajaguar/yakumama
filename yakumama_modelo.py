@@ -50,7 +50,8 @@ class Modelo:
         v = self.paso(animo, t, dur, actor); c = lambda a, lo=0.0, hi=1.0: max(lo, min(hi, a))
         p = {"head_yaw": c(v["head_yaw"], -1, 1), "head_pitch": c(v["head_pitch"], -1, 1), "jaw_open": c(v["jaw_open"]), "blink": 1.0 if v["blink"] > 0.6 else 0.0,
              "brow_up": c(v["brow_up"]), "brow_down": c(v["brow_down"]), "mouth_sad": c(v["mouth_sad"]), "mouth_smile": c(v["mouth_smile"]), "eye_yaw": c(v["eye_yaw"], -1, 1), "eye_pitch": c(v["eye_pitch"], -1, 1),
-             "emotibit_hr": round(v["hr_bpm"], 1), "emotibit_eda": round(v["eda_uS"], 2), "actor_animo": animo, "water": 0.8}
+             "emotibit_hr": round(v["hr_bpm"], 1), "emotibit_eda": round(v["eda_uS"], 2), "actor_animo": animo, "water": 0.8, "red": 1}
+        if actor in self.actores: p["estilo"] = actor   # Blender mueve el cuerpo con la energia de ese actor y muestra Ahora es
         if modo == "anclada": p["anclada"] = 1
         elif modo == "cara": p["solo_cara"] = 1
         if v["mano_l"] > 0.5: p["l_palm_y"] = c(v["l_palm_y"]); p["l_palm_x"] = c(v["l_palm_x"])

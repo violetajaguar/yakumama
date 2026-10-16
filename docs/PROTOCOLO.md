@@ -57,3 +57,11 @@ pkt = m.paquete("angry", t)      # call 30× per second with t in seconds; send 
 
 The mood recogniser is `modelos/animo_rf.pkl` (scikit‑learn random forest); its feature builder is `rasgos()` in
 `entrenar_animo.py` (2‑second windows of the 51 blendshapes, head and hands).
+
+## Estilo (desde el 15 oct)
+- `estilo`: a cual de los actores grabados se parece quien esta frente a la camara (`violeta`, `sanam`, `suri`, `dan`).
+  Lo decide el grabador a los 2 s de ver una cara y queda fijo mientras la cara siga (un encuentro = un estilo); si la
+  cara se pierde 8 s, desaparece del paquete. `parecido_<actor>`: la probabilidad de cada uno (0-1).
+- `red`: 1 cuando el paquete lo genera la red (generar_animo.py / yakumama_modelo.py) y no una persona.
+- La ballena fisica puede usar `estilo` igual que Blender: con ese nombre, `Modelo().paquete(animo, t, actor=estilo)` da
+  manos y pulso en ese estilo, y el cuerpo se mueve con su energia (violeta 0.7, sanam 1.0, suri 1.15, dan 1.35).
