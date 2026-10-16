@@ -183,7 +183,7 @@ def guardar():
                 for r in recs: fh.write(json.dumps(r, ensure_ascii=False) + "\n")
         n = len(estado["cara"]); d = segundos([r["t"] for r in estado["cara"]]); estado["seg"][an] = estado["seg"].get(an, 0) + d
         print(f"\n   guardado {nombre}.jsonl en cara/ y cuerpo/ ({n} paquetes, {d:.0f} s)" + (f"  autoinforme valencia {estado['auto']['valencia']} activacion {estado['auto']['activacion']}" if estado["auto"]["valencia"] is not None else ""))
-        estado["auto"] = {"valencia": None, "activacion": None}
+        estado["auto"] = {"valencia": None, "activacion": None}; _segs["t"] = 0.0
         estado["cara"] = []; estado["cuerpo"] = []
 
 def resumen():
@@ -324,8 +324,10 @@ def cuerpo_pose(rgb):
     for k in CUERPO:
         v = q[k][i]
         if np.isfinite(v): out[k] = round(float(v), 3)
-    tob = np.nanmean([fila[J["ankle_l"]][2], fila[J["ankle_r"]][2]])   # agachado: la cadera (origen) se acerca a los tobillos
-    if np.isfinite(tob): out["cuerpo_profundidad"] = round(max(-1.0, min(1.0, ((0.0 - tob) - 0.85) / 0.35)), 3)
+    if L[27].visibility > 0.7 and L[28].visibility > 0.7:   # agachado: la cadera (origen) se acerca a los tobillos; solo con los dos tobillos bien vistos
+        tob = (L[27].y + L[28].y) / 2   # altura de los tobillos bajo la cadera (MediaPipe: y hacia abajo, positiva)
+        out["cuerpo_profundidad"] = round(max(-0.6, min(0.6, (tob - 0.85) / 0.35)), 3)
+    else: out["cuerpo_profundidad"] = 0.0
     for k in list(extra):
         if k.startswith("cuerpo_"): extra.pop(k, None)
     extra.update(out); _pose["ultimo"] = out
@@ -591,13 +593,28 @@ threading.Thread(target=teclado, daemon=True).start()
 
 # --- PANEL WEB: http://localhost:8765  botones grandes + estado en vivo (misma logica que las teclas)
 ap_panel = a.panel
+_segs = {"t": 0.0, "segs": {an: 0.0 for an in ANIMOS}, "ocupado": False, "por_archivo": {}}
+def segs_totales():
+    """segundos grabados por animo (solo los del actor actual, o los sin nombre). Con cientos de tomas (RAVDESS, BEAT)
+    leer todo tarda segundos: se calcula en un hilo, una vez por minuto, con cache por archivo."""
+    if time.time() - _segs["t"] > 60 and not _segs["ocupado"]:
+        _segs["ocupado"] = True
+        def _calc():
+            segs = {an: 0.0 for an in ANIMOS}
+            try:
+                for f in os.listdir(SAL_CARA):
+                    if not f.endswith(".jsonl"): continue
+                    partes = f[:-6].split("_"); an = partes[0]; quien = partes[1] if len(partes) == 3 else ""
+                    if an not in segs or quien != estado["actor"]: continue
+                    ruta = os.path.join(SAL_CARA, f); mt = os.path.getmtime(ruta); c = _segs["por_archivo"].get(f)
+                    if not c or c[0] != mt: c = (mt, segundos_archivo(ruta)); _segs["por_archivo"][f] = c
+                    segs[an] += c[1]
+            except Exception: pass
+            _segs["segs"] = segs; _segs["t"] = time.time(); _segs["ocupado"] = False
+        threading.Thread(target=_calc, daemon=True).start()
+    return _segs["segs"]
 def estado_json():
-    u = estado["ultimo"]; segs = {an: 0.0 for an in ANIMOS}
-    try:
-        for f in os.listdir(SAL_CARA):
-            an = f.rsplit("_", 1)[0]
-            if an in segs: segs[an] += segundos_archivo(os.path.join(SAL_CARA, f))
-    except Exception: pass
+    u = estado["ultimo"]; segs = segs_totales()
     try: rx = json.load(open("/tmp/ballena_receptor.json")); blender = (time.time() - rx.get("t", 0)) < 6
     except Exception: blender = False
     cara = bool(u) and u.get("head_yaw") is not None and estado.get("_yaw_prev") != u.get("head_yaw")
