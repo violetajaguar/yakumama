@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-15v la red actua con el estilo de un actor o el promedio"
+VERSION = "2026-10-15x estilo con energia propia; la red actua con boca y cabeza mas amplias"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -121,7 +121,7 @@ class BallenaProps(bpy.types.PropertyGroup):
     toma: bpy.props.EnumProperty(name="Toma", items=_tomas_items, description="Tramo grabado en datasets/ (cara + cuerpo)")
     modo_toma: bpy.props.EnumProperty(name="Modo", items=[("anclada", "Anclada", "cuerpo entero, sin viajar"), ("cuerpo", "Cuerpo", "cuerpo entero, viaja"), ("cara", "Solo cara", "cuerpo quieto"), ("fija", "Cara, cabeza fija", "solo boca, parpadeo y cejas")], default="anclada")
     loop_toma: bpy.props.BoolProperty(name="Repetir", default=False)
-    actor_red: bpy.props.StringProperty(name="Estilo de", default="promedio", description="Con el estilo de que actor actua la red: violeta, sanam, suri, dan... o promedio")
+    actor_red: bpy.props.StringProperty(name="Estilo de", default="auto", description="auto = el actor al que mas se parece la visita (parecido del grabador); o un nombre: violeta, sanam, suri, dan; o promedio")
     comportamiento: bpy.props.EnumProperty(name="Comportamiento", default="auto", description="Posicion y movimiento del cuerpo, de las fotos de NOAA (referencias/noaa_comportamientos)", items=[
         ("auto", "Automático (ánimo)", "el animo viene del actor, los colores o el cerebro"),
         ("calm", "calm · logging", "quieta en la superficie, respiracion lenta"),
@@ -180,7 +180,7 @@ class BALLENA_OT_actuar(bpy.types.Operator):
         import subprocess
         p = context.scene.ballena; ns = bpy.app.driver_namespace; bpy.ops.ballena.parar()
         animo = p.comportamiento if p.comportamiento != "auto" else None
-        cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "generar_animo.py")] + ([animo] if animo else ["--todos"]) + ["--segundos", "60" if animo else "30", "--modo", p.modo_toma if p.modo_toma in ("anclada", "cuerpo", "cara") else "anclada"] + ["--actor", (p.actor_red or "promedio").strip().lower()]
+        cmd = [os.path.join(YAKUMAMA, "venv", "bin", "python"), "-u", os.path.join(YAKUMAMA, "generar_animo.py")] + ([animo] if animo else ["--todos"]) + ["--segundos", "60" if animo else "30", "--modo", p.modo_toma if p.modo_toma in ("anclada", "cuerpo", "cara") else "anclada"] + ["--actor", ((bpy.app.driver_namespace.get("_ballena_estilo") or "promedio") if (p.actor_red or "auto").strip().lower() == "auto" else p.actor_red.strip().lower())]
         p.comportamiento = "auto"
         ns["_ballena_reproductor"] = subprocess.Popen(cmd, cwd=YAKUMAMA, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.report({'INFO'}, f"actuando {animo or 'los diez'}"); return {'FINISHED'}
@@ -263,6 +263,8 @@ class BALLENA_PT_panel(bpy.types.Panel):
         col.label(text="Comportamiento (fotos NOAA)")
         col.prop(p, "comportamiento", text="")
         col.prop(p, "actor_red")
+        _e = bpy.app.driver_namespace.get("_ballena_estilo")
+        col.label(text=f"Ahora es: {_e}" if _e else "Ahora es: nadie (promedio)", icon='USER')
         col.operator("ballena.actuar", text="Actuar con la red (lo aprendido del actor)", icon='OUTLINER_OB_ARMATURE')
         col.separator()
         col.label(text="Mouth + Tongue")
@@ -994,6 +996,36 @@ def comportamiento(t, dom, sec, w_dom=0.8):
 # ============================================================
 # ANIMATION
 # ============================================================
+# ENERGIA DEL ESTILO: cuanto mueve el cuerpo cada actor, medido en sus tomas (movimiento de cabeza por cuadro: violeta
+# 0.027, sanam 0.035, suri 0.035, dan 0.043), como factor sobre el comportamiento del animo. Violeta actua quieta y
+# con la cara; Dan con todo el cuerpo. Con promedio o sin estilo, 1.0.
+ESTILO_ENERGIA = {"violeta": 0.7, "sanam": 1.0, "suri": 1.15, "dan": 1.35}
+_red_estilo = {"modelo": None, "t0": None, "estilo": None}
+def completar_con_red(d, t):
+    """la visita trae su cara y su animo; lo que no trae (manos, pulso, piel) lo pone la red con el estilo del actor
+    al que se parece (`estilo` en el paquete, del parecido del grabador). Asi nunca es una grabacion: es el animo de la
+    visita actuado con el cuerpo de una persona grabada. Si no hay estilo ni animo, no toca nada."""
+    p = bpy.context.scene.ballena; elegido = (p.actor_red or "auto").strip().lower()
+    estilo = d.get('estilo') if elegido == "auto" else (None if elegido == "promedio" else elegido)
+    bpy.app.driver_namespace["_ballena_estilo"] = d.get('estilo')
+    animo = d.get('actor_animo') or (p.comportamiento if p.comportamiento != "auto" else None)
+    if not animo or (estilo is None and elegido == "auto" and not d.get('estilo')): return d
+    try:
+        if _red_estilo["modelo"] is None:
+            import sys; sys.path.insert(0, YAKUMAMA); import importlib, yakumama_modelo; importlib.reload(yakumama_modelo)
+            _red_estilo["modelo"] = yakumama_modelo.Modelo(os.path.join(YAKUMAMA, "modelos", "movimiento_pesos.npz"))
+        if _red_estilo["estilo"] != estilo: _red_estilo["estilo"] = estilo; _red_estilo["t0"] = t
+        pk = _red_estilo["modelo"].paquete(animo, t - _red_estilo["t0"], actor=estilo)
+    except Exception as e:
+        if _red_estilo.get("err") != str(e): _red_estilo["err"] = str(e); print(f"   (red de estilo: {e})")
+        return d
+    out = dict(d)
+    if 'l_palm_y' not in d and 'r_palm_y' not in d:
+        for k in ('l_palm_y', 'l_palm_x', 'r_palm_y', 'r_palm_x'):
+            if k in pk: out[k] = pk[k]
+    if not d.get('emotibit_hr'): out['emotibit_hr'] = pk['emotibit_hr']
+    if not d.get('emotibit_eda'): out['emotibit_eda'] = pk['emotibit_eda']
+    return out
 def breathe():
     global turbine_active, turbine_angle, prev_btn
     try:
@@ -1004,6 +1036,7 @@ def breathe():
     except: pass
     d = suavizar(latest_data)
     t = time.time()
+    d = completar_con_red(d, t)
     m = compute_mood(d)
     solo_cara = bool(d.get('solo_cara', 0))
     cabeza_fija = int(d.get('solo_cara', 0) or 0) == 2   # 2 = ni la cabeza se mueve: solo boca, parpadeo y cejas
@@ -1059,7 +1092,12 @@ def breathe():
     fuerza_latido = LATIDO_ANIMO.get(dom_name, 0.5) * (0.5 + 0.5 * excitacion)   # calm ~0.05-0.1, angry/feeding hasta 1
     beat *= fuerza_latido
     if not solo_cara:
-        comp = dict(comp); comp["head"] = comp["head"] + 0.03 * beat + 0.06 * tension * _onda(t, 0.9)   # el latido asoma en la cabeza; la tension la hace vibrar
+        comp = dict(comp)
+        k_est = ESTILO_ENERGIA.get(str(d.get('estilo') or ''), 1.0)   # el cuerpo se mueve con la energia del actor cuyo estilo lleva
+        if k_est != 1.0:
+            for kk in ("head", "flap", "ladeo", "fluke"): comp[kk] = comp[kk] * k_est
+            comp["spine"] = [v * k_est for v in comp["spine"]]
+        comp["head"] = comp["head"] + 0.03 * beat + 0.06 * tension * _onda(t, 0.9)   # el latido asoma en la cabeza; la tension la hace vibrar
         comp["flap"] = comp["flap"] + 0.06 * beat + 0.1 * energia; comp["fluke"] = comp["fluke"] - 0.05 * beat
         if dom_name == "singing" and cara_actor:   # CANTO: el cuerpo se mueve con la boca del actor
             canto = max(0.0, min(1.0, float(d.get('jaw_open', 0))))
@@ -1090,7 +1128,8 @@ def breathe():
     calm = m.get("calm", 0)
     jaw = max(0.0, comp["jaw"]); mouth_scale = 1.0   # la boca del animo a escala completa (el slider Mouth era del sistema viejo)
     if cara_actor:   # boca = la del actor, rango completo (ignora el slider Mouth del panel)
-        jaw = max(max(0.0, min(1.0, float(d.get('jaw_open', 0)))) * 0.25, comp["jaw"]); mouth_scale = 1.0   # actor tope 0.25 rad (boca -40%); la boca del animo a escala completa, gana la mas abierta
+        g_boca = 0.6 if d.get('red') else 0.25   # actor real: tope 0.25 rad (boca -40%); la red actuando un estilo: casi completa, para que se vea la diferencia
+        jaw = max(max(0.0, min(1.0, float(d.get('jaw_open', 0)))) * g_boca, comp["jaw"]); mouth_scale = 1.0   # la boca del animo a escala completa, gana la mas abierta
         tongue_scale = 0.0   # el sway automatico no: la lengua sale con tongue_out (Face Landmarker via grabar_ballena.py)
         lengua = max(0.0, min(1.0, float(d.get('tongue_out', 0))))
         if lengua > 0.2: jaw = max(jaw, 0.1 + 0.2 * lengua)   # para que se vea, la boca se abre un poco
@@ -1184,7 +1223,7 @@ def breathe():
     head_yaw = max(-1.0, min(1.0, float(d.get('head_yaw', 0))))
     head_pitch = max(-0.8, min(0.8, float(d.get('head_pitch', 0))))
     if cabeza_fija: head_yaw = head_pitch = 0.0
-    pw = 0.5 if (solo_cara or 'head_yaw' in d) else 0.2 + m.get("alert", 0) * 0.3   # con cara: la cabeza sigue al actor, hasta ~14 grados de giro y ~23 de cabeceo
+    pw = (0.8 if d.get('red') else 0.5) if (solo_cara or 'head_yaw' in d) else 0.2 + m.get("alert", 0) * 0.3   # con cara: la cabeza sigue al actor (~14 grados; la red con estilo, ~23)
     cur_head_z = current_rots.get('head:2', 0.0)
     cur_head_x = current_rots.get('head:0', 0.0)
     rot('head', cur_head_z + (-head_yaw * pw * 0.5), 2, 0.05)
@@ -1409,7 +1448,7 @@ def breathe():
             _wb = {k[6:]: float(v) for k, v in d.items() if k.startswith('whale_')}
             bpy.app.driver_namespace["_ballena_sentidos"] = {
                 "dominante": dominant, "fuente": ("menú" if (manual != "auto") else ("actor (reconocedor)" if d.get('actor_animo') else ("cerebro Qwen" if use_brain and _wb else "color de la escena"))),
-                "cara": bool(cara_actor), "actor": d.get('actor_animo'), "manos": ("2" if ('l_palm_y' in d and 'r_palm_y' in d) else ("1" if ('l_palm_y' in d or 'r_palm_y' in d) else "")),
+                "cara": bool(cara_actor), "actor": d.get('actor_animo'), "estilo": d.get('estilo'), "manos": ("2" if ('l_palm_y' in d and 'r_palm_y' in d) else ("1" if ('l_palm_y' in d or 'r_palm_y' in d) else "")),
                 "hr": float(d.get('emotibit_hr') or 0) or None, "eda": float(d.get('emotibit_eda') or 0), "therm": float(d.get('emotibit_therm') or 0),
                 "color": d.get('scene_color', '—'), "agua": wl if 'wl' in dir() else d.get('water', '—'), "cerebro": (max(_wb, key=_wb.get) if _wb else "—")}
         except Exception: pass
