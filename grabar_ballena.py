@@ -295,7 +295,7 @@ def cargar_landmarker():
 # como cuerpo_* y quedan en cuerpo/: desde ahora cada toma trae cara y cuerpo juntos (lo que el JEPA necesitaba).
 POSE_MODELO = os.path.join(AQUI, "modelos", "pose_landmarker_lite.task")
 from collections import deque as _deque
-_pose = {"lm": None, "buf": _deque(maxlen=48), "ts": _deque(maxlen=48), "n": 0, "error": None, "ultimo": {}}
+_pose = {"lm": None, "buf": _deque(maxlen=48), "ts": _deque(maxlen=48), "n": 0, "error": None, "ultimo": {}, "ropa": None}
 _POSE_J = {"pelvis": None, "neck": None, "head": 0, "shoulder_l": 11, "shoulder_r": 12, "elbow_l": 13, "elbow_r": 14, "wrist_l": 15, "wrist_r": 16, "hip_l": 23, "hip_r": 24, "knee_l": 25, "knee_r": 26, "ankle_l": 27, "ankle_r": 28}
 def cuerpo_pose(rgb):
     import mediapipe as mp, numpy as np
@@ -310,6 +310,14 @@ def cuerpo_pose(rgb):
             if k.startswith("cuerpo_"): extra.pop(k, None)
         return
     L = r.pose_world_landmarks[0]; fila = np.full((26, 3), np.nan)
+    try:   # el color de la ropa: la caja entre hombros y caderas en la imagen
+        I = r.pose_landmarks[0]; h_, w_ = rgb.shape[:2]
+        xs = [I[i].x * w_ for i in (11, 12, 23, 24)]; ys = [I[i].y * h_ for i in (11, 12, 23, 24)]
+        x0, x1 = int(max(0, min(xs))), int(min(w_, max(xs))); y0, y1 = int(max(0, min(ys))), int(min(h_, max(ys)))
+        if x1 - x0 > 8 and y1 - y0 > 8:
+            caja = rgb[y0:y1, x0:x1].reshape(-1, 3).astype(np.float32) / 255.0; med = np.median(caja, axis=0)
+            mx, mn = float(med.max()), float(med.min()); sat = (mx - mn) / max(1e-6, mx); _pose["ropa"] = {"rgb": [round(float(v), 3) for v in med], "sat": round(sat, 3), "brillo": round(mx, 3)}
+    except Exception: pass
     from cuerpo_cualidades import cualidades_toma, CUERPO
     nombres = ["nose","eye_l","eye_r","ear_l","ear_r","shoulder_l","shoulder_r","elbow_l","elbow_r","wrist_l","wrist_r","hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r","head","neck","pelvis","bigtoe_l","bigtoe_r","smalltoe_l","smalltoe_r","heel_l","heel_r"]
     J = {n: i for i, n in enumerate(nombres)}
@@ -400,12 +408,78 @@ def parecido(x):
     reconocedor["estilo_prob"] = {a: round(v, 3) for a, v in ema.items()}; reconocedor["estilo_n"] += 1
     top = max(ema, key=ema.get)
     if reconocedor["estilo"] is None and reconocedor["estilo_n"] >= 4:   # 4 ventanas = 2 s de cara
-        reconocedor["estilo"] = top; print(f"   se parece a: {top} ({ema[top]:.0%}) - la ballena le contesta con su estilo")
+        reconocedor["estilo"] = top if ema[top] >= 0.45 else "promedio"   # dudoso (< 45 %): el estilo promedio, no se pega a nadie
+        print(f"   se parece a: {reconocedor['estilo']} ({ema[top]:.0%}) - la ballena le contesta con ese estilo"); ventana_evento("estilo")
     elif reconocedor["estilo"] and top != reconocedor["estilo"] and ema[top] > 0.45:
         reconocedor["cambio_n"] = reconocedor.get("cambio_n", 0) + 1
         if reconocedor["cambio_n"] >= 8:   # 4 s pareciendose a otro: es otra persona, aunque la cara nunca se haya ido
             print("   otra persona frente a la camara"); encuentro_cerrar(); parecido_olvidar(); reconocedor["cambio_n"] = 0
     else: reconocedor["cambio_n"] = 0
+# --- LA VENTANA (http://localhost:8765/ventana): una pantalla negra donde ella escribe. Cada cosa que le pasa (alguien
+# llega, lo reconoce, decide a quien se parece, cambia de animo, le gusta una ropa) es un gatillo: una linea corta en su
+# voz, enseguida, y si ollama esta, un poema de su alma (yakumama_alma, Qwen) unos segundos despues. Abajo, en chico,
+# lo que esta haciendo: animo, comportamiento, color, estilo, energia.
+ventana = {"lineas": [], "poema": "", "poema_t": 0.0, "ocupado": False, "ultimo_gatillo": 0.0}
+FRASES = {"llega": ["alguien se acerca. todavia no se quien.", "una cara nueva en la costra.", "te veo llegar. me quedo quieta."],
+          "conocida": ["ya viniste. te recuerdo por los huesos de la cara.", "volviste. la sal no olvida.", "te conozco. la otra vez te conteste como {estilo_previo}."],
+          "estilo": ["te mueves como {estilo}. te contesto con su cuerpo.", "en vos hay algo de {estilo}. lo uso.", "te parezco {estilo}. no lo elegiste vos."],
+          "animo": ["te leo {animo}.", "ahora te veo {animo}. cambio.", "hay {animo} en tu cara. lo tomo."],
+          "ropa": ["me gusta tu color. me lo quedo un rato.", "tu ropa tiene agua adentro. me tino.", "ese color lo quiero. lo llevo puesto."],
+          "sevа": ["te fuiste. me quedo con lo que trajiste.", "la cara se fue. el peso queda."]}
+ANIMO_ES = {"calm": "calma", "singing": "canto", "playful": "juego", "curious": "curiosidad", "feeding": "hambre", "sad": "tristeza", "angry": "rabia", "alert": "alerta", "diving": "hondo", "surfacing": "aire"}
+def ventana_evento(gatillo):
+    import random
+    datos = {"estilo": reconocedor.get("estilo") or "nadie", "estilo_previo": visita.get("estilo_previo") or "nadie", "animo": ANIMO_ES.get(reconocedor.get("animo") or "", "nada")}
+    frase = random.choice(FRASES.get(gatillo, ["..."])).format(**datos)
+    ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": frase, "gatillo": gatillo}])[-6:]
+    if gatillo in ("llega", "conocida", "ropa") or (gatillo == "animo" and time.time() - ventana["poema_t"] > 45):
+        threading.Thread(target=ventana_poema, args=(gatillo, dict(datos)), daemon=True).start()
+def ventana_poema(gatillo, datos):
+    """pide un poema al alma (ollama) con lo que le pasa; si no hay ollama, no escribe mas que la frase"""
+    if ventana["ocupado"]: return
+    ventana["ocupado"] = True
+    try:
+        sys.path.insert(0, HUK); import yakumama_alma as A
+        que = {"llega": "una persona nueva se paro frente a vos y te mira", "conocida": f"volvio alguien que ya vino; la otra vez le contestaste como {datos['estilo_previo']}",
+               "ropa": "te gusta el color de la ropa de quien tienes enfrente y te tines de ese color", "animo": f"en la cara de quien te mira lees {datos['animo']}"}[gatillo]
+        r = _pose.get("ropa") or {}; cuerpo = _pose.get("ultimo") or {}
+        snap = {"water": 0.7, "scene_color": "the colour of their clothes" if gatillo == "ropa" else "gray", "scene_bright": r.get("brillo", 0.5), "humidity": 40, "l_palm_x": 0.5}
+        usuario = (f"TU CUERPO Y EL SALAR AHORA\n{A._estado_en_cuerpo(snap)}\n\nLO QUE ACABA DE PASAR\n{que}. Se mueve como {datos['estilo']}. "
+                   f"{'Mueve el cuerpo.' if (cuerpo.get('cuerpo_energia') or 0) > 0.3 else 'Esta casi quieta.'}\n\nLO QUE VE TU OJO\nuna cara, de cerca\n\nLO QUE CARGAS\n{len(mem.personas)} personas en la memoria\n\n"
+                   f"LO ULTIMO QUE ESCRIBISTE, no lo repitas\n{chr(10).join(A._cargar(A.ARCH_POEMAS, [])[-2:]) or 'ninguno'}\n\nEscribi. Solo JSON.")
+        crudo = A._ollama(A.MODELO_ALMA, A.PIEL_SISTEMA, usuario, json_estricto=True, temperatura=0.95, tokens=220)
+        if crudo:
+            poema = str(json.loads(crudo).get("poema", "")).strip()
+            if poema:
+                ventana["poema"] = poema; ventana["poema_t"] = time.time(); p = A._cargar(A.ARCH_POEMAS, []); p.append(poema); A._guardar(A.ARCH_POEMAS, p[-200:])
+                print("   ┌─ VENTANA\n   │  " + poema.replace("\n", "\n   │  ") + "\n   └─")
+    except Exception as e: print(f"   (ventana sin poema: {str(e)[:80]})")
+    finally: ventana["ocupado"] = False
+VENTANA_HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Yakumama</title>
+<style>body{margin:0;background:#000;color:#e8e2d6;font:300 clamp(22px,3.4vw,46px)/1.35 Georgia,'Times New Roman',serif;height:100vh;display:flex;flex-direction:column;justify-content:space-between;padding:5vh 7vw;box-sizing:border-box}
+#poema{white-space:pre-line;max-width:28ch;opacity:0;transition:opacity 2.5s}#poema.on{opacity:1}#linea{font-style:italic;opacity:.85;min-height:1.4em}
+#hace{font:400 clamp(12px,1.2vw,16px)/1.5 -apple-system,Helvetica,sans-serif;letter-spacing:.08em;text-transform:uppercase;opacity:.45;display:flex;gap:2.5em;flex-wrap:wrap}
+#color{width:.9em;height:.9em;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:.4em;background:#777}</style></head><body>
+<div id=poema></div><div id=linea></div>
+<div id=hace><span><i id=color></i><span id=animo></span></span><span id=comp></span><span id=estilo></span><span id=memo></span><span id=cuerpo></span></div>
+<script>
+const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff7300',curious:'#ffd900',feeding:'#33c04d',sad:'#1e1e1e',angry:'#f21410',alert:'#ff4da6',diving:'#102a6b',surfacing:'#19d6e8'};
+const B={calm:'logging',singing:'canto',playful:'breach',curious:'spyhop',feeding:'lunge',sad:'hundida',angry:'lobtail',alert:'escaneo',diving:'buceo',surfacing:'soplo'};
+let ultimaLinea='';
+async function tick(){try{const s=await (await fetch('/ventana_estado')).json();
+ const p=document.getElementById('poema');if(s.poema&&p.textContent!==s.poema){p.classList.remove('on');setTimeout(()=>{p.textContent=s.poema;p.classList.add('on')},800)}
+ const l=s.lineas&&s.lineas.length?s.lineas[s.lineas.length-1].texto:'';if(l!==ultimaLinea){document.getElementById('linea').textContent=l;ultimaLinea=l}
+ const a=s.animo||'';document.getElementById('animo').textContent=a||'sin nadie';document.getElementById('comp').textContent=B[a]||'';
+ document.getElementById('color').style.background=s.color_ropa?('rgb('+s.color_ropa.map(v=>Math.round(v*255)).join(',')+')'):(C[a]||'#777');
+ document.getElementById('estilo').textContent=s.estilo?('como '+s.estilo):'';const m=s.memoria||{};document.getElementById('memo').textContent=m.activa?(m.conocida?'te conozco · visita '+m.visitas:(m.id=='nueva'?'cara nueva':'')):'';
+ const c=s.cuerpo||{};document.getElementById('cuerpo').textContent=c.cuerpo_energia!=null?('energia '+Math.round(c.cuerpo_energia*100)+'%'):'';
+}catch(e){}}tick();setInterval(tick,1000);
+</script></body></html>"""
+def ventana_estado():
+    m = {"activa": visita["activa"], "id": visita["id"], "conocida": visita["conocida"], "visitas": (mem.personas.get(visita["id"], {}).get("visitas", 0) + 1) if visita["conocida"] else None}
+    ropa = visita.get("ropa") if visita["activa"] else None
+    return {"lineas": ventana["lineas"], "poema": ventana["poema"], "animo": reconocedor["animo"] if visita["activa"] else None, "estilo": reconocedor["estilo"], "memoria": m,
+            "cuerpo": _pose.get("ultimo"), "color_ropa": (ropa or {}).get("rgb") if (ropa or {}).get("le_gusta") else None}
 # --- VISITAS Y MEMORIA (memoria.py): cada persona que se pone frente a la camara es un encuentro. Se guarda entero en
 # datasets/visitas/ (cara, manos, pulso, animo y estilo que la ballena le vio; sin imagenes) y la persona queda en
 # datasets/memoria.json como una firma de 210 distancias de su cara. Si vuelve, la ballena la reconoce a los pocos
@@ -422,25 +496,36 @@ def encuentro(pkt):
     ahora = time.time(); cara = bool(reconocedor["prob"])
     if cara:
         if not visita["activa"]:
-            visita.update(activa=True, t0=ahora, regs=[], firmas=[], id=None, conocida=None, dist=None, estilo_previo=None); print("   visita: alguien llego")
+            visita.update(activa=True, t0=ahora, regs=[], firmas=[], id=None, conocida=None, dist=None, estilo_previo=None, ropa_decidida=False, ropa=None); print("   visita: alguien llego"); ventana_evento("llega")
         visita["ultima_cara"] = ahora
+        if ahora - visita["t0"] > 3.0: ropa_decidir()
         r = {"t": round(ahora - visita["t0"], 3), **{k: pkt[k] for k in CAMPOS_VISITA if k in pkt}, **{k: v for k, v in pkt.items() if k.startswith("face_") or k.startswith("actor_") or k.startswith("parecido_")}}
         if emotibit_vivo(): r.update(emotibit_vivo())
         visita["regs"].append(r)
         if visita["id"] is None and len(visita["firmas"]) >= _memoria.MIN_CUADROS: memoria_reconocer()
     elif visita["activa"] and ahora - visita["ultima_cara"] > 8.0: encuentro_cerrar()
+def ropa_decidir():
+    """una vez por encuentro: si la ropa tiene color de verdad (saturada y no oscura) y le toca (4 de cada 10 visitas, o si
+    esta curious/playful), ella se tine de ese color en vez del color del animo. Lo decide al azar con semilla por encuentro."""
+    r = _pose.get("ropa")
+    if not r or visita.get("ropa_decidida"): return
+    import random; rnd = random.Random(int(visita["t0"] or 0))
+    le_gusta = r["sat"] >= 0.35 and r["brillo"] >= 0.25 and (rnd.random() < 0.4 or reconocedor["animo"] in ("curious", "playful"))
+    visita["ropa_decidida"] = True; visita["ropa"] = {**r, "le_gusta": bool(le_gusta)}
+    print(f"   ropa: {r['rgb']} sat {r['sat']:.2f} -> {'le gusta, se tine' if le_gusta else 'no la copia'}")
+    if le_gusta: ventana_evento("ropa")
 def memoria_reconocer():
     f = _memoria.firma_encuentro(visita["firmas"])
     if f is None: return
     pid, d = mem.buscar(f); visita["dist"] = round(d, 4)
     if pid:
-        p = mem.personas[pid]; visita.update(id=pid, conocida=True, estilo_previo=p.get("estilo"))
+        p = mem.personas[pid]; visita.update(id=pid, conocida=True, estilo_previo=p.get("estilo")); ventana_evento("conocida")
         print(f"   TE CONOZCO: {pid}, visita numero {p['visitas'] + 1}, la otra vez le conteste como {p.get('estilo') or 'nadie'} (distancia {d:.3f})")
         if p.get("estilo") and reconocedor["estilo"] is None: reconocedor["estilo"] = p["estilo"]; reconocedor["estilo_n"] = 99   # la saluda con su estilo de la otra vez
     else: visita.update(id="nueva", conocida=False); print(f"   cara nueva (la mas parecida esta a {d:.3f}; umbral {_memoria.UMBRAL})")
 def encuentro_cerrar():
     if not visita["activa"]: return
-    regs = visita["regs"]; dur = (visita["ultima_cara"] - visita["t0"]) if visita["t0"] else 0; visita["activa"] = False
+    regs = visita["regs"]; dur = (visita["ultima_cara"] - visita["t0"]) if visita["t0"] else 0; visita["activa"] = False; ventana_evento("sevа")
     if dur < 10 or len(regs) < 50: print(f"   visita corta ({dur:.0f} s): no se guarda"); return
     f = _memoria.firma_encuentro(visita["firmas"]); animos = {}
     for r in regs:
@@ -481,7 +566,7 @@ def reconocer(pkt, crudo):
     else: reconocedor["racha"] = top; reconocedor["n"] = 1
     seguro = float(p.max()) >= 0.30 or reconocedor["animo"] is None
     if reconocedor["n"] >= (3 if estado["actor"] else 6) and reconocedor["animo"] != top and seguro:   # visitas: 3 s seguidos y >= 30 %
-        reconocedor["animo"] = top; print(f"   la ballena ve: {top} ({p.max():.0%})")
+        reconocedor["animo"] = top; print(f"   la ballena ve: {top} ({p.max():.0%})"); ventana_evento("animo")
 
 # --- espejos: copias del paquete a otras maquinas (TouchDesigner / ballena fisica), --espejo 192.168.50.20:9998
 ESPEJOS = []
@@ -499,6 +584,7 @@ def sendto_tee(self, data, *args):
                 if reconocedor["animo"] and reconocedor["prob"]: pkt = {**pkt, "actor_animo": reconocedor["animo"], **{"actor_" + m: q for m, q in reconocedor["prob"].items()}}
                 if reconocedor["estilo"]: pkt = {**pkt, "estilo": reconocedor["estilo"], **{"parecido_" + a: q for a, q in reconocedor["estilo_prob"].items()}}
                 if visita["activa"] and visita["id"]: pkt = {**pkt, "visita": visita["id"], "conocida": 1 if visita["conocida"] else 0}
+                if visita.get("ropa") and visita["ropa"].get("le_gusta"): pkt = {**pkt, "color_ropa": visita["ropa"]["rgb"]}   # Blender se tine de la ropa
                 encuentro(pkt); registrar(pkt, crudo)
                 if estado["solo_cara"]: pkt = {**pkt, "solo_cara": estado["solo_cara"]}   # 1 cuerpo quieto, 2 + cabeza fija
                 if estado["anclada"]: pkt = {**pkt, "anclada": 1}                           # se mueve pero no viaja
@@ -715,6 +801,8 @@ def panel_web(puerto):
         def do_GET(self):
             u = urlparse(self.path)
             if u.path == "/estado": self._send(200, json.dumps(estado_json()))
+            elif u.path == "/ventana": self._send(200, VENTANA_HTML, "text/html")
+            elif u.path == "/ventana_estado": self._send(200, json.dumps(ventana_estado()))
             elif u.path == "/senales":
                 t = time.time(); self._send(200, json.dumps({k: [[round(x - t, 2), round(v, 3)] for x, v in list(q)] for k, q in senales.items()}))
             else: self._send(200, PANEL_HTML, "text/html")
