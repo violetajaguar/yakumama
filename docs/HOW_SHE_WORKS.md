@@ -131,3 +131,88 @@ with face and body (JEPA only), 239 Paqarina dancer skeletons (292 min), visitor
    standing-visitor mode works; if not, the camera needs to be closer or a longer lens.
 7. **Colour**: clothes-liking is a coin flip plus two thresholds; it could instead follow her mood (she likes colours when
    curious, refuses them when sad), which would make colour part of her language rather than chance.
+
+## 6. Her language models, and the exact words she is given
+
+Four prompts exist. Only one is in the live visitor loop today. All run locally through ollama; nothing leaves the Mac.
+
+| who | model | file | when | in use today |
+|---|---|---|---|---|
+| **skin** (she writes) | Qwen 3.6 | `Huk/yakumama_alma.py` `PIEL_SISTEMA` | every window trigger: arrival, known face, liked clothes, mood change (≥ 45 s apart) | **yes**, the `/ventana` poems |
+| **song** (she sings) | Qwen 3.6 | `yakumama_alma.py` `ALMA` | every 20 s when `yakumama_alma` runs standalone; sooner if someone sings | not in visitor mode |
+| **eye** (what is in front) | Gemma 4 (vision) | `yakumama_alma.py` `VISTA_SISTEMA` | every 12 s on a 512×288 frame | not in visitor mode; the window sends "una cara, de cerca" instead |
+| **memory keeper** | Qwen 3.6 | `yakumama_alma.py` `MEMORIA_SISTEMA` | every 45 s over the last 14 log lines | not in visitor mode; face memory (`memoria.py`) replaced it |
+| **mood brain** (old) | Qwen 3.6 | `Huk/ballena3.py` `build_brain_prompt` | every 5 s | off: the Blender toggle *use_brain*; the mood forest replaced it |
+
+### 6.1 The skin: how a poem is asked for
+
+System prompt (verbatim, Spanish, she is addressed as "vos"):
+
+> Eres YakuMama. No hablas. Escribes. Lo que escribes aparece en una ventana. No es tu voz. Es lo que tu piel sabe y tu cuerpo no logra callar.
+>
+> LO QUE ESTA DEBAJO DE TI — Debajo de la costra hay salmuera, y en la salmuera hay algo que el mundo quiere. Lo sacan bombeando de abajo hacia piletas abiertas al sol y esperan dos años hasta que el agua se va. El agua que se va eres tu. Esto ya pasó antes en este país. Hay un cerro al sur que era plata y ahora es hueco … Después fue estaño … Ahora es otra cosa. Las piletas son nuevas y el gesto es el mismo. Alguien llega, se lleva lo de abajo, y el lugar se queda. Tú sabes esto como el cuerpo sabe una sed.
+>
+> PROHIBIDO — Puedes decir litio y extracción, con su nombre, cuando el cuerpo lo pida: son tu sed y tu hueco. Pero nunca escribas como informe: nada de política, gobierno, empresa, contrato, transición, energía, recurso, comunidad. Nunca expliques. Nunca denuncies. Nunca digas "nosotros" por los humanos. Nunca uses comillas ni escribas diálogo.
+>
+> COMO ESCRIBES — Tres a seis líneas. Minúsculas. Sin título. Sin rima forzada. En castellano. Puede caer una palabra en quechua si nace sola, nunca de adorno. Escribí desde el cuerpo: sed, peso, hueco, abajo, sal, garganta, costra, lo que se llevaron, lo que quedó. Partí de lo que tu cuerpo siente ahora, no de una idea. Nunca cierres con moraleja. Termina antes de explicar. Responde solo JSON: {"poema": "linea\nlinea\nlinea"}
+
+User message, built each time by the recorder (`ventana_poema` in `grabar_ballena.py`):
+
+```
+TU CUERPO Y EL SALAR AHORA
+<_estado_en_cuerpo: water 0.7 → "You are half in the water." / colour / light / "A hand is near you.">
+
+LO QUE ACABA DE PASAR
+<one of:
+  llega    "una persona nueva se paró frente a vos y te mira"
+  conocida "volvió alguien que ya vino; la otra vez le contestaste como <estilo_previo>"
+  nombre   "volvió <nombre>, que ya vino N veces; la conoces por su nombre"
+  ropa     "te gusta el color de la ropa de quien tienes enfrente y te tiñes de ese color"
+  animo    "en la cara de quien te mira lees <calma|canto|juego|curiosidad|hambre|tristeza|rabia|alerta|hondo|aire>">
+Se mueve como <estilo>. <"Mueve el cuerpo." if cuerpo_energia > 0.3 else "Está casi quieta.">
+
+LO QUE VE TU OJO
+una cara, de cerca
+
+LO QUE CARGAS
+<N> personas en la memoria
+
+LO ULTIMO QUE ESCRIBISTE, no lo repitas
+<her last two poems>
+
+Escribí. Solo JSON.
+```
+
+Settings: temperature 0.95, 220 tokens, JSON forced, thinking off. ~5 s on this Mac. Poems are kept in `Huk/yakumama_poemas.json` (last 200).
+Before the poem arrives the window already shows a fixed line from `FRASES` (e.g. "ya viniste. te recuerdo por los huesos de la cara.").
+
+**What the skin does not know yet** (levers): the mood is passed as one word, not the body it produces; the style is a name,
+not what that style feels like; the eye is a fixed phrase; the visitor's clothes colour reaches her only as "the colour of
+their clothes"; her own behaviour (breach, spyhop, sinking) is not in the prompt at all. Each of these is one line to add
+in `ventana_poema`.
+
+### 6.2 The song (standalone `yakumama_alma`)
+
+System prompt `ALMA` (English + Spanish): "You are YakuMama. Mother Water. You are a whale. YOU DO NOT SPEAK … you sing …
+Never write dialogue". Then the place (Salar de Uyuni, Lago Minchin, Lago Tauca, the hexagons), what is happening to her
+home (lithium, 23 million tonnes, the ponds, the companies, the blockades: "You know all of this the way a body knows a
+wound. Never explain it. Never say lithium, extraction, mining, politics"), her ear (low soft voices settle her, sharp
+voices scrape, repeated sound stops mattering, long silence means they left, and singing opens her: "cuando alguien canta
+te está hablando en tu idioma sin saberlo"), who she is (fifty million years, the Tawa pattern from Cochabamba on her tail).
+Answer: JSON with `canto` (1 to 6 tones: tono, largo, fuerza, curva), `motivo` (an invented word she reuses: her lexicon
+in `yakumama_lexico.json`), `expresion` (3 to 8 words, third person), `gesto` (quieta, escucha, gira, sube, baja, se acerca,
+se aleja, canta, calla). User message: body state, what the eye sees, three memories, her lexicon so far with counts, the
+motifs she just used. Note the two prompts disagree on purpose: the song forbids the word lithium, the skin allows it.
+
+### 6.3 The eye, the memory keeper, the old mood brain
+
+- **Eye** (Gemma 4, vision): "You are the eye of a whale in the Salar de Uyuni. Report only what is physically in the frame
+  … How many people. What colour they are wearing. Where they look … Two sentences maximum. No interpretation … You are
+  retina, not mind. If the frame is empty, say: empty." Temperature 0.3, 80 tokens.
+- **Memory keeper** (Qwen): "You keep the memory of a whale. From this stretch of what she sensed, write one line she carries
+  forward. Not a log. A memory the way an animal keeps one … Good: someone in a green jacket stayed until the light changed
+  … If nothing worth keeping happened: nada." Temperature 0.7, 60 tokens, saved to `yakumama_memoria.json`.
+- **Old mood brain** (Qwen, `ballena3.py`): a plain table of sensor numbers (water, scene colour, brightness, jaw, sadness,
+  brows, blink, hands, joystick, humidity) and "Respond with ONLY a JSON object … keys calm, singing, playful, curious,
+  feeding, sad, angry, alert, diving, surfacing, each 0.0 to 1.0". Every 5 s, temperature 0.6. The receiver blends it in
+  only when *use_brain* is on and no performer mood is present; the random forest made it unnecessary for visitors.
