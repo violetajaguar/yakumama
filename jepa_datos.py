@@ -61,6 +61,19 @@ def toma_yakumama(f):
         for k in CUERPO: P[k][:] = False
     X, M = rejilla(t, S, P)
     return X, M, MOODS.index(f.split("_")[0]), actor_de(f), ("llama" if llama else "yakumama"), f[:-6]
+def toma_libre(ruta):
+    """una cara sin animo (datasets/caras_libres, de importar_video.py): solo la cara y la cabeza; sin manos, pulso ni cuerpo"""
+    cara = [json.loads(l) for l in open(ruta)]
+    if len(cara) < 24: return None
+    parp = parpadeo_offline(cara); t = np.array([r["t"] for r in cara]); n = len(cara)
+    # los videos vienen cortados (solo cuadros con cara): si hay un hueco > 0.5 s, se parte en tramos; aqui se toma como una sola
+    S = {c: np.full(n, np.nan) for c in CANALES}; P = {c: np.zeros(n, bool) for c in CANALES}
+    for i, c in enumerate(cara):
+        y = salida_de({**c, "blink": parp[i]}, {})
+        for j, k in enumerate(SALIDAS): S[k][i] = y[j]
+    for k in ("head_yaw", "head_pitch", "jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "eye_yaw", "eye_pitch"): P[k][:] = True
+    X, M = rejilla(t, S, P); nombre = os.path.basename(ruta)[:-6]
+    return X, M, -1, nombre.split("_")[0], "libre", nombre
 def toma_bailarin(ruta):
     B, J, fps = cargar_npz(ruta)
     if len(B) < 48: return None
@@ -79,6 +92,10 @@ if __name__ == "__main__":
         r = toma_yakumama(f)
         if r is None: continue
         X, M, an, ac, fu, no = r; Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
+    for ruta in sorted(glob.glob(os.path.join(AQUI, "datasets", "caras_libres", "*.jsonl"))):
+        r = toma_libre(ruta)
+        if r is None: continue
+        X, M, an, ac, fu, no = r; Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
     for ruta in sorted(glob.glob(os.path.join(a.bailarines, "*.npz"))):
         try: r = toma_bailarin(ruta)
         except Exception as e: print("  (salto", os.path.basename(ruta), e, ")"); continue
@@ -87,7 +104,7 @@ if __name__ == "__main__":
     X = np.concatenate(Xs); M = np.concatenate(Ms); SEQ = np.array(SEQ); ANIMO = np.array(ANIMO); ACTOR = np.array(ACTOR); FUENTE = np.array(FUENTE); NOMBRE = np.array(NOMBRE)
     media = np.array([X[M[:, j], j].mean() if M[:, j].any() else 0.0 for j in range(NC)], np.float32); desvio = np.array([X[M[:, j], j].std() + 1e-3 if M[:, j].any() else 1.0 for j in range(NC)], np.float32)
     np.savez(os.path.join(AQUI, "modelos", "jepa_datos.npz"), X=X, M=M, SEQ=SEQ, ANIMO=ANIMO, ACTOR=ACTOR, FUENTE=FUENTE, NOMBRE=NOMBRE, CANALES=np.array(CANALES), media=media, desvio=desvio, fps=FPS)
-    for fu in ("yakumama", "llama", "bailarin"):
+    for fu in ("yakumama", "llama", "libre", "bailarin"):
         m = FUENTE == fu; n = sum(SEQ[m][:, 1] - SEQ[m][:, 0]) if m.any() else 0; print(f"  {fu:9s} {m.sum():4d} tomas  {n / FPS / 60:6.1f} min")
     print(f"total {len(X)} cuadros a {FPS:.0f}/s = {len(X) / FPS / 60:.0f} min | canales {NC} | presencia por canal:", " ".join(f"{c}:{M[:, j].mean():.0%}" for j, c in enumerate(CANALES)))
     print("guardado modelos/jepa_datos.npz")

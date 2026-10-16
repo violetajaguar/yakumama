@@ -38,6 +38,7 @@ for k, idxs in vistos.items():
     if k[0] == "yakumama" and len(idxs) > 1: fuera.add(idxs[-1])
     if k[0] == "llama": fuera.add(idxs[-1])
 bail = [i for i, fu in enumerate(FUENTE) if fu == "bailarin"]; fuera.update(bail[::8])
+lib = [i for i, fu in enumerate(FUENTE) if fu == "libre"]; fuera.update(lib[::8])   # tambien 1 de cada 8 caras libres
 def ventanas(idxs):
     out = []
     for i in idxs:
