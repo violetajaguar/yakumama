@@ -296,7 +296,15 @@ def cargar_landmarker():
 # como cuerpo_* y quedan en cuerpo/: desde ahora cada toma trae cara y cuerpo juntos (lo que el JEPA necesitaba).
 POSE_MODELO = os.path.join(AQUI, "modelos", "pose_landmarker_lite.task")
 from collections import deque as _deque
-_pose = {"lm": None, "buf": _deque(maxlen=48), "ts": _deque(maxlen=48), "n": 0, "error": None, "ultimo": {}, "ropa": None}
+_pose = {"lm": None, "buf": _deque(maxlen=48), "ts": _deque(maxlen=48), "n": 0, "error": None, "ultimo": {}, "ropa": None, "cabeza": None, "recortes": 0}
+def recorte_cabeza(image):
+    """la cara de lejos es chica para la malla: se recorta la cabeza que vio la pose y se agranda a 480x480 (o None)"""
+    import numpy as np, cv2
+    c = _pose.get("cabeza")
+    if not c: return None
+    h_, w_ = image.shape[:2]; x0, y0, x1, y1 = int(c[0] * w_), int(c[1] * h_), int(c[2] * w_), int(c[3] * h_)
+    if x1 - x0 < 24 or y1 - y0 < 24 or (x1 - x0) > w_ * 0.6: return None   # muy chica o ya grande (de cerca no hace falta)
+    return cv2.resize(np.ascontiguousarray(image[y0:y1, x0:x1]), (480, 480), interpolation=cv2.INTER_CUBIC)
 _POSE_J = {"pelvis": None, "neck": None, "head": 0, "shoulder_l": 11, "shoulder_r": 12, "elbow_l": 13, "elbow_r": 14, "wrist_l": 15, "wrist_r": 16, "hip_l": 23, "hip_r": 24, "knee_l": 25, "knee_r": 26, "ankle_l": 27, "ankle_r": 28}
 def cuerpo_pose(rgb):
     import mediapipe as mp, numpy as np
@@ -311,6 +319,12 @@ def cuerpo_pose(rgb):
             if k.startswith("cuerpo_"): extra.pop(k, None)
         return
     L = r.pose_world_landmarks[0]; fila = np.full((26, 3), np.nan)
+    try:   # la cabeza en la imagen, para recortar y agrandar la cara cuando esta lejos
+        I = r.pose_landmarks[0]; h_, w_ = rgb.shape[:2]
+        if I[0].visibility > 0.5:
+            cx, cy = I[0].x, I[0].y; rr = max(0.06, abs(I[7].x - I[8].x) * 1.5)   # radio: 1.5 veces la distancia entre orejas
+            _pose["cabeza"] = (max(0.0, cx - rr), max(0.0, cy - rr * 1.3), min(1.0, cx + rr), min(1.0, cy + rr * 1.1))
+    except Exception: pass
     try:   # el color de la ropa: la caja entre hombros y caderas en la imagen
         I = r.pose_landmarks[0]; h_, w_ = rgb.shape[:2]
         xs = [I[i].x * w_ for i in (11, 12, 23, 24)]; ys = [I[i].y * h_ for i in (11, 12, 23, 24)]
@@ -349,6 +363,9 @@ def blendshapes(rgb, lm=None):
     t = time.time()
     r = lm.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), int((t - _lm["t0"]) * 1000))
     _lm["lento"] = (time.time() - t) > 0.02
+    if not r.face_blendshapes:
+        rec = recorte_cabeza(rgb)
+        if rec is not None: r = lm.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rec), int((time.time() - _lm["t0"]) * 1000) + 1)
     if not r.face_blendshapes: return
     bs = {b.category_name: round(float(b.score), 4) for b in r.face_blendshapes[0]}
     if visita["activa"] and r.face_landmarks and _memoria.cara_tranquila(bs) and len(visita["firmas"]) < 400:
@@ -379,6 +396,11 @@ if os.path.exists(MODELO) and not a.prueba:
         threading.Thread(target=_lm_hilo, daemon=True).start()
         def process_tee(self, image):
             res = _process(self, image)
+            if not getattr(res, "multi_face_landmarks", None):
+                rec = recorte_cabeza(image)
+                if rec is not None:
+                    res2 = _process(self, rec)
+                    if getattr(res2, "multi_face_landmarks", None): res = res2; _pose["recortes"] += 1   # la malla trabaja sobre el recorte: las proporciones son las mismas
             _lm["cuadro"] = image; _lm["res"] = res
             _lm_q["img"] = image.copy(); _lm_ev.set()   # copia: ballena3 reutiliza el buffer
             return res
@@ -719,7 +741,7 @@ def estado_json():
     return {"modo": ("cuerpo", "solo cara", "solo cara, cabeza fija")[estado["solo_cara"]] + (" + anclada" if estado["anclada"] else ""),
             "auto": estado["auto"], "actor": estado["actor"], "animo": estado["animo"], "grabando": estado["grabando"], "tramo_s": segundos([r["t"] for r in estado["cara"]]) if estado["cara"] else 0.0,
             "neutral": bool(cal["base"]), "cara": cara, "blender": blender, "segundos": segs, "detectado": reconocedor["animo"], "prob": reconocedor["prob"],
-            "cuerpo": _pose["ultimo"] or None, "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"], "sin_emotibit": not (a.emotibit or a.emotibit_directo),
+            "cuerpo": _pose["ultimo"] or None, "recortes": _pose["recortes"], "estilo": reconocedor["estilo"], "estilo_prob": reconocedor["estilo_prob"], "sin_emotibit": not (a.emotibit or a.emotibit_directo),
             "memoria": {"aprender": bool(a.visitas) and not estado["actor"], "activa": visita["activa"], "id": visita["id"], "conocida": visita["conocida"], "dist": visita["dist"], "nombre": visita.get("nombre"),
                         "visitas": (mem.personas.get(visita["id"], {}).get("visitas", 0) + 1) if visita["conocida"] else None, "estilo_previo": visita["estilo_previo"],
                         "guardadas": visita["guardadas"], "personas": len(mem.personas)},
