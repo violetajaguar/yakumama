@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17t coreografia: sin giro automatico encima, rumbo suave"
+VERSION = "2026-10-17u canales crudos: un cuerpo traducido a la ballena (retarget_ballena.py) manda entero"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1183,6 +1183,13 @@ def breathe():
     else: beat = 0.0
     # COMPORTAMIENTO del animo (movimiento real, ver arriba); en solo cara el cuerpo descansa
     comp = COMP_CERO if solo_cara else comportamiento(breathe._tiempo, dom_name, sec_name, 1.0 if actor in m else 0.8)   # con actor: un solo animo, sin mezcla
+    canales = d.get('canales') if isinstance(d.get('canales'), dict) else None   # CANALES CRUDOS (retarget_ballena.py): un cuerpo traducido a su cuerpo manda entero, sin comportamiento de animo
+    if canales:
+        comp = dict(COMP_CERO)
+        for kk, vv in canales.items():
+            if kk == "spine": comp["spine"] = [float(x) for x in vv][:6] + [0.0] * (6 - len(vv))
+            elif kk in ("cara", "mirada"): comp[kk] = tuple(float(x) for x in vv)
+            elif kk in comp: comp[kk] = float(vv)
     excitacion = max(0.0, min(1.0, 0.6 * energia + 0.4 * tension))
     fuerza_latido = LATIDO_ANIMO.get(dom_name, 0.5) * (0.5 + 0.5 * excitacion)   # calm ~0.05-0.1, angry/feeding hasta 1
     beat *= fuerza_latido
@@ -1299,9 +1306,15 @@ def breathe():
         breathe._alas[suffix] += (objetivo - breathe._alas[suffix]) * 0.08   # suave (~0.4 s): sin temblor de la mano
         alas = breathe._alas[suffix]
         alas += comp["flap"]
-        rot(f'side_fine{suffix}', alas * sign, 1, 0.1)
-        rot(f'side_fine{suffix}.001', alas * 0.35 * sign, 1, 0.1)
-        rot(f'side_fine{suffix}.002', alas * 0.15 * sign, 1, 0.1)
+        brazo = (canales or {}).get("aleta_l" if suffix == ".L" else "aleta_r")   # retarget_ballena.py: hombro, codo y muneca del bailarin -> los tres eslabones de la aleta
+        if isinstance(brazo, (list, tuple)) and len(brazo) == 3:
+            rot(f'side_fine{suffix}', float(brazo[0]) * sign, 1, 0.12)
+            rot(f'side_fine{suffix}.001', float(brazo[1]) * sign, 1, 0.12)
+            rot(f'side_fine{suffix}.002', float(brazo[2]) * sign, 1, 0.12)
+        else:
+            rot(f'side_fine{suffix}', alas * sign, 1, 0.1)
+            rot(f'side_fine{suffix}.001', alas * 0.35 * sign, 1, 0.1)
+            rot(f'side_fine{suffix}.002', alas * 0.15 * sign, 1, 0.1)
         rot(f'side_fine{suffix}', 0.12 * sign, 2, 0.04); rot(f'side_fine{suffix}.001', 0.08 * sign, 2, 0.04); rot(f'side_fine{suffix}.002', 0.05 * sign, 2, 0.04)
     # LADEO: una mano mas alta que la otra -> una aleta sube y la otra baja (eje 0), como un viraje
     if not hasattr(breathe, '_ladeo'): breathe._ladeo = 0.0
@@ -1503,6 +1516,8 @@ def breathe():
         if getattr(breathe, "_coreo_dom", None) != dominant: breathe._coreo_dom = dominant; breathe._coreo_t0 = t
         cerca = CERCA["conocida" if d.get('conocida') else ("nueva" if d.get('visita') else "nadie")]
         (tx, ty, tz), yaw_obj, rap = coreo(dominant, t - breathe._coreo_t0, cerca); k = 0.004 + 0.03 * rap
+        if canales and canales.get("x") is not None:   # DESPLAZAMIENTO del cuerpo traducido (retarget_ballena.py): la bailarina se mueve por el piso, ella por el espacio
+            tx, ty, tz = float(canales["x"]), float(canales["y"]), float(canales.get("z", 0.0)); yaw_obj = float(canales["rumbo"]) if canales.get("rumbo") is not None else None; rap = 1.0; k = 0.08
         breathe._auto_x += (tx - breathe._auto_x) * k; breathe._auto_y += (ty - breathe._auto_y) * k
         breathe._coreo_z = getattr(breathe, "_coreo_z", 0.0) + (tz - getattr(breathe, "_coreo_z", 0.0)) * k
         if yaw_obj is None:
@@ -1525,6 +1540,7 @@ def breathe():
     # COLA (turbina): velocidad por animo, al ritmo del pulso en singing; el boton manual y el joystick la aceleran
     if not solo_cara:
         vel = TURBINA_ANIMO.get(dom_name, 1.0)
+        if canales and canales.get("turbina") is not None: vel = float(canales["turbina"])   # la cola a la velocidad de los pies del bailarin
         if vel == "pulso": turbine_angle = breathe._latido if (30 < hr < 220) else turbine_angle + 1.2 * 0.033   # una vuelta por latido
         else: turbine_angle += (vel * tempo + (15.0 if (turbine_active or manual_turbine) else 0.0)) * 0.033
         rot('turbine', turbine_angle, 2, 1.0)

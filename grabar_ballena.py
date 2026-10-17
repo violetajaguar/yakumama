@@ -352,6 +352,10 @@ def cuerpo_pose(rgb):
     for k in CUERPO:
         v = q[k][i]
         if np.isfinite(v): out[k] = round(float(v), 3)
+    try:   # DONDE esta el actor en la sala (17 oct, "los actores se desplazan"): caderas en la imagen (0..1) y tamano del torso en la imagen
+        lm = r.pose_landmarks[0]; cx, cy = (lm[23].x + lm[24].x) / 2, (lm[23].y + lm[24].y) / 2; sx, sy = (lm[11].x + lm[12].x) / 2, (lm[11].y + lm[12].y) / 2
+        out["cuerpo_x"] = round(float(cx), 4); out["cuerpo_y"] = round(float(cy), 4); out["cuerpo_tam"] = round(float(np.hypot(cx - sx, cy - sy)), 4)   # torso chico en la imagen = lejos; grande = cerca
+    except Exception: pass
     if L[27].visibility > 0.7 and L[28].visibility > 0.7:   # agachado: la cadera (origen) se acerca a los tobillos; solo con los dos tobillos bien vistos
         tob = (L[27].y + L[28].y) / 2   # altura de los tobillos bajo la cadera (MediaPipe: y hacia abajo, positiva)
         out["cuerpo_profundidad"] = round(max(-0.6, min(0.6, (tob - 0.85) / 0.35)), 3)
