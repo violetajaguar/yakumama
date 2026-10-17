@@ -65,6 +65,12 @@ for g, an, sub in (("ballet_experta_ch0", "sad", "ballet"), ("ballet_experta_ch3
 for e, an in (("feelsad", "sad"), ("feelangry", "angry"), ("feelhappy", "playful"), ("feelfearful", "alert"), ("feelsurprised", "curious"), ("feelneutral", "calm")):
     for per in ("05", "13", "22"): item("emociones humanas", f"persona {per}", f"{ES[an]} · {e[4:]}", an, primero(os.path.join(CV, f"{e}_{per}_1_*.npz")), seg=10)
 for f in sorted(glob.glob(os.path.join(AQUI, "datasets", "ballenas", "*.npz"))): item("ballenas reales", "", os.path.basename(f)[:-4], "auto", f, seg=60)
+# --- canto: una voz humana (VocalSet) con la que ella canta y se mueve (voz_ballena.py)
+VOCAL = os.path.expanduser("~/Desktop/vocalset/x/FULL")
+for cant in ("female1", "female5", "male3", "male9"):
+    for tec in ("vibrato", "straight", "breathy", "belt", "trill", "vocal_fry", "lip_trill", "trillo"):
+        for w in sorted(glob.glob(os.path.join(VOCAL, cant, "*", tec, "*.wav")))[:2]:
+            ITEMS.append(dict(id=len(ITEMS), grupo="canto", sub=cant, nombre=f"{tec} · {os.path.basename(os.path.dirname(os.path.dirname(w)))}", animo="singing", ruta=w, toma=None, seg=30, voz=True))
 estado = {"actual": None, "proc": None, "auto": False, "seg": 40, "desde": 0.0, "lock": threading.Lock()}
 _tomas = {}
 def toma_cuerpo(nombre):
@@ -89,6 +95,7 @@ SONIDOS = os.path.expanduser("~/Desktop/Huk/whale sound"); _afplay = {"p": None}
 def sonar(animo):
     """el sonido del animo, fuera de Blender (afplay), al arrancar un cuerpo; se corta al cambiar."""
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
+    if not animo: return
     w = os.path.join(SONIDOS, f"{animo}.wav")
     if os.path.exists(w): _afplay["p"] = subprocess.Popen(["afplay", "-v", "0.5", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 def ballena_ahora():
@@ -99,14 +106,18 @@ def ballena_ahora():
         return {"viva": True, "animo": d.get("dominante"), "animo_es": ES.get(d.get("dominante"), d.get("dominante")), "pulso": d.get("pulso"), "tempo": d.get("tempo"), "energia": d.get("energia"), "tension": d.get("tension"), "latido": d.get("latido"), "color": d.get("color"), "fps": d.get("fps"), "cara": d.get("cara")}
     except Exception: return {"viva": False}
 def matar_todo():
-    for pat in ("bailar.py", "generar_animo.py", "reproducir.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
+    for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
+    subprocess.run(["pkill", "-x", "afplay"], capture_output=True)
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
 def tocar(i):
     with estado["lock"]:
         it = ITEMS[i]; matar_todo(); time.sleep(0.2)
-        cmd = [PY, os.path.join(AQUI, "reproducir.py"), it["toma"], "--modo", "anclada", "--loop"] if it["toma"] else [PY, os.path.join(AQUI, "bailar.py"), it["ruta"], "--animo", it["animo"], "--loop"]
+        if it.get("voz"): cmd = [PY, os.path.join(AQUI, "voz_ballena.py"), it["ruta"], "--loop"]
+        elif it["toma"]: cmd = [PY, os.path.join(AQUI, "reproducir.py"), it["toma"], "--modo", "anclada", "--loop"]
+        else: cmd = [PY, os.path.join(AQUI, "bailar.py"), it["ruta"], "--animo", it["animo"], "--loop"]
         estado["proc"] = subprocess.Popen(cmd, cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["actual"] = i; estado["desde"] = time.time()
-        sonar(it["animo"])
+        if it.get("voz"): sonar(None)
+        else: sonar(it["animo"])
         print(f"  -> {it['grupo']} / {it['sub']} / {it['nombre']} ({it['animo']})", flush=True)
 def parar():
     with estado["lock"]: matar_todo(); estado["actual"] = None; estado["proc"] = None
@@ -151,7 +162,7 @@ class H(BaseHTTPRequestHandler):
         from urllib.parse import urlparse, parse_qs
         u = urlparse(self.path); q = parse_qs(u.query)
         if u.path == "/": b = HTML.encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
-        elif u.path == "/items": self._json([{k: v for k, v in it.items() if k != "ruta"} for it in ITEMS])
+        elif u.path == "/items": self._json([{k: v for k, v in it.items() if k not in ("ruta",)} for it in ITEMS])
         elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
         elif u.path == "/tocar": estado["auto"] = False; tocar(int(q["i"][0])); self._json({"ok": 1})
         elif u.path == "/auto": estado["auto"] = q.get("on", ["1"])[0] == "1"; self._json({"ok": 1})
