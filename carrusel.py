@@ -105,6 +105,11 @@ def ballena_ahora():
         if time.time() - d.get("t", 0) > 5: return {"viva": False}
         return {"viva": True, "animo": d.get("dominante"), "animo_es": ES.get(d.get("dominante"), d.get("dominante")), "pulso": d.get("pulso"), "tempo": d.get("tempo"), "energia": d.get("energia"), "tension": d.get("tension"), "latido": d.get("latido"), "color": d.get("color"), "fps": d.get("fps"), "cara": d.get("cara")}
     except Exception: return {"viva": False}
+import random
+def toma_de_ojos(animo):
+    """una toma grabada de ese animo (Sanam, Dan, Suri o Violeta), para que los ojos sean los de una persona en esa emocion."""
+    tomas = [os.path.basename(f)[:-6] for f in glob.glob(os.path.join(AQUI, "datasets", "cara", f"{animo}_*.jsonl")) if not any(x in f for x in ("beat", "ravdess", "llama"))]
+    return random.choice(tomas) if tomas else None
 def matar_todo():
     for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
     subprocess.run(["pkill", "-x", "afplay"], capture_output=True)
@@ -115,7 +120,11 @@ def tocar(i):
         if it.get("voz"): cmd = [PY, os.path.join(AQUI, "voz_ballena.py"), it["ruta"], "--loop"]
         elif it["toma"]: cmd = [PY, os.path.join(AQUI, "reproducir.py"), it["toma"], "--modo", "anclada", "--loop"]
         else: cmd = [PY, os.path.join(AQUI, "bailar.py"), it["ruta"], "--animo", it["animo"], "--loop"]
+        ojos = toma_de_ojos(it["animo"]) if (not it["toma"] and it["animo"] in MOODS) else None   # los ojos de un performer en ese animo
+        if ojos and it.get("voz"): cmd.append("--sin-ojos")
         estado["proc"] = subprocess.Popen(cmd, cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["actual"] = i; estado["desde"] = time.time()
+        if ojos: estado["proc_ojos"] = subprocess.Popen([PY, os.path.join(AQUI, "reproducir.py"), ojos, "--solo-ojos", "--loop"], cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["ojos"] = ojos
+        else: estado["ojos"] = None
         if it.get("voz"): sonar(None)
         else: sonar(it["animo"])
         print(f"  -> {it['grupo']} / {it['sub']} / {it['nombre']} ({it['animo']})", flush=True)
@@ -152,7 +161,7 @@ let h='';for(const [grupo,subs] of Object.entries(g)){const n=Object.values(subs
  h+='</details>'}document.getElementById('lista').innerHTML=h}
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
 document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');const it=s.actual!=null?items[s.actual]:null;
-document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')):'nada suena';
+document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')+(s.ojos?'  ·  ojos de '+s.ojos:'')):'nada suena';
 const w=s.ballena;document.getElementById('ella').innerHTML=w&&w.viva?('ella siente <i class=c style="background:'+(C[w.animo]||'#777')+'"></i><b>'+(w.animo_es||'—')+'</b> · pulso <b>'+Math.round(w.pulso||0)+'</b> lpm · tempo ×'+w.tempo+' · energía '+w.energia+' · tensión '+w.tension+' · latido '+w.latido+(w.cara?' · con cara':'')+' · '+w.fps+' fps'):'Blender no responde';
 const e=s.emotibit;document.getElementById('emo').innerHTML=e?('EmotiBit de la toma: pulso <b>'+e.hr+'</b> lpm → tempo <b>×'+e.tempo+'</b>, energía <b>'+e.energia+'</b> · piel <b>'+e.eda+'</b> µS → tensión <b>'+e.tension+'</b> · temperatura '+e.temp+' °C · '+e.t+' / '+e.dur+' s'):(it&&it.grupo!='performers'?'sin EmotiBit (el pulso lo pone la energía del cuerpo)':'');}
 carga().then(tick);setInterval(tick,1000)</script></body></html>"""
@@ -164,7 +173,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         if u.path == "/": b = HTML.encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         elif u.path == "/items": self._json([{k: v for k, v in it.items() if k not in ("ruta",)} for it in ITEMS])
-        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
+        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
         elif u.path == "/tocar": estado["auto"] = False; tocar(int(q["i"][0])); self._json({"ok": 1})
         elif u.path == "/auto":
             estado["auto"] = q.get("on", ["1"])[0] == "1"; estado["grupo"] = q.get("grupo", [estado.get("grupo", "animos")])[0]
