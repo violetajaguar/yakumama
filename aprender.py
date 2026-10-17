@@ -42,7 +42,7 @@ def ventanas_visitas(BS):
             if v is not None: X.append(v); y.append(MOODS.index(top)); grp.append(os.path.basename(f)[:-6])
     return X, y, grp, total
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--seco", action="store_true"); a = ap.parse_args()
+    ap = argparse.ArgumentParser(); ap.add_argument("--seco", action="store_true"); a = ap.parse_args(); ap.add_argument("--cuerpo", action="store_true", help="solo sacar los tramos de cuerpo con animo de las visitas"); ap.add_argument("--noche", action="store_true", help="lo de cada noche: cuerpo de visitas + reentrenar + registro")
     Xa, ya, ga, BS = ventanas_actores(); Xv, yv, gv, total = ventanas_visitas(BS)
     print(f"actores: {len(Xa)} ventanas de {len(set(ga))} tomas | visitas: {total} paquetes en {len(glob.glob(os.path.join(AQUI, 'datasets', 'visitas', '*.jsonl')))} encuentros -> {len(Xv)} ventanas seguras (confianza >= {CONF})")
     if Xv:
