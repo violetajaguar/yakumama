@@ -162,21 +162,38 @@ def hilo_escribe():
             try: poema_nuevo(); estado["escribio"] = time.time()
             finally: estado["escribiendo"] = False
 threading.Thread(target=hilo_escribe, daemon=True).start()
+_poema = {"p": None, "gen": 0, "lock": threading.Lock()}   # una sola lectura a la vez: la nueva calla a la anterior
+def callar_poema():
+    with _poema["lock"]:
+        _poema["gen"] += 1; p = _poema["p"]; _poema["p"] = None
+    if p:
+        try: p.terminate(); p.wait(timeout=1)
+        except Exception: pass
 def leer_poema():
-    """lee el ultimo poema tres veces con su voz: primero en su LENGUA inventada (lengua.py), despues en ingles, al final en castellano."""
+    """lee el ultimo poema tres veces con su voz: primero en su LENGUA inventada (lengua.py), despues en ingles, al final en castellano.
+    Nunca dos lecturas encima: empezar una calla la anterior."""
     try:
-        import json as _j, sys as _s; poemas = _j.load(open(os.path.join(HUK, "yakumama_poemas.json"))); es = poemas[-1]; en = traducir(es)
+        import json as _j, sys as _s; poemas = _j.load(open(os.path.join(HUK, "yakumama_poemas.json"))); es = poemas[-1]
         _s.path.insert(0, HUK); import lengua as _L; ella = _L.traducir(es)
+        arch_tr = os.path.join(HUK, "yakumama_poemas_en.json")   # traducciones guardadas: releer no espera a Qwen
+        try: tr = _j.load(open(arch_tr))
+        except Exception: tr = {}
+        en = tr.get(es) or traducir(es)
+        if en and tr.get(es) != en: tr[es] = en; _j.dump(dict(list(tr.items())[-200:]), open(arch_tr, "w"), ensure_ascii=False, indent=1)
+        callar_poema(); mi_gen = _poema["gen"]
+        if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None   # el sonido del animo calla mientras ella lee
+        def _sonar(w):
+            if not w or _poema["gen"] != mi_gen: return
+            with _poema["lock"]:
+                if _poema["gen"] != mi_gen: return
+                _poema["p"] = subprocess.Popen(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _poema["p"].wait(); time.sleep(0.6)
         def _leer():
             d = os.path.join(HUK, "poemas_voz"); os.makedirs(d, exist_ok=True)
-            # primero en SU lengua, despues en ingles, al final en castellano
-            w = voz_ella(ella.replace("\n", ". "), os.path.join(d, "poema_ella.wav"), "ella")
-            if w: subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if en:
-                w = voz_ella(en.replace("\n", ". "), os.path.join(d, "poema_en.wav"), "en")
-                if w: time.sleep(0.6); subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            w = voz_ella(es.replace("\n", ". "), os.path.join(d, "poema_es.wav"), "es")   # su voz tambien en castellano
-            if w: time.sleep(0.6); subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for texto, nombre, lengua in ((ella, "poema_ella.wav", "ella"), (en, "poema_en.wav", "en"), (es, "poema_es.wav", "es")):
+                if not texto or _poema["gen"] != mi_gen: continue
+                _sonar(voz_ella(texto.replace("\n", ". "), os.path.join(d, nombre), lengua))
+            if _poema["gen"] == mi_gen and estado["actual"] is not None and not ITEMS[estado["actual"]].get("voz"): sonar(ITEMS[estado["actual"]]["animo"])   # vuelve el sonido del animo
         threading.Thread(target=_leer, daemon=True).start(); return {"es": es, "en": en, "ella": ella}
     except Exception as e: return str(e)
 def matar_todo():
@@ -198,6 +215,7 @@ def tocar(i):
         else: sonar(it["animo"])
         print(f"  -> {it['grupo']} / {it['sub']} / {it['nombre']} ({it['animo']})", flush=True)
 def parar():
+    callar_poema()
     with estado["lock"]: matar_todo(); estado["actual"] = None; estado["proc"] = None
 def hilo_auto():
     while True:
@@ -254,7 +272,7 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/musica": _base["on"] = q.get("on", ["1"])[0] == "1"; self._json({"ok": 1, "archivo": os.path.basename(base_archivo() or "")})
         elif u.path == "/poema": self._json({"poema": leer_poema()})
         elif u.path == "/poema_nuevo": threading.Thread(target=poema_nuevo, daemon=True).start(); self._json({"ok": 1})
-        elif u.path == "/escribe": estado["escribe"] = q.get("on", ["1"])[0] == "1"; self._json({"ok": 1})
+        elif u.path == "/escribe": estado["escribe"] = q.get("on", ["1"])[0] == "1"; estado["escribio"] = time.time(); self._json({"ok": 1})
         else: self.send_response(404); self.end_headers()
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--auto", type=float, default=0); ap.add_argument("--puerto", type=int, default=8766); ap.add_argument("--sin-navegador", action="store_true"); a = ap.parse_args()
