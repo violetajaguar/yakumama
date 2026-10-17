@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17s la coreografia en el espacio sale de los bailarines, los nadadores y la yubarta"
+VERSION = "2026-10-17t coreografia: sin giro automatico encima, rumbo suave"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1046,8 +1046,8 @@ def coreo_real(dom, t, cerca=1.0):
     if not tr: return None
     k = int(getattr(breathe, "_coreo_t0", 0.0) * 7919) % len(tr); pts = tr[k]["pts"]; fps = tr[k]["fps"]; n = len(pts)
     f = (t * fps) % n; i = int(f); a = f - i; p0, p1 = pts[i], pts[(i + 1) % n]
-    x, y, z = (p0[j] + (p1[j] - p0[j]) * a for j in range(3)); p2 = pts[(i + 3) % n]
-    dx, dy = p2[0] - p0[0], p2[1] - p0[1]; yaw = math.atan2(dx, dy) if (dx * dx + dy * dy) > 1e-4 else None
+    x, y, z = (p0[j] + (p1[j] - p0[j]) * a for j in range(3)); p2 = pts[(i + int(fps)) % n]
+    dx, dy = p2[0] - p0[0], p2[1] - p0[1]; yaw = math.atan2(dx, dy) if (dx * dx + dy * dy) > 0.01 else None   # rumbo = hacia donde va en el proximo segundo; quieta: mantiene
     sesgo = -0.8 * cerca if dom in ("curious", "surfacing") else (0.6 if dom == "sad" else 0.0)   # curiosa y al salir se acerca al visitante; triste se aleja
     return (RADIO_COREO * x, RADIO_COREO * y + sesgo, ALTO_COREO * z), yaw, {"angry": 1.0, "playful": 0.9, "alert": 0.9, "feeding": 0.8, "surfacing": 0.7, "diving": 0.7, "curious": 0.5, "singing": 0.4, "sad": 0.25, "calm": 0.25}.get(dom, 0.5)
 def coreo(dom, t, cerca=1.0):
@@ -1135,6 +1135,8 @@ def breathe():
     cabeza_fija = int(d.get('solo_cara', 0) or 0) == 2   # 2 = ni la cabeza se mueve: solo boca, parpadeo y cejas
     anclada = bool(d.get('anclada', 0))   # tecla a: el cuerpo se mueve (poses, aletas, columna) pero no viaja por el espacio
     quieta = solo_cara or anclada         # nada mueve el hueso root: ni mano, ni joystick, ni nado, ni profundidad
+    try: coreo_on = bool(bpy.context.scene.ballena.coreografia) and int(d.get('espacio', 1)) == 1 and not solo_cara   # la coreografia manda sobre el nado y el giro automaticos
+    except Exception: coreo_on = False
     cara_actor = solo_cara or ('blink' in d and 'jaw_open' in d)   # hay cara trackeada: boca, parpadeo y cejas son del actor en todos los modos
 
     (mouth_scale, tongue_scale, auto_turn_scale, follow_hand,
@@ -1477,6 +1479,7 @@ def breathe():
             change_rate = 0.03 + m.get("curious",0) * 0.05
             direction = 1 if math.sin(t * change_rate) > 0 else -1
             auto_turn = (base_turn + mood_turn) * direction * auto_turn_scale
+        if coreo_on: auto_turn = 0.0   # con coreografia, el rumbo lo pone el camino
         breathe._wy += jx * 0.03 + auto_turn
         breathe._wz += jy * 0.02
 
@@ -1484,7 +1487,7 @@ def breathe():
     breathe._wz = max(-5, min(5, breathe._wz))
 
     auto_z = 0
-    should_swim = (not hand_follow_active) and (not color_track_active) and water > 0.5 and calm < 0.4 and abs(jx) < 0.01
+    should_swim = (not hand_follow_active) and (not color_track_active) and water > 0.5 and calm < 0.4 and abs(jx) < 0.01 and not coreo_on
     if should_swim:
         swim_fwd = (0.01 + swim_energy * 0.03) * auto_turn_scale
         breathe._auto_x += math.sin(breathe._wy) * swim_fwd
@@ -1496,8 +1499,6 @@ def breathe():
 
     depth_y = 0.0 if quieta else -m.get("diving",0) * 0.2 + m.get("surfacing",0) * 0.15
     # COREOGRAFIA: cada animo tiene su camino (coreo); la ballena va hacia el objetivo con la rapidez del animo y mira hacia donde va o hacia el visitante
-    try: coreo_on = bool(bpy.context.scene.ballena.coreografia) and int(d.get('espacio', 1)) == 1 and not solo_cara
-    except Exception: coreo_on = False
     if coreo_on:
         if getattr(breathe, "_coreo_dom", None) != dominant: breathe._coreo_dom = dominant; breathe._coreo_t0 = t
         cerca = CERCA["conocida" if d.get('conocida') else ("nueva" if d.get('visita') else "nadie")]
@@ -1507,7 +1508,7 @@ def breathe():
         if yaw_obj is None:
             dx, dy = tx - breathe._auto_x, ty - breathe._auto_y
             yaw_obj = math.atan2(dx, dy) if (dx * dx + dy * dy) > 0.01 else breathe._wy
-        dyaw = (yaw_obj - breathe._wy + math.pi) % (2 * math.pi) - math.pi; breathe._wy += dyaw * (0.02 + 0.06 * rap)
+        dyaw = (yaw_obj - breathe._wy + math.pi) % (2 * math.pi) - math.pi; breathe._wy += max(-0.03, min(0.03, dyaw * (0.01 + 0.03 * rap)))   # como mucho ~1.7 grados por cuadro
         final_z_extra = breathe._coreo_z
     else: final_z_extra = 0.0
     final_x = hx + breathe._auto_x
