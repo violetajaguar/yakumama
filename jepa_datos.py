@@ -77,16 +77,29 @@ def toma_libre(ruta):
     for k in ("head_yaw", "head_pitch", "jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "eye_yaw", "eye_pitch"): P[k][:] = True
     X, M = rejilla(t, S, P); nombre = os.path.basename(ruta)[:-6]
     return X, M, -1, nombre.split("_")[0], "libre", nombre
-def toma_bailarin(ruta):
+def toma_esqueleto(ruta, animo, actor, fuente):
+    """un esqueleto de 26 puntos (Paqarina o el cuerpo sacado de un video) -> cuerpo_* y manos, sin cara ni pulso."""
     B, J, fps = cargar_npz(ruta)
     if len(B) < 48: return None
     q = cualidades_toma(B, J, fps); n = len(B); t = np.arange(n) / fps
     S = {k: v for k, v in q.items()}; P = {c: np.ones(n, bool) for c in CANALES}
     S["mano_l"] = np.where(np.isfinite(q["l_palm_y"]), 1.0, 0.0); S["mano_r"] = np.where(np.isfinite(q["r_palm_y"]), 1.0, 0.0)
     for k in ("jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "eye_yaw", "eye_pitch", "hr", "eda"): P[k][:] = False
-    X, M = rejilla(t, S, P)
+    X, M = rejilla(t, S, P); nombre = os.path.basename(ruta).replace(".npz", "")
+    return X, M, animo, actor, fuente, nombre
+def toma_bailarin(ruta):
     nombre = os.path.basename(ruta).replace(".npz", ""); actor = nombre.split("_")[0].split("-")[-1].lower() if "-" in nombre.split("_")[0] else nombre.split("_")[0].lower()
-    return X, M, -1, actor, "bailarin", nombre
+    return toma_esqueleto(ruta, -1, actor, "bailarin")
+def toma_apneista(ruta):
+    """los apneistas (importar_video_cuerpo.py) entran como DIVING: un cuerpo humano que baja de verdad."""
+    return toma_esqueleto(ruta, MOODS.index("diving"), "apneista", "apneista")
+def toma_surf(ruta):
+    """los surfistas (importar_surf.py, ya en cuerpo_*) entran como SURFACING: el cuerpo que sube y gira sobre el agua."""
+    z = np.load(ruta, allow_pickle=True); Xc = np.nan_to_num(z["X"]).astype(np.float64); n = len(Xc); t = np.arange(n) / float(z["fps"])
+    S = {c: Xc[:, i] for i, c in enumerate(CUERPO)}; S["mano_l"] = np.zeros(n); S["mano_r"] = np.zeros(n); P = {c: np.ones(n, bool) for c in CANALES}
+    for k in CANALES:
+        if k not in S: P[k][:] = False
+    X, M = rejilla(t, S, P); return X, M, MOODS.index("surfacing"), "surfista", "surf", os.path.basename(ruta).replace(".npz", "")
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--bailarines", default=os.path.expanduser("~/Desktop/h26_limpio")); a = ap.parse_args()
     Xs, Ms, SEQ, ANIMO, ACTOR, FUENTE, NOMBRE = [], [], [], [], [], [], []; pos = 0
@@ -104,10 +117,15 @@ if __name__ == "__main__":
         except Exception as e: print("  (salto", os.path.basename(ruta), e, ")"); continue
         if r is None: continue
         X, M, an, ac, fu, no = r; Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
+    for ruta, fn in [(r, toma_apneista) for r in sorted(glob.glob(os.path.join(AQUI, "datasets", "cuerpo_video", "*.npz")))] + [(r, toma_surf) for r in sorted(glob.glob(os.path.join(AQUI, "datasets", "surf", "*.npz")))]:
+        try: r = fn(ruta)
+        except Exception as e: print("  (salto", os.path.basename(ruta), e, ")"); continue
+        if r is None: continue
+        X, M, an, ac, fu, no = r; Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
     X = np.concatenate(Xs); M = np.concatenate(Ms); SEQ = np.array(SEQ); ANIMO = np.array(ANIMO); ACTOR = np.array(ACTOR); FUENTE = np.array(FUENTE); NOMBRE = np.array(NOMBRE)
     media = np.array([X[M[:, j], j].mean() if M[:, j].any() else 0.0 for j in range(NC)], np.float32); desvio = np.array([X[M[:, j], j].std() + 1e-3 if M[:, j].any() else 1.0 for j in range(NC)], np.float32)
     np.savez(os.path.join(AQUI, "modelos", "jepa_datos.npz"), X=X, M=M, SEQ=SEQ, ANIMO=ANIMO, ACTOR=ACTOR, FUENTE=FUENTE, NOMBRE=NOMBRE, CANALES=np.array(CANALES), media=media, desvio=desvio, fps=FPS)
-    for fu in ("yakumama", "llama", "beat", "libre", "bailarin"):
+    for fu in ("yakumama", "llama", "beat", "libre", "bailarin", "apneista", "surf"):
         m = FUENTE == fu; n = sum(SEQ[m][:, 1] - SEQ[m][:, 0]) if m.any() else 0; print(f"  {fu:9s} {m.sum():4d} tomas  {n / FPS / 60:6.1f} min")
     print(f"total {len(X)} cuadros a {FPS:.0f}/s = {len(X) / FPS / 60:.0f} min | canales {NC} | presencia por canal:", " ".join(f"{c}:{M[:, j].mean():.0%}" for j, c in enumerate(CANALES)))
     print("guardado modelos/jepa_datos.npz")
