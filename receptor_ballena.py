@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-16f playful vuelve a dar dos vueltas en el breach"
+VERSION = "2026-10-16g diez comportamientos con firma propia (medidos: calm/singing, curious/alert, sad, diving, surfacing)"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -941,14 +941,16 @@ def _rampa(t, periodo, desde, hasta):
 # cada comportamiento devuelve tambien: cara = (parpadeo, angry, sad, asombrado), mirada = (yaw, pitch), spin = vueltas
 # sobre su eje (radianes, sin suavizar), depth = cuanto sube (+) o baja (-) en z
 def _suave01(x): x = max(0.0, min(1.0, x)); return x * x * (3 - 2 * x)
-def comp_calm(t):      # LOGGING: quieta en la superficie, respiracion lenta; ojos entrecerrados
-    return dict(pitch=0.0, roll=0.03 * _onda(t, 7), yaw=0.0, head=0.0, spine=[0.02 * _onda(t, 7, -i * 0.08) for i in range(6)],
+def comp_calm(t):      # LOGGING: quieta en la superficie, respiracion lenta (7 s); ojos entrecerrados. FIRMA: la quietud, plana.
+    resp = _onda(t, 7)
+    return dict(pitch=0.02 * resp, roll=0.03 * resp, yaw=0.0, head=0.0, spine=[0.015 * _onda(t, 7, -i * 0.08) for i in range(6)],
                 fluke=0.0, flap=0.08 * _onda(t, 5), ladeo=0.0, jaw=0.0, cara=(0.5, 0.0, 0.0, 0.0), mirada=(0.0, -0.2), spin=0.0, depth=0.0)
-def comp_singing(t):   # CANTO: cabeza abajo, casi inmovil; ojos casi cerrados, boca al ritmo
-    return dict(pitch=-0.45, roll=0.02 * _onda(t, 9), yaw=0.0, head=-0.1, spine=[0, 0, 0, -0.03, -0.06, -0.08],
-                fluke=-0.1, flap=0.05 * _onda(t, 6), ladeo=0.0, jaw=0.15 + 0.1 * _onda(t, 2.5), cara=(0.75, 0.0, 0.0, 0.1), mirada=(0.0, -0.4), spin=0.0, depth=-0.3)
+def comp_singing(t):   # CANTO: el cantor cuelga cabeza abajo (~40 grados), casi inmovil, hondo; la boca pulsa con la nota. FIRMA: colgar de cabeza, quieta, boca.
+    nota = 0.5 + 0.5 * _onda(t, 2.5)
+    return dict(pitch=-0.62, roll=0.02 * _onda(t, 9), yaw=0.0, head=-0.2, spine=[0, 0, -0.02, -0.04, -0.06, -0.08],
+                fluke=0.05, flap=0.0, ladeo=0.0, jaw=0.1 + 0.25 * nota, cara=(0.75, 0.0, 0.0, 0.1), mirada=(0.0, -0.4), spin=0.0, depth=-0.6)
 PLAYFUL_VUELTAS = 2   # vueltas completas en el breach (2 = como la foto de NOAA; 0 = salta y se ladea hasta 30 grados, nunca queda boca abajo)
-def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s con DOS VUELTAS sobre su eje (foto: sube, aletas abiertas, gira, cae)
+def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s con DOS VUELTAS sobre su eje. FIRMA: el salto con vueltas, las aletas que golpean.
     sube = _pulso(t, 12, 0.22, 0.0); cae = _pulso(t, 12, 0.22, -0.2)
     f = (t / 12) % 1.0; vueltas = PLAYFUL_VUELTAS * 2 * math.pi * _suave01(f / 0.42) if (f < 0.42 and PLAYFUL_VUELTAS) else 0.0
     salto = max(sube, cae); slap = _onda(t, 1.6) * (1 - salto)
@@ -956,32 +958,36 @@ def comp_playful(t):   # FLIPPER SLAPPING + rolido, y un BREACH cada 12 s con DO
                 spine=[-k * sube for k in (0.02, 0.03, 0.05, 0.07, 0.09, 0.1)], fluke=-0.25 * sube,
                 flap=0.2 + 0.3 * slap + 0.7 * salto, ladeo=0.25 * _onda(t, 1.6, 0.25) * (1 - salto), jaw=0.15 + 0.15 * sube,
                 cara=(0.0, 0.0, 0.0, 0.6), mirada=(0.3 * _onda(t, 1.6), 0.4), spin=vueltas, depth=0.9 * sube)
-def comp_curious(t):   # SPYHOPPING: vertical, saca la cabeza, gira despacio; ojos muy abiertos mirando alrededor
-    return dict(pitch=0.45, roll=0.0, yaw=0.3 * _onda(t, 12), head=0.15, spine=[0.05, 0.05, 0.03, 0, -0.02, -0.03],
-                fluke=0.0, flap=0.15 + 0.1 * _onda(t, 3), ladeo=0.0, jaw=0.05, cara=(0.0, 0.0, 0.0, 0.9), mirada=(0.8 * _onda(t, 5), 0.5), spin=0.0, depth=0.5)
-def comp_feeding(t):   # LUNGE: embestida con la boca abierta, cierra despacio filtrando (snaking); ojos abajo
+def comp_curious(t):   # SPYHOPPING: vertical, saca la cabeza del agua y gira DESPACIO todo el cuerpo (14 s); ojos muy abiertos. FIRMA: vertical, alta, girando lenta.
+    return dict(pitch=0.45, roll=0.0, yaw=0.5 * _onda(t, 14), head=0.2, spine=[0.05, 0.05, 0.03, 0, -0.02, -0.03],
+                fluke=0.0, flap=0.2 + 0.05 * _onda(t, 3), ladeo=0.0, jaw=0.0, cara=(0.0, 0.0, 0.0, 0.9), mirada=(0.8 * _onda(t, 5), 0.5), spin=0.0, depth=0.7)
+def comp_feeding(t):   # LUNGE lateral: embestida con la boca abierta RODANDO de lado (la yubarta real rola mas de 60 grados al comer), cierra despacio filtrando. FIRMA: boca y rolido juntos.
     emb = _pulso(t, 6, 0.3); cierra = _rampa(t, 6, 0.3, 0.45)
-    return dict(pitch=0.3 * emb, roll=0.0, yaw=0.0, head=0.2 * emb, spine=[0.04 * _onda(t, 3, -i * 0.15) for i in range(6)],
-                fluke=-0.1 * emb, flap=0.2 + 0.15 * emb, ladeo=0.0, jaw=max(0.6 * emb, 0.35 * cierra), cara=(0.2 + 0.4 * emb, 0.0, 0.0, 0.3), mirada=(0.0, -0.7), spin=0.0, depth=0.0)
-def comp_sad(t):       # colgando: cabeza y cola caidas, lentisima; cara triste, parpados caidos, mirada al fondo
-    return dict(pitch=-0.15, roll=0.0, yaw=0.0, head=-0.3, spine=[0.02, 0.04, 0.06, 0.1, 0.14, 0.18],
-                fluke=0.15, flap=-0.25 + 0.03 * _onda(t, 8), ladeo=0.0, jaw=0.0, cara=(0.55, 0.0, 1.0, 0.0), mirada=(0.0, -0.9), spin=0.0, depth=-0.8)
-def comp_angry(t):     # LOBTAILING: levanta la cola despacio y la golpea; cara furiosa, mirada fija al frente
+    return dict(pitch=0.35 * emb, roll=0.65 * emb, yaw=0.0, head=0.2 * emb, spine=[0.04 * _onda(t, 3, -i * 0.15) for i in range(6)],
+                fluke=-0.15 * emb, flap=0.2 + 0.2 * emb, ladeo=0.2 * emb, jaw=max(0.7 * emb, 0.35 * cierra), cara=(0.2 + 0.4 * emb, 0.0, 0.0, 0.3), mirada=(0.0, -0.7), spin=0.0, depth=0.3 * emb)
+def comp_sad(t):       # colgando y ESCORADA: cabeza y cola caidas, aletas caidas, un ladeo fijo como un animal enfermo, se hunde despacio (20 s). FIRMA: escora y aletas caidas, casi sin moverse.
+    hund = 0.5 + 0.5 * _onda(t, 20, -0.25)
+    return dict(pitch=-0.2, roll=0.14, yaw=0.0, head=-0.35, spine=[0.03, 0.06, 0.1, 0.15, 0.2, 0.25],
+                fluke=0.2, flap=-0.35 + 0.02 * _onda(t, 8), ladeo=0.1, jaw=0.0, cara=(0.55, 0.0, 1.0, 0.0), mirada=(0.0, -0.9), spin=0.0, depth=-0.7 - 0.3 * hund)
+def comp_angry(t):     # LOBTAILING: levanta la cola despacio y la GOLPEA (3.2 s), sacude la cabeza; cara furiosa. FIRMA: el golpe de cola.
     arriba = 0.5 + 0.5 * _onda(t, 3.2, 0.25); golpe = _pulso(t, 3.2, 0.12, 0.5)
     cola = -0.5 * arriba + 0.35 * golpe
-    return dict(pitch=-0.2, roll=0.05 * golpe, yaw=0.0, head=-0.15, spine=[0, 0.02, cola * 0.2, cola * 0.4, cola * 0.7, cola],
+    return dict(pitch=-0.2, roll=0.05 * golpe, yaw=0.12 * _onda(t, 0.8) * golpe, head=-0.15 - 0.1 * golpe, spine=[0, 0.02, cola * 0.2, cola * 0.4, cola * 0.7, cola],
                 fluke=0.3 * arriba - 0.4 * golpe, flap=-0.15, ladeo=0.0, jaw=0.05 + 0.2 * golpe, cara=(0.25, 1.0, 0.0, 0.0), mirada=(0.0, 0.1), spin=0.0, depth=0.0)
-def comp_alert(t):     # ROUNDING OUT: lomo arqueado, cabeza escaneando rapido; ojos bien abiertos, mirada que barre
-    return dict(pitch=0.05, roll=0.0, yaw=0.2 * _onda(t, 2.4), head=-0.1 + 0.08 * _onda(t, 1.2), spine=[0.06, 0.1, 0.12, 0.1, 0.06, 0.02],
-                fluke=0.0, flap=0.05, ladeo=0.0, jaw=0.0, cara=(0.0, 0.3, 0.0, 0.7), mirada=(0.9 * _onda(t, 1.2), 0.2), spin=0.0, depth=0.2)
-def comp_diving(t):    # HIGH FLUKING DIVE: nariz abajo, cola vertical, y BAJA de verdad; ojos entornados, mirada abajo
-    ciclo = 0.5 + 0.5 * _onda(t, 10, -0.25)
-    return dict(pitch=-0.35 - 0.5 * ciclo, roll=0.0, yaw=0.0, head=-0.15, spine=[0, -0.02, -0.06, -0.12, -0.2, -0.1 - 0.3 * ciclo],
-                fluke=-0.35 * ciclo, flap=0.1, ladeo=0.0, jaw=0.0, cara=(0.6, 0.0, 0.0, 0.0), mirada=(0.0, -0.8), spin=0.0, depth=-1.6 * ciclo)
-def comp_surfacing(t): # sube, SOPLA, se nivela; SUBE de verdad, ojos abiertos al salir
-    sube = 0.5 + 0.5 * _onda(t, 7, -0.25); soplo = _pulso(t, 7, 0.15, 0.55)
-    return dict(pitch=0.4 * sube, roll=0.0, yaw=0.0, head=0.2 * sube + 0.15 * soplo, spine=[-0.03 * sube, -0.05 * sube, -0.06 * sube, -0.04 * sube, 0, 0.03],
-                fluke=0.0, flap=0.25 + 0.15 * soplo, ladeo=0.0, jaw=0.08 + 0.3 * soplo, cara=(0.1, 0.0, 0.0, 0.3 + 0.4 * soplo), mirada=(0.0, 0.6), spin=0.0, depth=1.0 * sube)
+def comp_alert(t):     # ROUNDING OUT: lomo arqueado, baja, aletas pegadas, la cabeza escanea RAPIDO (1.2 s) y cada 5 s un respingo. FIRMA: tensa, rapida, sin subir.
+    susto = _pulso(t, 5, 0.1)
+    return dict(pitch=0.0 - 0.1 * susto, roll=0.0, yaw=0.1 * _onda(t, 2.4), head=-0.1 + 0.15 * _onda(t, 1.2) + 0.1 * susto, spine=[0.08, 0.13, 0.15, 0.13, 0.08, 0.03],
+                fluke=0.05 * susto, flap=-0.1, ladeo=0.0, jaw=0.0, cara=(0.0, 0.3, 0.0, 0.7), mirada=(0.9 * _onda(t, 1.2), 0.2), spin=0.0, depth=0.0)
+def comp_diving(t):    # HIGH FLUKING DIVE (medido en una yubarta real: baja a 67 grados con las colas arriba, sube a 57): arquea, pica, COLAS ARRIBA, baja hondo (14 s), vuelve. FIRMA: el arco y las colas verticales.
+    f = (t / 14) % 1.0
+    arco = _pulso(t, 14, 0.12, 0.0); pica = _suave01(f / 0.3) if f < 0.3 else 1.0; hondo = _rampa(t, 14, 0.3, 0.65); vuelve = max(0.0, (f - 0.65) / 0.35) if f > 0.65 else 0.0
+    nariz = pica * (1 - vuelve)
+    return dict(pitch=-0.7 * nariz + 0.1 * arco, roll=0.0, yaw=0.0, head=-0.2 * nariz, spine=[0.06 * arco, 0.04 * arco - 0.03 * nariz, -0.08 * nariz, -0.15 * nariz, -0.25 * nariz, -0.4 * nariz],
+                fluke=-0.5 * nariz, flap=0.1, ladeo=0.0, jaw=0.0, cara=(0.6, 0.0, 0.0, 0.0), mirada=(0.0, -0.8), spin=0.0, depth=-1.8 * max(hondo, nariz * 0.8))
+def comp_surfacing(t): # BLOW: sube a 45 grados, SOPLA arriba (boca, cabeza, aletas), se nivela y descansa en superficie (9 s). FIRMA: la subida y el soplo.
+    f = (t / 9) % 1.0; sube = _suave01(f / 0.35) if f < 0.35 else max(0.0, 1 - (f - 0.35) / 0.25); soplo = _pulso(t, 9, 0.12, 0.62); arriba = _rampa(t, 9, 0.3, 0.75)
+    return dict(pitch=0.45 * sube, roll=0.0, yaw=0.0, head=0.2 * sube + 0.3 * soplo, spine=[-0.03 * sube, -0.05 * sube, -0.06 * sube, -0.04 * sube, 0, 0.03 * sube],
+                fluke=-0.1 * sube, flap=0.25 + 0.4 * soplo, ladeo=0.0, jaw=0.08 + 0.4 * soplo, cara=(0.1, 0.0, 0.0, 0.3 + 0.5 * soplo), mirada=(0.0, 0.6), spin=0.0, depth=1.2 * arriba)
 COMPORTAMIENTOS = {"calm": comp_calm, "singing": comp_singing, "playful": comp_playful, "curious": comp_curious, "feeding": comp_feeding,
                    "sad": comp_sad, "angry": comp_angry, "alert": comp_alert, "diving": comp_diving, "surfacing": comp_surfacing}
 # cuanto se nota el latido en cada animo (0..1), por lo que midio el EmotiBit al actor: calm casi nada, angry/feeding todo

@@ -11,7 +11,7 @@ tuvieron cuerpo y como se mueve (cuerpo_*).
     venv/bin/python importar_video_cuerpo.py ~/Desktop/freediving/*.mp4
     venv/bin/python bailar.py datasets/cuerpo_video/freediver_01.npz --solo-cuerpo --loop     -> ella lo copia
 """
-import os, sys, time, numpy as np
+import os, sys, time, argparse, numpy as np
 AQUI = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, AQUI)
 from cuerpo_cualidades import cualidades_toma, CUERPO
 FPS = 12.0
@@ -28,7 +28,7 @@ def fila_de(L):
     def P(i): return np.array([L[i].x, L[i].z, -L[i].y]) if L[i].visibility > 0.4 else np.array([np.nan] * 3)
     for nom, i in POSE_J.items(): f[J[nom]] = P(i)
     f[J["pelvis"]] = (P(23) + P(24)) / 2; f[J["neck"]] = (P(11) + P(12)) / 2; return f
-def importar(ruta, lm):
+def importar(ruta, lm, prefijo=""):
     import cv2, mediapipe as mp
     cap = cv2.VideoCapture(ruta); fps_v = cap.get(cv2.CAP_PROP_FPS) or 24.0; n_v = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); paso = max(1, int(round(fps_v / FPS)))
     B = []; vistos = 0; k = 0; t0 = time.time()
@@ -40,7 +40,7 @@ def importar(ruta, lm):
         if r.pose_world_landmarks: B.append(fila_de(r.pose_world_landmarks[0])); vistos += 1
         else: B.append(np.full((len(NOMBRES), 3), np.nan))
         k += 1
-    cap.release(); B = np.array(B); nombre = os.path.splitext(os.path.basename(ruta))[0]
+    cap.release(); B = np.array(B); nombre = (prefijo + "_" if prefijo else "") + os.path.splitext(os.path.basename(ruta))[0]
     sal = os.path.join(AQUI, "datasets", "cuerpo_video"); os.makedirs(sal, exist_ok=True)
     np.savez_compressed(os.path.join(sal, nombre + ".npz"), body=B.astype(np.float32), joint_names=np.array(NOMBRES), fps=fps_v / paso, origen="video", archivo=os.path.basename(ruta))
     q = cualidades_toma(B, J, fps_v / paso) if vistos >= 12 else {}
@@ -48,7 +48,8 @@ def importar(ruta, lm):
     print(f"  {nombre}: {len(B)} cuadros, cuerpo en {100 * vistos / max(1, len(B)):.0f}% | {res} ({time.time() - t0:.0f} s)", flush=True)
     return vistos, len(B)
 if __name__ == "__main__":
-    tv = tn = 0
-    for ruta in sys.argv[1:]:
-        v, n = importar(ruta, landmarker()); tv += v; tn += n   # un landmarker por video (los tiempos deben crecer)
+    ap = argparse.ArgumentParser(); ap.add_argument("videos", nargs="+"); ap.add_argument("--prefijo", default="", help="nombre de salida <prefijo>_<video>.npz: el prefijo dice el animo en jepa_datos (freediver/diving48 -> diving, tinku -> angry, ballet -> sad)")
+    ap.add_argument("--max", type=int, default=0, help="procesar como mucho N videos"); a = ap.parse_args(); tv = tn = 0
+    for ruta in (a.videos[:a.max] if a.max else a.videos):
+        v, n = importar(ruta, landmarker(), a.prefijo); tv += v; tn += n   # un landmarker por video (los tiempos deben crecer)
     print(f"total: cuerpo en {100 * tv / max(1, tn):.0f}% de {tn} cuadros ({tn / FPS:.0f} s) -> datasets/cuerpo_video/")

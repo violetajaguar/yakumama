@@ -33,7 +33,7 @@ pistas = []
 for k, (s, e) in enumerate(d["SEQ"]):
     X, M = d["X"][s:e][:, ci].astype(np.float32), d["M"][s:e][:, ci]
     if M.mean() < 0.5: continue
-    fu = str(d["FUENTE"][k]); an = int(d["ANIMO"][k]); acc = an if (an >= 0 and fu != "bailarin") else ACCIONES.index("libre")
+    fu = str(d["FUENTE"][k]); an = int(d["ANIMO"][k]); acc = an if an >= 0 else ACCIONES.index("libre")
     pistas.append(dict(X=X, M=M, accion=acc, fuente=fu, nombre=str(d["NOMBRE"][k]), actor=str(d["ACTOR"][k])))
 for f in sorted(glob.glob(os.path.join(AQUI, "datasets", "ballenas", "*.npz"))):   # (surf y apneistas entran por jepa_datos, con animo)
     b = np.load(f, allow_pickle=True); X = np.nan_to_num(b["X"]).astype(np.float32); M = b["M"]; surf = "/surf/" in f
