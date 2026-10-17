@@ -117,7 +117,7 @@ HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta name=view
 .barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}button{background:#1b1b22;color:#e8e2d6;border:1px solid #333;border-radius:8px;padding:8px 12px;font:14px -apple-system;cursor:pointer}
 button:hover{border-color:#777}button.on{background:#e8e2d6;color:#0b0b0e}input,select{background:#1b1b22;color:#e8e2d6;border:1px solid #333;border-radius:6px;padding:7px;font:14px -apple-system}input{width:60px}select{min-width:220px}
 h2{font:400 12px -apple-system;letter-spacing:.12em;text-transform:uppercase;opacity:.5;margin:18px 0 8px}.grupo{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.menu{display:flex;gap:8px;align-items:center;background:#121218;border:1px solid #222;border-radius:10px;padding:8px 10px}.menu span{opacity:.7;min-width:90px}
+details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px 0;padding:4px 12px}details.g>summary{font:400 13px -apple-system;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;padding:8px 0;opacity:.85}details.s{margin:6px 0 6px 10px;padding:2px 10px;border-left:2px solid #2a2a33}details.s>summary{cursor:pointer;padding:6px 0;opacity:.8}summary span{opacity:.45;font-size:12px;margin-left:.5em}.grupo{padding:6px 0 10px}
 .c{display:inline-block;width:.8em;height:.8em;border-radius:50%;vertical-align:middle;margin-right:.4em}</style></head><body>
 <h1>Yakumama · un cuerpo a la vez</h1><div id=ahora>—</div><div id=emo></div>
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
@@ -125,12 +125,12 @@ h2{font:400 12px -apple-system;letter-spacing:.12em;text-transform:uppercase;opa
 <div id=lista></div>
 <script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff7300',curious:'#ffd900',feeding:'#33c04d',sad:'#555a70',angry:'#f21410',alert:'#ff4da6',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
 let items=[];function toca(i){fetch('/tocar?i='+i).then(tick)}
+function boton(i){return '<button id=b'+i.id+' onclick="toca('+i.id+')"><i class=c style="background:'+(C[i.animo]||'#777')+'"></i>'+i.nombre+'</button>'}
 async function carga(){items=await (await fetch('/items')).json();const g={};items.forEach(i=>{(g[i.grupo]=g[i.grupo]||{});(g[i.grupo][i.sub]=g[i.grupo][i.sub]||[]).push(i)});
-let h='';for(const [grupo,subs] of Object.entries(g)){h+='<h2>'+grupo+'</h2><div class=grupo>';
- if(grupo=='animos'){h+=subs[''].map(i=>'<button id=b'+i.id+' onclick="toca('+i.id+')"><i class=c style="background:'+(C[i.animo]||'#777')+'"></i>'+i.nombre+'</button>').join('')}
- else{for(const [sub,v] of Object.entries(subs)){if(v.length==1&&!sub){h+='<button id=b'+v[0].id+' onclick="toca('+v[0].id+')"><i class=c style="background:'+(C[v[0].animo]||'#777')+'"></i>'+v[0].nombre+'</button>';continue}
-  h+='<div class=menu><span>'+(sub||grupo)+'</span><select onchange="this.value&&toca(this.value)"><option value="">elegir ('+v.length+')</option>'+v.map(i=>'<option value='+i.id+'>'+i.nombre+'</option>').join('')+'</select><button onclick="toca('+v[0].id+')">▶</button></div>'}}
- h+='</div>'}document.getElementById('lista').innerHTML=h}
+let h='';for(const [grupo,subs] of Object.entries(g)){const n=Object.values(subs).reduce((a,v)=>a+v.length,0);h+='<details class=g><summary>'+grupo+' <span>'+n+'</span></summary>';
+ for(const [sub,v] of Object.entries(subs)){if(!sub){h+='<div class=grupo>'+v.map(boton).join('')+'</div>';continue}
+  h+='<details class=s><summary>'+sub+' <span>'+v.length+'</span></summary><div class=grupo>'+v.map(boton).join('')+'</div></details>'}
+ h+='</details>'}document.getElementById('lista').innerHTML=h}
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
 document.getElementById('auto').classList.toggle('on',s.auto);const it=s.actual!=null?items[s.actual]:null;
 document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')):'nada suena';
