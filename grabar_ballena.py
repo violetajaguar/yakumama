@@ -44,7 +44,7 @@ EN ESTA TERMINAL (una tecla, sin Enter)
   macOS pide permiso de Grabacion de pantalla para la Terminal. Apagado por defecto: --video 1 lo enciende.
   --prueba  sin OAK-D: manda paquetes sinteticos 5 s para probar que todo se escribe
 """
-import os, sys, json, time, socket, threading, runpy, argparse, re, unicodedata
+import cv2, os, sys, json, time, socket, threading, runpy, argparse, re, unicodedata
 AQUI = os.path.dirname(os.path.abspath(__file__)); HUK = os.path.expanduser("~/Desktop/Huk")
 SAL_CARA = os.path.join(AQUI, "datasets", "cara"); SAL_CUERPO = os.path.join(AQUI, "datasets", "cuerpo"); SAL_VIDEO = os.path.join(AQUI, "datasets", "video")
 os.makedirs(SAL_CARA, exist_ok=True); os.makedirs(SAL_CUERPO, exist_ok=True); os.makedirs(SAL_VIDEO, exist_ok=True)
@@ -316,8 +316,8 @@ def cuerpo_pose(rgb):
     t = time.time(); r = _pose["lm"].detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), int((t - _lm["t0"]) * 1000) + 1)
     if not r.pose_world_landmarks:
         for k in list(extra):
-            if k.startswith("cuerpo_"): extra.pop(k, None)
-        return
+            if k.startswith("cuerpo_") or k == "esqueleto": extra.pop(k, None)
+        _pose["lm2d"] = None; return
     L = r.pose_world_landmarks[0]; fila = np.full((26, 3), np.nan)
     try:   # la cabeza en la imagen, para recortar y agrandar la cara cuando esta lejos
         I = r.pose_landmarks[0]; h_, w_ = rgb.shape[:2]
@@ -341,6 +341,11 @@ def cuerpo_pose(rgb):
         if i is not None: fila[J[nom]] = P(i)
     fila[J["pelvis"]] = (P(23) + P(24)) / 2; fila[J["neck"]] = (P(11) + P(12)) / 2
     _pose["buf"].append(fila); _pose["ts"].append(t)
+    # el esqueleto entero va en cada paquete y en cuerpo/<toma>.jsonl (26 puntos x,y,z en metros, orden de Paqarina; None = no visto):
+    # el dato fino del cuerpo, no solo las seis cualidades
+    extra["esqueleto"] = [None if not np.isfinite(v) else round(float(v), 4) for v in fila.ravel()]
+    try: _pose["lm2d"] = [(l.x, l.y, l.visibility) for l in r.pose_landmarks[0]]   # para dibujar el cuerpo en la ventana
+    except Exception: _pose["lm2d"] = None
     if len(_pose["buf"]) < 12: return
     B = np.array(_pose["buf"]); fps = (len(B) - 1) / max(0.2, _pose["ts"][-1] - _pose["ts"][0])
     q = cualidades_toma(B, J, fps); i = len(B) - 1; out = {}
@@ -394,6 +399,20 @@ if os.path.exists(MODELO) and not a.prueba:
                     except Exception as e:
                         if _pose["error"] != str(e): _pose["error"] = str(e); print(f"   (sin cuerpo: {e})")
         threading.Thread(target=_lm_hilo, daemon=True).start()
+        _POSE_CONN = list(_mp.solutions.pose.POSE_CONNECTIONS); _imshow = cv2.imshow
+        def imshow_cuerpo(nombre, frame):
+            """la ventana de la camara con el cuerpo dibujado (puntos y huesos de la pose), ademas de la cara y las manos."""
+            pts = _pose.get("lm2d")
+            if pts:
+                try:
+                    h_, w_ = frame.shape[:2]; xy = [(int(x * w_), int(y * h_), v) for x, y, v in pts]
+                    for a_, b_ in _POSE_CONN:
+                        if xy[a_][2] > 0.4 and xy[b_][2] > 0.4: cv2.line(frame, xy[a_][:2], xy[b_][:2], (60, 220, 120), 2)
+                    for x, y, v in xy:
+                        if v > 0.4: cv2.circle(frame, (x, y), 3, (255, 255, 255), -1)
+                except Exception: pass
+            return _imshow(nombre, frame)
+        cv2.imshow = imshow_cuerpo
         def process_tee(self, image):
             res = _process(self, image)
             if not getattr(res, "multi_face_landmarks", None):

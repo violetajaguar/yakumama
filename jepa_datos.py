@@ -33,7 +33,7 @@ def toma_yakumama(f):
     if n < 24: return None
     parp = parpadeo_offline(cara); t = np.array([r["t"] for r in cara]); t = t + np.arange(n) * 1e-6
     S = {c: np.full(n, np.nan) for c in CANALES}; P = {c: np.ones(n, bool) for c in CANALES}
-    llama = "origen" in cara[0] and str(cara[0]["origen"]).startswith("llama"); con_cuerpo = "cuerpo_pitch" in cuerpo[0]   # BEAT: cuerpo_* ya calculado
+    llama = "origen" in cara[0] and str(cara[0]["origen"]).startswith("llama"); con_cuerpo = any("cuerpo_pitch" in b for b in cuerpo)   # BEAT, o una toma con pose (desde el 16 oct): cuerpo_* ya calculado
     for i, (c, b) in enumerate(zip(cara, cuerpo)):
         vista = ("jaw_open" in c) and not (i > 0 and (c.get("todo") or {}).get("head_yaw") == (cara[i-1].get("todo") or {}).get("head_yaw"))   # cara vista y no congelada
         y = salida_de({**c, "blink": parp[i]}, b)
@@ -63,7 +63,7 @@ def toma_yakumama(f):
     elif not con_cuerpo:
         for k in CUERPO: P[k][:] = False
     X, M = rejilla(t, S, P)
-    return X, M, MOODS.index(f.split("_")[0]), actor_de(f), ("llama" if llama else ("beat" if con_cuerpo else "yakumama")), f[:-6]
+    return X, M, MOODS.index(f.split("_")[0]), actor_de(f), ("llama" if llama else ("beat" if actor_de(f).startswith("beat") else "yakumama")), f[:-6]
 def toma_libre(ruta):
     """una cara sin animo (datasets/caras_libres, de importar_video.py): solo la cara y la cabeza; sin manos, pulso ni cuerpo"""
     cara = [json.loads(l) for l in open(ruta)]

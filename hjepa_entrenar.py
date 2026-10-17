@@ -24,7 +24,7 @@ MOODS = ["calm", "singing", "playful", "curious", "feeding", "sad", "angry", "al
 ACCIONES = MOODS + ["libre", "ballena"]; NA = len(ACCIONES); NC = 6; FPS = 12
 C1, T1, Z1 = 48, 24, 32          # nivel 1: 4 s -> 2 s
 PASO = 24; C2, T2, Z2 = 16, 16, 32   # nivel 2: un paso = 2 s; 32 s -> 32 s
-ap = argparse.ArgumentParser(); ap.add_argument("--epochs1", type=int, default=6); ap.add_argument("--epochs2", type=int, default=20); ap.add_argument("--lr", type=float, default=1e-3); ap.add_argument("--sigreg", type=float, default=1.0); a = ap.parse_args()
+ap = argparse.ArgumentParser(); ap.add_argument("--epochs1", type=int, default=6); ap.add_argument("--epochs2", type=int, default=20); ap.add_argument("--lr", type=float, default=1e-3); ap.add_argument("--sigreg", type=float, default=1.0); ap.add_argument("--sonda", type=float, default=0.5, help="peso de la sonda de animo (0 = sin ella)"); a = ap.parse_args()
 torch.manual_seed(0); np.random.seed(0)
 # ---------------- datos: pistas (X (n,6), M (n,6), accion, fuente, nombre) ----------------
 d = np.load(os.path.join(AQUI, "modelos", "jepa_datos.npz"), allow_pickle=True)
@@ -99,8 +99,11 @@ def sigreg(z, n_dir=256, n_t=17):
     t = torch.linspace(-5, 5, n_t, device=z.device); w = torch.exp(-t ** 2 / 2)
     phi_re = torch.cos(p[..., None] * t).mean(0); phi_im = torch.sin(p[..., None] * t).mean(0); phi0 = torch.exp(-t ** 2 / 2)
     return (((phi_re - phi0) ** 2 + phi_im ** 2) * w).sum(-1).mean()
-def entrenar(nombre, enc, pred, dec, lote_fn, wins, epochs, mask_recon=True):
-    opt = torch.optim.AdamW(list(enc.parameters()) + list(pred.parameters()) + list(dec.parameters()), lr=a.lr, weight_decay=1e-4)
+LIBRES = torch.tensor([ACCIONES.index("libre"), ACCIONES.index("ballena")], device=dev)
+def entrenar(nombre, enc, pred, dec, lote_fn, wins, epochs, mask_recon=True, sonda=None):
+    """sonda: nn.Linear(Z, NA) que lee el animo en z; su perdida (solo ventanas con animo) separa el latente por animo."""
+    params = list(enc.parameters()) + list(pred.parameters()) + list(dec.parameters()) + (list(sonda.parameters()) if sonda is not None else [])
+    opt = torch.optim.AdamW(params, lr=a.lr, weight_decay=1e-4)
     B = 512
     for ep in range(epochs):
         perm = np.random.permutation(len(wins)); tot = n = 0; t0 = time.time()
@@ -109,17 +112,21 @@ def entrenar(nombre, enc, pred, dec, lote_fn, wins, epochs, mask_recon=True):
             zc, zo = enc(xc), enc(xo); zp = pred(zc, acc)
             l_lat = F.mse_loss(zp, zo); l_reg = a.sigreg * 0.5 * (sigreg(zc) + sigreg(zo))
             rec = dec(zo); l_rec = (((rec - xo[..., :rec.shape[-1]]) ** 2) * (mo if mask_recon else 1.0)).mean()
-            loss = l_lat + l_reg + l_rec; opt.zero_grad(); loss.backward(); opt.step(); tot += float(loss); n += 1
+            loss = l_lat + l_reg + l_rec
+            if sonda is not None:
+                con = ~torch.isin(acc, LIBRES)
+                if con.any(): loss = loss + a.sonda * F.cross_entropy(sonda(zc[con]), acc[con])
+            opt.zero_grad(); loss.backward(); opt.step(); tot += float(loss); n += 1
         print(f"  {nombre} epoca {ep + 1}/{epochs} perdida {tot / max(1, n):.4f} ({time.time() - t0:.0f} s)", flush=True)
 # ---------------- nivel 1 ----------------
 tr1 = ventanas1([i for i in range(len(pistas)) if i not in fuera]); va1 = ventanas1(sorted(fuera), paso=24)
 print(f"nivel 1: ventanas entrenamiento {len(tr1)} | prueba {len(va1)}")
-enc1, pred1, dec1 = Enc(2 * NC, Z1).to(dev), Pred(Z1).to(dev), Dec(Z1, T1, NC).to(dev)
+enc1, pred1, dec1 = Enc(2 * NC, Z1).to(dev), Pred(Z1).to(dev), Dec(Z1, T1, NC).to(dev); sonda1 = nn.Linear(Z1, NA).to(dev) if a.sonda > 0 else None
 def lote1(w):
     t0 = torch.tensor(w[:, 0], device=dev); idx = t0[:, None] + torch.arange(C1 + T1, device=dev)
     x, m = Xcat[idx], Mcat[idx]; xm = torch.cat([x, m], -1); acc = ACCt[torch.tensor(w[:, 1], device=dev)]
     return xm[:, :C1], xm[:, C1:], m[:, C1:], acc
-entrenar("nivel 1", enc1, pred1, dec1, lote1, tr1, a.epochs1)
+entrenar("nivel 1", enc1, pred1, dec1, lote1, tr1, a.epochs1, sonda=sonda1)
 # ---------------- nivel 2: z1 por paso de 2 s en todas las pistas ----------------
 enc1.eval(); Zs = []; Zok = []
 with torch.no_grad():
@@ -139,11 +146,11 @@ def ventanas2(idxs, paso=2):
     return np.array(out)
 tr2 = ventanas2([i for i in range(len(pistas)) if i not in fuera]); va2 = ventanas2(sorted(fuera), paso=4)
 print(f"nivel 2: ventanas entrenamiento {len(tr2)} | prueba {len(va2)} | pistas con 64 s: {sum(1 for i in range(len(pistas)) if len(Zs[i]) >= C2 + T2)}")
-enc2, pred2, dec2 = Enc(Z1, Z2, pool=4).to(dev), Pred(Z2).to(dev), Dec(Z2, T2, Z1).to(dev)
+enc2, pred2, dec2 = Enc(Z1, Z2, pool=4).to(dev), Pred(Z2).to(dev), Dec(Z2, T2, Z1).to(dev); sonda2 = nn.Linear(Z2, NA).to(dev) if a.sonda > 0 else None
 def lote2(w):
     k0 = torch.tensor(w[:, 0], device=dev); idx = k0[:, None] + torch.arange(C2 + T2, device=dev); z = Zcat[idx]; acc = ACCt[torch.tensor(w[:, 1], device=dev)]
     return z[:, :C2], z[:, C2:], None, acc
-entrenar("nivel 2", enc2, pred2, dec2, lote2, tr2, a.epochs2, mask_recon=False)
+entrenar("nivel 2", enc2, pred2, dec2, lote2, tr2, a.epochs2, mask_recon=False, sonda=sonda2)
 # ---------------- evaluacion honesta ----------------
 enc2.eval(); pred1.eval(); pred2.eval(); dec1.eval(); dec2.eval()
 def desn(x): return x * torch.tensor(desvio, device=dev) + torch.tensor(media, device=dev)
@@ -159,6 +166,16 @@ with torch.no_grad():
     for j, c in enumerate(CUERPO):
         e = {k: float(err[k][j] / nn_[j]) for k in err}; gana1 += e["jepa"] < min(e["ult"], e["media"]); print(f"  {c:18s} {e['jepa']:.3f} / {e['ult']:.3f} / {e['media']:.3f}")
     print(f"  canales donde gana el H-JEPA a 2 s: {gana1}/6")
+if sonda1 is not None:
+    with torch.no_grad():
+        ok = tot_ = 0; por = {}
+        for b in range(0, len(va1), 1024):
+            xc, xo, mo, acc = lote1(va1[b:b + 1024]); con = ~torch.isin(acc, LIBRES)
+            if not con.any(): continue
+            pr = sonda1(enc1(xc[con])).argmax(1); ac = acc[con]; ok += int((pr == ac).sum()); tot_ += int(con.sum())
+            for k in ac.unique().tolist(): por.setdefault(ACCIONES[k], [0, 0]); por[ACCIONES[k]][0] += int(((pr == ac) & (ac == k)).sum()); por[ACCIONES[k]][1] += int((ac == k).sum())
+        print(f"\nSONDA nivel 1 - el animo leido del cuerpo solo (4 s), en pistas fuera: {100 * ok / max(1, tot_):.0f}% de {tot_} ventanas (azar {100 / max(1, len(por)):.0f}%)")
+        print("  por animo: " + ", ".join(f"{k} {100 * v[0] / max(1, v[1]):.0f}%" for k, v in sorted(por.items())))
 print("\nNIVEL 2 - error medio a 4 / 16 / 32 s (submetas decodificadas, pistas fuera): H-JEPA / repetir ultimo / media")
 def desplegar(z2, acc):
     """z2 de contexto + accion -> 32 s de cuerpo (T2 pasos x PASO cuadros), via submetas z1 y el decodificador del nivel 1."""
@@ -203,6 +220,6 @@ with torch.no_grad():
         for meta in ("diving", "surfacing", "playful"):
             acc, cuerpo = planear(z2, MOODS.index(meta)); prof = cuerpo[:, :, 3].view(len(wb), 4, -1).mean(2).mean(0).cpu().numpy()
             print(f"  meta {meta:9s}: elige accion " + ", ".join(f"{ACCIONES[k]} x{int((acc == k).sum())}" for k in acc.unique().tolist()) + f" | profundidad {np.round(prof, 2).tolist()} | energia {cuerpo[:, :, 4].mean().item():.2f}")
-torch.save({"enc1": enc1.state_dict(), "pred1": pred1.state_dict(), "dec1": dec1.state_dict(), "enc2": enc2.state_dict(), "pred2": pred2.state_dict(), "dec2": dec2.state_dict(),
+torch.save({"sonda1": sonda1.state_dict() if sonda1 is not None else None, "sonda2": sonda2.state_dict() if sonda2 is not None else None, "enc1": enc1.state_dict(), "pred1": pred1.state_dict(), "dec1": dec1.state_dict(), "enc2": enc2.state_dict(), "pred2": pred2.state_dict(), "dec2": dec2.state_dict(),
             "protos": protos.cpu(), "media": media, "desvio": desvio, "canales": CUERPO, "acciones": ACCIONES, "C1": C1, "T1": T1, "Z1": Z1, "C2": C2, "T2": T2, "Z2": Z2, "PASO": PASO, "fps": FPS}, os.path.join(AQUI, "modelos", "hjepa.pt"))
 print("guardado modelos/hjepa.pt")
