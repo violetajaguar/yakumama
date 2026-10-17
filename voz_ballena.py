@@ -19,11 +19,13 @@ ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo
 a = ap.parse_args()
 CACHE = os.path.expanduser("~/Desktop/vocalset/ballena")
 def voz_de_ballena(wav):
-    """la voz humana vuelta ballena, conservando sus tonos: una octava abajo (asetrate/atempo, misma duracion), filtro bajo el
-    agua, eco de caverna. Se guarda en ~/Desktop/vocalset/ballena/ la primera vez."""
+    """la voz humana vuelta ballena sin dejar de ser humana: la version ballena (una octava abajo, bajo el agua, eco) mezclada
+    con la voz original mas fina encima. Misma duracion. Se guarda en ~/Desktop/vocalset/ballena/ la primera vez."""
     os.makedirs(CACHE, exist_ok=True); sal = os.path.join(CACHE, os.path.basename(wav))
     if not os.path.exists(sal):
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", wav, "-af", "asetrate=22050,aresample=44100,atempo=2.0,lowpass=f=1600,aecho=0.7:0.6:280|640:0.45|0.3,volume=2.2", sal], check=False)
+        # mezcla ballena + humana: la ballena (una octava abajo, bajo el agua, eco) lleva el peso; la voz humana queda encima, mas fina, para que se oigan sus tonos
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", wav, "-filter_complex",
+                        "[0:a]asplit=2[h][b];[b]asetrate=22050,aresample=44100,atempo=2.0,lowpass=f=1600,aecho=0.7:0.6:280|640:0.45|0.3,volume=2.0[bal];[h]highpass=f=180,lowpass=f=5000,aecho=0.6:0.4:120:0.25,volume=0.55[hum];[bal][hum]amix=inputs=2:normalize=0,alimiter=limit=0.9[a]", "-map", "[a]", sal], check=False)
     return sal if os.path.exists(sal) else wav
 FPS = 30.0
 def leer(ruta):
