@@ -19,7 +19,7 @@ mix = "[dron][latido][canto]"; n = 3
 def suena(nombre, inicio, dur, vol, fin_fade=1.2):
     global n, mix
     ins.extend(["-i", os.path.join(W, nombre + ".wav")]); ms = int(inicio * 1000)
-    fc.append(f"[{n}:a]{fmt},atrim=0:{dur:.2f},afade=t=in:d=0.5,afade=t=out:st={dur - fin_fade:.2f}:d={fin_fade},adelay={ms}|{ms},volume={vol}[s{n}]"); mix += f"[s{n}]"; n += 1
+    fc.append(f"[{n}:a]{fmt},atrim=0:{dur:.2f},dynaudnorm=p=0.6:m=6:s=8,afade=t=in:d=0.5,afade=t=out:st={dur - fin_fade:.2f}:d={fin_fade},adelay={ms}|{ms},volume={vol}[s{n}]"); mix += f"[s{n}]"; n += 1
 suena("calm", 0.5, 7.5, 0.5, 2.5)                                  # el agua al abrir
 for i, a in enumerate(animos): suena(a, 10.5 + i * 4.5, 4.5, 0.9)   # cada animo bajo su tramo
 suena("diving", tot - 24, 16, 0.35, 5)                               # hondo bajo el final
