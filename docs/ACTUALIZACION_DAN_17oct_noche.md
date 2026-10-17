@@ -31,6 +31,14 @@ the 16 sub-goals of the next 32 s in latent space and, for each one, retrieves a
 12 closest, same mood favoured, continuity with the previous phrase). Every second she generates is real movement in whale form, never
 an average; two draws differ; 32 s take 0.1 s on CPU. The brain uses it automatically when the bank file is present.
 
+**She invents (added at the end of the evening).** `modelos/difusion_ballena.pt` is Violeta's diffusion from Paqarina (the m3f
+recipe: bidirectional-GRU denoiser predicting the clean window, cosine schedule, 200 steps, velocity and smoothness losses, inpainting
+one sixth of the window for long generation), trained directly on her 32 channels in 6-s windows. Every sample starts from a different
+noise, so every dance is new: measured against a real kullawada, the tail beat has the same amplitude (0.20 vs 0.22) and two inventions
+differ clearly. This first model trained 50 epochs in 30 min; a long run (cloud GPU) is planned. The brain uses it automatically when
+the file is present (`cuerpo_jepa` = 1 in the packet while she invents); without it, it falls back to the phrase bank.
+`difusion_ballena.py` trains it (`--minutos`) and `--generar <mood>` checks it.
+
 ## New in the brain (`cerebro_ballena.py`, the one you run next to TouchDesigner)
 
 - Loads `modelos/hjepa_ballena.pt` when present. Alone (nobody for 20 s) she continues her own last 32 s in whale channels,
@@ -60,6 +68,8 @@ Yakumama/modelos/hjepa_ballena.pt    the model (1.6 MB)
 Yakumama/modelos/ballena_datos.npz   the training set (53 MB), to retrain:  venv/bin/python hjepa_ballena.py
 Yakumama/modelos/banco_frases.npz    the phrase bank (20 MB), to rebuild after a retrain:  venv/bin/python banco_frases.py
 Yakumama/banco_frases.py             builds the phrase bank
+Yakumama/difusion_ballena.py         the diffusion: she invents (train / generate)
+Yakumama/modelos/difusion_ballena.pt the diffusion model
 Yakumama/docs/ARTICULACIONES.md      map of all 30 bones of the rig, axes, what drives each, stream field, physical part
 ```
 
