@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17p ojos negros fijos; la voz humana suena a ballena"
+VERSION = "2026-10-17q ojos negros de verdad (compartian material con la lengua)"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -859,7 +859,7 @@ def _fijar_color(obj, rgba, nombre_mat):
     for slot in obj.material_slots:
         mat = slot.material
         if not mat: continue
-        if whale_mesh and any(sl.material == mat for sl in whale_mesh.material_slots):   # comparte material con el cuerpo: copia propia
+        if any(o2 is not obj and o2.type == 'MESH' and any(sl.material == mat for sl in o2.material_slots) for o2 in bpy.data.objects):   # material compartido con otro objeto (el ojo compartia "ojo" con la lengua): copia propia
             mat = mat.copy(); mat.name = nombre_mat; slot.material = mat
         try: mat.diffuse_color = rgba
         except Exception: pass
