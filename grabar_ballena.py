@@ -543,7 +543,7 @@ def encuentro(pkt):
             visita.update(activa=True, t0=ahora, regs=[], firmas=[], id=None, conocida=None, dist=None, estilo_previo=None, nombre=None, ropa_decidida=False, ropa=None); print("   visita: alguien llego"); ventana_evento("llega")
         visita["ultima_cara"] = ahora
         if ahora - visita["t0"] > 3.0: ropa_decidir()
-        r = {"t": round(ahora - visita["t0"], 3), **{k: pkt[k] for k in CAMPOS_VISITA if k in pkt}, **{k: v for k, v in pkt.items() if k.startswith("face_") or k.startswith("actor_") or k.startswith("parecido_")}}
+        r = {"t": round(ahora - visita["t0"], 3), **{k: pkt[k] for k in CAMPOS_VISITA if k in pkt}, **{k: v for k, v in pkt.items() if k.startswith("face_") or k.startswith("actor_") or k.startswith("parecido_") or k.startswith("cuerpo_") or k == "esqueleto"}}   # tambien el cuerpo: de las visitas ella aprende cuerpos con animo
         if emotibit_vivo(): r.update(emotibit_vivo())
         visita["regs"].append(r)
         if visita["id"] is None and len(visita["firmas"]) >= _memoria.MIN_CUADROS: memoria_reconocer()

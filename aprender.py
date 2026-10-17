@@ -57,3 +57,46 @@ if __name__ == "__main__":
     modelo = rf().fit(X, y); viejo = pickle.load(open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "rb"))
     pickle.dump({**viejo, "modelo": modelo, "BS": BS, "moods": MOODS, "W": W, "visitas": int(k)}, open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "wb"))
     print(f"guardado modelos/animo_rf.pkl con {k} ventanas de visitas (el grabador lo carga al arrancar)")
+
+
+# ============================================================
+# APRENDER EL CUERPO DE LAS VISITAS (17 oct): cada persona que se para frente a ella es un performer que no hubo que
+# citar. El reconocedor le pone el animo a la cara; la pose le da el cuerpo. Cuando el animo se sostuvo >= 3 s con
+# confianza >= CONF y hay cuerpo, ese tramo entra como pista con animo (datasets/visitas_cuerpo/<encuentro>_<k>.npz)
+# y jepa_datos lo toma como fuente "visita". Tope: las visitas nunca pesan mas que los performers en cada animo.
+# ============================================================
+def cuerpo_visitas(seco=False):
+    sal = os.path.join(AQUI, "datasets", "visitas_cuerpo"); os.makedirs(sal, exist_ok=True); hechas = set(os.listdir(sal)); n_nuevas = 0; seg = {}
+    for f in sorted(glob.glob(os.path.join(AQUI, "datasets", "visitas", "*.jsonl"))):
+        base = os.path.basename(f)[:-6]
+        if any(h.startswith(base + "_") for h in hechas): continue
+        L = [json.loads(l) for l in open(f)][1:]
+        if len(L) < 30: continue
+        tramos = []; ini = None; animo = None
+        for i, r in enumerate(L):
+            p = {m: float(r.get("actor_" + m, 0) or 0) for m in MOODS}; m_ = max(p, key=p.get); ok = p[m_] >= CONF and "cuerpo_pitch" in r
+            if ok and m_ == animo: continue
+            if animo is not None and ini is not None and L[i - 1]["t"] - L[ini]["t"] >= 3.0: tramos.append((ini, i, animo))
+            ini, animo = (i, m_) if ok else (None, None)
+        if animo is not None and ini is not None and L[-1]["t"] - L[ini]["t"] >= 3.0: tramos.append((ini, len(L), animo))
+        for k, (s_, e_, m_) in enumerate(tramos):
+            X = np.array([[float(r.get(c, 0)) for c in ("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")] for r in L[s_:e_]], np.float32)
+            t = np.array([r["t"] for r in L[s_:e_]]); fps = (len(t) - 1) / max(0.1, t[-1] - t[0]); seg[m_] = seg.get(m_, 0) + (t[-1] - t[0])
+            if not seco: np.savez_compressed(os.path.join(sal, f"{base}_{k:02d}.npz"), X=X, M=np.ones_like(X, bool), fps=fps, animo=m_, canales=np.array(["cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad"]))
+            n_nuevas += 1
+    print(f"  cuerpo de visitas: {n_nuevas} tramos nuevos con animo (>= 3 s, confianza >= {CONF}): " + (", ".join(f"{m} {s:.0f} s" for m, s in sorted(seg.items())) or "ninguno"))
+    return n_nuevas
+def noche():
+    """lo que corre cada noche al cerrar: aprende la cara y el cuerpo de las visitas del dia y reentrena; deja registro."""
+    import subprocess, datetime
+    linea = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M")]
+    n = cuerpo_visitas(); linea.append(f"tramos de cuerpo nuevos {n}")
+    if n:
+        subprocess.run([sys.executable, os.path.join(AQUI, "jepa_datos.py")], cwd=AQUI, capture_output=True)
+        r = subprocess.run([sys.executable, os.path.join(AQUI, "hjepa_entrenar.py"), "--epochs1", "6", "--epochs2", "20"], cwd=AQUI, capture_output=True, text=True)
+        for l in r.stdout.splitlines():
+            if l.startswith("SONDA") or "meta diving" in l: linea.append(l.strip()[:120])
+    with open(os.path.join(AQUI, "datasets", "aprendizaje.log"), "a") as fh: fh.write(" | ".join(linea) + "\n")
+    print("  noche:", " | ".join(linea))
+if __name__ == "__main__" and "--cuerpo" in sys.argv_backup: cuerpo_visitas(seco="--seco" in sys.argv_backup)
+if __name__ == "__main__" and "--noche" in sys.argv_backup: noche()

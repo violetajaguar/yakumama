@@ -131,6 +131,22 @@ if __name__ == "__main__":
         except Exception as e: print("  (salto", os.path.basename(ruta), e, ")"); continue
         if r is None: continue
         X, M, an, ac, fu, no = r; Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
+    # las visitas con cuerpo y animo (aprender.py --cuerpo): fuente "visita"; tope por animo = lo que tienen los performers
+    def toma_visita(ruta):
+        z = np.load(ruta, allow_pickle=True); Xc = np.nan_to_num(z["X"]).astype(np.float64); n = len(Xc); t = np.arange(n) / float(z["fps"]); an = str(z["animo"])
+        S = {c: Xc[:, i] for i, c in enumerate(CUERPO)}; P = {c: np.ones(n, bool) for c in CANALES}
+        for k in CANALES:
+            if k not in S: P[k][:] = False
+        X, M = rejilla(t, S, P); return X, M, MOODS.index(an), "visita", "visita", os.path.basename(ruta).replace(".npz", "")
+    seg_perf = {}
+    for an, fu, (s0, e0) in zip(ANIMO, FUENTE, SEQ):
+        if fu == "yakumama" and an >= 0: seg_perf[an] = seg_perf.get(an, 0) + (e0 - s0)
+    seg_vis = {}; visitas = []
+    for r in sorted(glob.glob(os.path.join(AQUI, "datasets", "visitas_cuerpo", "*.npz"))):
+        try: X, M, an, ac, fu, no = toma_visita(r)
+        except Exception as e: print("  (salto", os.path.basename(r), e, ")"); continue
+        if seg_vis.get(an, 0) + len(X) > seg_perf.get(an, 0): continue   # tope: nunca mas cuerpo de visitas que de performers en ese animo
+        seg_vis[an] = seg_vis.get(an, 0) + len(X); Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
     for ruta, fn in [(r, toma_apneista) for r in sorted(glob.glob(os.path.join(AQUI, "datasets", "cuerpo_video", "*.npz")))] + [(r, toma_surf) for r in sorted(glob.glob(os.path.join(AQUI, "datasets", "surf", "*.npz")))]:
         try: r = fn(ruta)
         except Exception as e: print("  (salto", os.path.basename(ruta), e, ")"); continue
@@ -153,7 +169,7 @@ if __name__ == "__main__":
     X = np.concatenate(Xs); M = np.concatenate(Ms); SEQ = np.array(SEQ); ANIMO = np.array(ANIMO); ACTOR = np.array(ACTOR); FUENTE = np.array(FUENTE); NOMBRE = np.array(NOMBRE)
     media = np.array([X[M[:, j], j].mean() if M[:, j].any() else 0.0 for j in range(NC)], np.float32); desvio = np.array([X[M[:, j], j].std() + 1e-3 if M[:, j].any() else 1.0 for j in range(NC)], np.float32)
     np.savez(os.path.join(AQUI, "modelos", "jepa_datos.npz"), X=X, M=M, SEQ=SEQ, ANIMO=ANIMO, ACTOR=ACTOR, FUENTE=FUENTE, NOMBRE=NOMBRE, CANALES=np.array(CANALES), media=media, desvio=desvio, fps=FPS)
-    for fu in ("yakumama", "llama", "beat", "libre", "bailarin", "video", "surf"):
+    for fu in ("yakumama", "llama", "beat", "libre", "bailarin", "video", "surf", "visita"):
         m = FUENTE == fu; n = sum(SEQ[m][:, 1] - SEQ[m][:, 0]) if m.any() else 0; print(f"  {fu:9s} {m.sum():4d} tomas  {n / FPS / 60:6.1f} min")
     print(f"total {len(X)} cuadros a {FPS:.0f}/s = {len(X) / FPS / 60:.0f} min | canales {NC} | presencia por canal:", " ".join(f"{c}:{M[:, j].mean():.0%}" for j, c in enumerate(CANALES)))
     print("guardado modelos/jepa_datos.npz")
