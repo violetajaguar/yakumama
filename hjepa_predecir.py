@@ -104,6 +104,40 @@ class HJepa:
                 sr = float(np.std(ctx[m[:, j], j])); sg = float(np.std(cuerpo[:, j])); k = min(4.0, sr / sg) if sg > 1e-4 else 1.0
                 cuerpo[:, j] = cuerpo[:, j].mean() + (cuerpo[:, j] - cuerpo[:, j].mean()) * k
         return cuerpo, animos
+    def cargar_banco(self, ruta=None):
+        """the phrase bank (banco_frases.py): real 2-s windows of her body space with their level-1 latents."""
+        ruta = ruta or os.path.join(os.path.dirname(os.path.abspath(__file__)), "modelos", "banco_frases.npz")
+        if not os.path.exists(ruta): return False
+        b = np.load(ruta, allow_pickle=True); self.banco = dict(Z=b["Z"].astype(np.float32), V=b["V"], M=b["M"], animo=b["animo"], pista=b["pista"]); self.banco["Zn"] = self.banco["Z"] / (np.linalg.norm(self.banco["Z"], axis=1, keepdims=True) + 1e-6); return True
+    @torch.no_grad()
+    def muestrear(self, animo=None, k=12, ruido=0.0, pasos=1, desde_contexto=True, fiel_animo=0.7):
+        """SAMPLING HEAD by retrieval: plan the sub-goals (level 2) and, for each 2-s sub-goal, pull a REAL phrase from the bank whose
+        latent is among the k closest (random among them, weighted by closeness), preferring phrases of the same mood (fiel_animo)
+        and continuity with the previous phrase's last frame. Returns (pasos*T2*PASO, NC) body at 12/s made of real phrases, and
+        the moods of the phrases used. Needs cargar_banco(). Falls back to continuar()/generar() without a bank."""
+        if not hasattr(self, "banco"): return (self.continuar(animo, ruido, pasos) if (desde_contexto and self.n >= self.largo) else self.generar(animo))
+        acc = self.ACCIONES.index(animo) if animo in self.ACCIONES else self.ACCIONES.index("libre")
+        if desde_contexto and self.n >= self.largo:
+            zs = torch.cat([self._z1(self.X[kk * self.PASO:(kk + 1) * self.PASO], self.M[kk * self.PASO:(kk + 1) * self.PASO]) for kk in range(self.C2)]); z2 = self.enc2(zs[None])
+        else: z2 = self.protos[acc][None]
+        B = self.banco; Zn = B["Zn"]; mismo = (B["animo"] == acc) if acc < 10 else np.ones(len(Zn), bool); cuerpos = []; usados = []; ultimo = None; rng = np.random.default_rng()
+        for _ in range(pasos):
+            zp = self.pred2(z2, torch.tensor([acc]))
+            if ruido > 0: zp = zp + ruido * zp.std() * torch.randn_like(zp)
+            sub = self.dec2(zp)[0].numpy()   # (T2, Z1) sub-goals
+            for i in range(self.T2):
+                q = sub[i] / (np.linalg.norm(sub[i]) + 1e-6); sim = Zn @ q + fiel_animo * 0.15 * mismo
+                if ultimo is not None:   # continuity: the phrase should start near where the last one ended (body channels only)
+                    primeras = np.nan_to_num(B["V"][:, 0, :].astype(np.float32)); dist = np.abs(primeras - ultimo)[:, :17].mean(1); sim = sim - 0.6 * dist
+                cand = np.argpartition(-sim, k)[:k]; w = np.exp((sim[cand] - sim[cand].max()) * 8.0); j = int(rng.choice(cand, p=w / w.sum()))
+                v = B["V"][j].astype(np.float32); m = B["M"][j]
+                v = np.where(m, v, np.nan)
+                if ultimo is not None:   # fill what this phrase does not carry with the last known values, then crossfade 6 frames
+                    v = np.where(np.isfinite(v), v, ultimo[None, :]); cf = np.linspace(0, 1, 6)[:, None]; v[:6] = ultimo[None, :] * (1 - cf) + v[:6] * cf
+                else: v = np.where(np.isfinite(v), v, self.media[None, :])
+                cuerpos.append(v); ultimo = v[-1].copy(); usados.append(self.ACCIONES[int(B["animo"][j])] if B["animo"][j] >= 0 else "libre")
+            z2 = self.enc2(torch.tensor(sub)[None])
+        return np.concatenate(cuerpos), usados
 def a_ballena(cuerpo6, canales=("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")):
     """the six body qualities -> what they do to the whale, exactly as cerebro_ballena.py / receptor_ballena.py apply them on top of
     the mood's behaviour: pitch -= 0.45*cuerpo_pitch (leaning forward = nose down), roll += 0.35*cuerpo_roll, turn += 0.5*cuerpo_yaw,

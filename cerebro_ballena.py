@@ -67,7 +67,7 @@ jepa = None; JEPA_BALLENA = False
 if a.jepa:
     try:
         from hjepa_predecir import HJepa; rj = os.path.join(AQUI, "modelos", "hjepa_ballena.pt")
-        if os.path.exists(rj): jepa = HJepa(rj); JEPA_BALLENA = True; print("   H-JEPA in HER body space loaded (hjepa_ballena.pt): alone, she moves with what she learned from the dancers")
+        if os.path.exists(rj): jepa = HJepa(rj); JEPA_BALLENA = True; BANCO = jepa.cargar_banco(); print("   H-JEPA in HER body space loaded (hjepa_ballena.pt): alone, she moves with what she learned from the dancers" + (f" | phrase bank: {len(jepa.banco['Z'])} real phrases" if BANCO else ""))
         else: jepa = HJepa(os.path.join(AQUI, "modelos", "hjepa.pt")); print("   H-JEPA loaded (six body qualities): she reads the body, foresees it and can act on her own")
     except Exception as e: print(f"   (H-JEPA off: {e})")
 try: import retarget_ballena as RT; import numpy as np
@@ -177,7 +177,8 @@ def paso():
             st["cuerpo_gen"] = None
             if jepa is not None:   # the JEPA generates her next 32 s: in her body space (whale channels) if hjepa_ballena.pt, else six qualities that conduct her
                 try:
-                    if JEPA_BALLENA and jepa.n >= jepa.largo: st["cuerpo_gen"], st["animos_gen"] = jepa.continuar(accion, ruido=0.3)   # continuing what she just did (the last 32 s in her buffer)
+                    if JEPA_BALLENA and hasattr(jepa, "banco"): st["cuerpo_gen"], st["animos_gen"] = jepa.muestrear(accion, ruido=0.3, desde_contexto=jepa.n >= jepa.largo)   # SAMPLING HEAD: real phrases retrieved along her plan
+                    elif JEPA_BALLENA and jepa.n >= jepa.largo: st["cuerpo_gen"], st["animos_gen"] = jepa.continuar(accion, ruido=0.3)   # continuing what she just did (the last 32 s in her buffer)
                     else: st["cuerpo_gen"], st["animos_gen"] = jepa.generar(accion)
                 except Exception: st["cuerpo_gen"] = None
         actor = st["ella"]; fuente = "ella"
