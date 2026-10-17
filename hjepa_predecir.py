@@ -81,6 +81,29 @@ class HJepa:
         sub = self.dec2(self.pred2(z2, torch.tensor([acc]))); cuerpo = self.desn(self.dec1(sub.reshape(-1, self.Z1)).view(self.T2 * self.PASO, self.NC).numpy())
         animos = [self.ACCIONES[int(self.sonda1(sub[0, i:i + 1]).argmax())] for i in range(self.T2)] if self.sonda1 is not None else None
         return cuerpo, animos
+    @torch.no_grad()
+    def continuar(self, animo=None, ruido=0.0, pasos=1, amplitud=True):
+        """roll forward from the REAL context in the buffer (32 s of body), not from the average: 32 s ahead under the action
+        (default: the mood read from the body). ruido > 0 adds gaussian noise to the level-2 latent so successive calls differ
+        (0.3 is a gentle variety, 1.0 a lot). Returns (pasos*T2*PASO, NC) body at 12 frames/s, plus the sub-goal moods."""
+        if self.n < self.largo: return None, None
+        zs = torch.cat([self._z1(self.X[k * self.PASO:(k + 1) * self.PASO], self.M[k * self.PASO:(k + 1) * self.PASO]) for k in range(self.C2)]); z2 = self.enc2(zs[None])
+        acc = self.ACCIONES.index(animo) if animo in self.ACCIONES else int(self.sonda2(z2).argmax()) if self.sonda2 is not None else self.ACCIONES.index("libre")
+        cuerpos = []; animos = []
+        for _ in range(pasos):
+            zp = self.pred2(z2, torch.tensor([acc]))
+            if ruido > 0: zp = zp + ruido * zp.std() * torch.randn_like(zp)
+            sub = self.dec2(zp); cuerpos.append(self.desn(self.dec1(sub.reshape(-1, self.Z1)).view(self.T2 * self.PASO, self.NC).numpy()))
+            if self.sonda1 is not None: animos += [self.ACCIONES[int(self.sonda1(sub[0, i:i + 1]).argmax())] for i in range(self.T2)]
+            z2 = self.enc2(sub)   # the predicted sub-goals become the next context: she keeps going
+        cuerpo = np.concatenate(cuerpos)
+        if amplitud:   # the decoder averages and shrinks the movement: give each channel back the amplitude the real context had (x4 at most)
+            ctx = self.desn(self.X[-self.largo:]) ; m = self.M[-self.largo:] > 0
+            for j in range(self.NC):
+                if m[:, j].mean() < 0.5: continue
+                sr = float(np.std(ctx[m[:, j], j])); sg = float(np.std(cuerpo[:, j])); k = min(4.0, sr / sg) if sg > 1e-4 else 1.0
+                cuerpo[:, j] = cuerpo[:, j].mean() + (cuerpo[:, j] - cuerpo[:, j].mean()) * k
+        return cuerpo, animos
 def a_ballena(cuerpo6, canales=("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")):
     """the six body qualities -> what they do to the whale, exactly as cerebro_ballena.py / receptor_ballena.py apply them on top of
     the mood's behaviour: pitch -= 0.45*cuerpo_pitch (leaning forward = nose down), roll += 0.35*cuerpo_roll, turn += 0.5*cuerpo_yaw,

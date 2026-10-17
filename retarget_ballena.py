@@ -119,7 +119,7 @@ def cargar_toma(nombre):
         B[:, :, 0] += xm[:, None]; B[:, :, 1] += (-dist)[:, None]   # the viewer/camera is at -Y: closer to the camera = more negative Y
     from cuerpo_cualidades import cargar_npz as _c; J = {k: i for i, k in enumerate(["nose", "eye_l", "eye_r", "ear_l", "ear_r", "shoulder_l", "shoulder_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "hip_l", "hip_r", "knee_l", "knee_r", "ankle_l", "ankle_r", "head", "neck", "pelvis", "bigtoe_l", "bigtoe_r", "smalltoe_l", "smalltoe_r", "heel_l", "heel_r"])}
     vit = {k: np.array([float(r.get(k) or 0) for r in cu if r.get("esqueleto")]) for k in ("emotibit_hr", "emotibit_eda", "emotibit_therm")}
-    tc = np.array([r["t"] for r in ca]); cara = {k: np.array([float(r.get(k, 0) or 0) for r in ca]) for k in ("jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "head_yaw", "head_pitch")}
+    tc = np.array([r["t"] for r in ca]); cara = {k: np.array([float(r.get(k, 0) or 0) for r in ca]) for k in ("jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "head_yaw", "head_pitch", "eye_yaw", "eye_pitch", "tongue_out")}
     caraf = {k: np.interp(t, tc, v) for k, v in cara.items()} if len(tc) else None
     if caraf is not None: caraf.update({k: v for k, v in vit.items() if (v > 0).any()})
     return B, J, fps, caraf, nombre.split("_")[0]
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     if not a.tocar: sys.exit(0)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); FPS = 30.0; C = {c: i for i, c in enumerate(CANALES_BALLENA)}; ult = {}
     ESCALA_PISO = 0.8; RADIO_MAX = 2.0; px = py_ = 0.0; rumbo = math.pi   # she starts at home facing the viewer (yaw pi); the dancer's forward is her forward
-    import random; proximo_parpadeo = 2.0 + random.random() * 3.0; parpadeo_hasta = -1.0   # a body without a face still blinks: every 2-5 s, 0.15 s closed (a double blink now and then)
+    import random; proximo_parpadeo = 2.0 + random.random() * 3.0; parpadeo_hasta = -1.0; proxima_lengua = 15.0 + random.random() * 25.0; lengua_hasta = -1.0   # the tongue comes out now and then (every 15-40 s, 1.2 s)   # a body without a face still blinks: every 2-5 s, 0.15 s closed (a double blink now and then)
     while True:
         t0 = time.time(); n30 = int(len(B) / fps * FPS)
         for i in range(n30):
@@ -169,11 +169,15 @@ if __name__ == "__main__":
                 can["x"], can["y"], can["z"], can["rumbo"] = round(px, 3), round(py_, 3), 0.0, round((rumbo + math.pi) % (2 * math.pi) - math.pi, 3)
             pk = {"actor_animo": animo, "bailarin": "retarget:" + nombre, "water": 0.8, "red": 1, "soltar_manual": 1 if i < 30 else 0, "espacio": 0 if a.quieta else 1, "canales": can, "head_yaw": round(0.5 * ult.get("mirada_yaw", 0), 3), "head_pitch": round(0.5 * ult.get("mirada_pitch", 0), 3),
                   "l_palm_y": round(float(np.clip(0.5 - ult.get("flap_l", 0.0) / 1.2, 0, 1)), 3), "r_palm_y": round(float(np.clip(0.5 - ult.get("flap_r", 0.0) / 1.2, 0, 1)), 3)}   # receiver: hand height -> that side's fin (0 = hand up)
+            tt_ = i / FPS
+            if caraf is None:
+                if tt_ >= proxima_lengua: lengua_hasta = tt_ + 1.2; proxima_lengua = tt_ + 15.0 + random.random() * 25.0
+                pk["tongue_out"] = 1.0 if tt_ < lengua_hasta else 0.0
             if caraf is None and prestada is not None:   # the borrowed face, looping on its own clock
                 tt = (i / FPS) % float(prestada["_t"][-1]); j = int(np.searchsorted(prestada["_t"], tt))
                 j = min(len(prestada["_t"]) - 1, j)
                 for k in ("jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "eye_yaw", "eye_pitch", "emotibit_hr", "emotibit_eda"):
-                    if k in prestada: pk[k] = round(float(prestada[k][j]), 3)
+                    if k in prestada: pk[k] = round(min(0.5, float(prestada[k][j])) if k == "jaw_open" else float(prestada[k][j]), 3)
                 pk["head_yaw"] = round(0.5 * ult.get("mirada_yaw", 0) + 0.5 * float(prestada["head_yaw"][j]), 3); pk["head_pitch"] = round(0.5 * ult.get("mirada_pitch", 0) + 0.5 * float(prestada["head_pitch"][j]), 3)   # head: half the dancer, half the face
             elif caraf is None:
                 tt = i / FPS
@@ -182,7 +186,8 @@ if __name__ == "__main__":
             if caraf is not None:
                 tt = f / fps + (caraf and 0); ti = min(len(caraf["jaw_open"]) - 1, f)
                 for k in ("jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "head_yaw", "head_pitch", "emotibit_hr", "emotibit_eda", "emotibit_therm"):
-                    if k in caraf: pk[k] = round(float(caraf[k][min(len(caraf[k]) - 1, ti)]), 3)   # heart, skin and warmth of the performer travel with the body
+                    if k in caraf: pk[k] = round(float(caraf[k][min(len(caraf[k]) - 1, ti)]), 3)
+                if "tongue_out" in caraf: pk["tongue_out"] = round(float(caraf["tongue_out"][min(len(caraf["tongue_out"]) - 1, ti)]), 3)   # heart, skin and warmth of the performer travel with the body
             s.sendto(json.dumps(pk).encode(), ("127.0.0.1", a.puerto))
             if i % 30 == 0: json.dump({"tramo": "retarget:" + nombre, "modo": "cuerpo", "t": int(i / FPS), "dur": int(len(B) / fps), "loop": a.loop, "hora": time.time()}, open("/tmp/ballena_reproduciendo.json", "w"))
             esp = t0 + (i + 1) / FPS - time.time()

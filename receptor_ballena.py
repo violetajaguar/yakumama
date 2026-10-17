@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17u canales crudos: un cuerpo traducido a la ballena (retarget_ballena.py) manda entero"
+VERSION = "2026-10-17v baila de vuelta si el publico baila; boca con tope; lengua afuera con cuerpo"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1077,6 +1077,35 @@ def salida(d, dominant, comp, x, y, z, yaw, fuente):
         for h, pt in SALIDA: _sock_salida.sendto(b, (h, pt))
     except Exception: pass
 COMP_CERO = dict(pitch=0.0, roll=0.0, yaw=0.0, head=0.0, spine=[0.0] * 6, fluke=0.0, flap=0.0, ladeo=0.0, jaw=0.0, cara=(0.0, 0.0, 0.0, 0.0), mirada=(0.0, 0.0), spin=0.0, depth=0.0)
+_baile = {"buf": [], "ts": [], "activo": False, "t_cambio": 0.0, "err": None}
+def bailar_de_vuelta(d, t):
+    """la persona en frente mueve el cuerpo con energia -> ella lo baila de vuelta: su esqueleto (26 puntos, en cada paquete del grabador)
+    traducido en vivo a los canales de ella (retarget_ballena.esqueleto_a_ballena, el mapa de Violeta). Entra con energia > 0.35 por 1.5 s,
+    sale con energia < 0.15 por 3 s. Devuelve canales o None (y entonces manda el comportamiento del animo)."""
+    try:
+        import numpy as _np; e = float(d.get('cuerpo_energia', 0) or 0)
+        if not _baile["activo"] and e > 0.35:
+            if not _baile.get("sube"): _baile["sube"] = t
+            if t - _baile["sube"] > 1.5: _baile["activo"] = True; _baile["t_cambio"] = t; print("   BAILA DE VUELTA: el publico baila")
+        elif not _baile["activo"]: _baile["sube"] = None
+        if _baile["activo"] and e < 0.15:
+            if not _baile.get("baja"): _baile["baja"] = t
+            if t - _baile["baja"] > 3.0: _baile["activo"] = False; _baile["buf"].clear(); _baile["ts"].clear(); print("   baile de vuelta: termina")
+        elif _baile["activo"]: _baile["baja"] = None
+        fila = _np.array([_np.nan if v is None else float(v) for v in d['esqueleto']], _np.float32).reshape(26, 3)
+        if not _baile["ts"] or t - _baile["ts"][-1] > 0.04: _baile["buf"].append(fila); _baile["ts"].append(t)
+        while _baile["ts"] and t - _baile["ts"][0] > 3.0: _baile["buf"].pop(0); _baile["ts"].pop(0)
+        if not _baile["activo"] or len(_baile["buf"]) < 12: return None
+        import sys as _s
+        if YAKUMAMA not in _s.path: _s.path.insert(0, YAKUMAMA)
+        import retarget_ballena as R; B = _np.array(_baile["buf"]); fps = (len(B) - 1) / max(0.2, _baile["ts"][-1] - _baile["ts"][0])
+        J = {k: i for i, k in enumerate(["nose", "eye_l", "eye_r", "ear_l", "ear_r", "shoulder_l", "shoulder_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "hip_l", "hip_r", "knee_l", "knee_r", "ankle_l", "ankle_r", "head", "neck", "pelvis", "bigtoe_l", "bigtoe_r", "smalltoe_l", "smalltoe_r", "heel_l", "heel_r"])}
+        X = R.esqueleto_a_ballena(B, J, fps); x = X[-1]; C = {c: i for i, c in enumerate(R.CANALES_BALLENA)}; g = lambda c: float(x[C[c]]) if _np.isfinite(x[C[c]]) else 0.0
+        return {"pitch": g("pitch"), "roll": g("roll"), "yaw": g("yaw"), "head": g("head"), "spine": [g(f"spine{k}") for k in range(6)], "fluke": g("fluke"), "flap": 0.0, "ladeo": 0.0,
+                "aleta_l": [g("flap_l"), g("codo_l"), g("muneca_l")], "aleta_r": [g("flap_r"), g("codo_r"), g("muneca_r")], "jaw": 0.0, "cara": [0, 0, 0, 0], "mirada": [g("mirada_yaw"), g("mirada_pitch")], "spin": 0.0, "depth": g("depth"), "turbina": max(0.3, g("turbina"))}
+    except Exception as e:
+        if _baile["err"] != str(e): _baile["err"] = str(e); print(f"   (baile de vuelta: {e})")
+        return None
 def comportamiento(t, dom, sec, w_dom=0.8):
     a = COMPORTAMIENTOS.get(dom, comp_calm)(t); b = COMPORTAMIENTOS.get(sec, comp_calm)(t); w = 1.0 - w_dom
     out = {k: a[k] * w_dom + b[k] * w for k in a if k not in ("spine", "cara", "mirada")}
@@ -1184,6 +1213,7 @@ def breathe():
     # COMPORTAMIENTO del animo (movimiento real, ver arriba); en solo cara el cuerpo descansa
     comp = COMP_CERO if solo_cara else comportamiento(breathe._tiempo, dom_name, sec_name, 1.0 if actor in m else 0.8)   # con actor: un solo animo, sin mezcla
     canales = d.get('canales') if isinstance(d.get('canales'), dict) else None   # CANALES CRUDOS (retarget_ballena.py): un cuerpo traducido a su cuerpo manda entero, sin comportamiento de animo
+    if canales is None and isinstance(d.get('esqueleto'), list) and not d.get('bailarin'): canales = bailar_de_vuelta(d, t)   # SI EL PUBLICO BAILA, ELLA BAILA DE VUELTA (Violeta, 17 oct): su cuerpo traducido en vivo
     if canales:
         comp = dict(COMP_CERO)
         for kk, vv in canales.items():
@@ -1244,6 +1274,8 @@ def breathe():
         tongue_scale = 0.0   # el sway automatico no: la lengua sale con tongue_out (Face Landmarker via grabar_ballena.py)
         lengua = max(0.0, min(1.0, float(d.get('tongue_out', 0))))
         if lengua > 0.2: jaw = max(jaw, 0.1 + 0.2 * lengua)   # para que se vea, la boca se abre un poco
+    BOCA_MAX = 0.5   # (Violeta, 17 oct) tope de apertura de la boca, venga de donde venga: animo, actor, cuerpo traducido o JEPA
+    jaw = min(jaw, BOCA_MAX)
     jaw_lo_x = jaw * 1.2 * mouth_scale
     jaw_lo2_x = jaw * 0.8 * mouth_scale
     rot('mouth_inf.001', jaw_lo_x, 0, 0.08)
@@ -1259,7 +1291,7 @@ def breathe():
     feed_curl_down = -feeding * 0.25 * gate
     tongue_pct = (0.3, 0.45, 0.6, 0.75, 0.9, 1.0)
     try:   # LENGUA AFUERA: se empuja la raiz hacia adelante por su eje (y) y se levanta apenas
-        armature.pose.bones['tongue.001'].location.y = sm('tongue:ly', 0.6 * lengua if solo_cara else 0.0, 0.25)
+        armature.pose.bones['tongue.001'].location.y = sm('tongue:ly', 0.6 * lengua if (solo_cara or lengua > 0.2) else 0.0, 0.25)   # la lengua sale tambien con cuerpo (tongue_out del actor, de la cara prestada o de ella misma)
     except: pass
     if solo_cara: rot('tongue.001', 0.1 * lengua, 0, 0.25)
     for i, b in enumerate(('tongue.001','tongue.002','tongue.003','tongue.004','tongue.005','tongue.006')):
