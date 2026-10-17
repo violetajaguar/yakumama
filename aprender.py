@@ -41,24 +41,6 @@ def ventanas_visitas(BS):
             v = E.rasgos(w, w, BS)
             if v is not None: X.append(v); y.append(MOODS.index(top)); grp.append(os.path.basename(f)[:-6])
     return X, y, grp, total
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--seco", action="store_true"); a = ap.parse_args(); ap.add_argument("--cuerpo", action="store_true", help="solo sacar los tramos de cuerpo con animo de las visitas"); ap.add_argument("--noche", action="store_true", help="lo de cada noche: cuerpo de visitas + reentrenar + registro")
-    Xa, ya, ga, BS = ventanas_actores(); Xv, yv, gv, total = ventanas_visitas(BS)
-    print(f"actores: {len(Xa)} ventanas de {len(set(ga))} tomas | visitas: {total} paquetes en {len(glob.glob(os.path.join(AQUI, 'datasets', 'visitas', '*.jsonl')))} encuentros -> {len(Xv)} ventanas seguras (confianza >= {CONF})")
-    if Xv:
-        c = np.bincount(yv, minlength=10); print("  animos que trajeron las visitas:", {MOODS[i]: int(n) for i, n in enumerate(c) if n})
-    if a.seco or not Xv: print("(nada que aprender)" if not Xv else "seco: no se reentrena"); sys.exit(0)
-    k = min(len(Xv), len(Xa))   # las visitas nunca pesan mas que los actores
-    idx = np.random.default_rng(0).choice(len(Xv), k, replace=False)
-    X = np.array(Xa + [Xv[i] for i in idx]); y = np.array(ya + [yv[i] for i in idx]); grp = np.array(ga + [gv[i] for i in idx])
-    rf = lambda: RandomForestClassifier(n_estimators=300, random_state=0, class_weight="balanced")
-    p = cross_val_predict(rf(), X, y, groups=grp, cv=GroupKFold(5)); es_v = np.arange(len(y)) >= len(ya)
-    print(f"acierto con tomas/encuentros enteros fuera: actores {(p[~es_v] == y[~es_v]).mean():.0%} | visitas {(p[es_v] == y[es_v]).mean():.0%}")
-    modelo = rf().fit(X, y); viejo = pickle.load(open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "rb"))
-    pickle.dump({**viejo, "modelo": modelo, "BS": BS, "moods": MOODS, "W": W, "visitas": int(k)}, open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "wb"))
-    print(f"guardado modelos/animo_rf.pkl con {k} ventanas de visitas (el grabador lo carga al arrancar)")
-
-
 # ============================================================
 # APRENDER EL CUERPO DE LAS VISITAS (17 oct): cada persona que se para frente a ella es un performer que no hubo que
 # citar. El reconocedor le pone el animo a la cara; la pose le da el cuerpo. Cuando el animo se sostuvo >= 3 s con
@@ -98,5 +80,23 @@ def noche():
             if l.startswith("SONDA") or "meta diving" in l: linea.append(l.strip()[:120])
     with open(os.path.join(AQUI, "datasets", "aprendizaje.log"), "a") as fh: fh.write(" | ".join(linea) + "\n")
     print("  noche:", " | ".join(linea))
-if __name__ == "__main__" and "--cuerpo" in sys.argv_backup: cuerpo_visitas(seco="--seco" in sys.argv_backup)
-if __name__ == "__main__" and "--noche" in sys.argv_backup: noche()
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(); ap.add_argument("--seco", action="store_true"); ap.add_argument("--cuerpo", action="store_true", help="solo sacar los tramos de cuerpo con animo de las visitas"); ap.add_argument("--noche", action="store_true", help="lo de cada noche: cuerpo de visitas + reentrenar + registro"); a = ap.parse_args()
+    if a.noche: noche(); sys.exit(0)
+    if a.cuerpo: cuerpo_visitas(seco=a.seco); sys.exit(0)
+    Xa, ya, ga, BS = ventanas_actores(); Xv, yv, gv, total = ventanas_visitas(BS)
+    print(f"actores: {len(Xa)} ventanas de {len(set(ga))} tomas | visitas: {total} paquetes en {len(glob.glob(os.path.join(AQUI, 'datasets', 'visitas', '*.jsonl')))} encuentros -> {len(Xv)} ventanas seguras (confianza >= {CONF})")
+    if Xv:
+        c = np.bincount(yv, minlength=10); print("  animos que trajeron las visitas:", {MOODS[i]: int(n) for i, n in enumerate(c) if n})
+    if a.seco or not Xv: print("(nada que aprender)" if not Xv else "seco: no se reentrena"); sys.exit(0)
+    k = min(len(Xv), len(Xa))   # las visitas nunca pesan mas que los actores
+    idx = np.random.default_rng(0).choice(len(Xv), k, replace=False)
+    X = np.array(Xa + [Xv[i] for i in idx]); y = np.array(ya + [yv[i] for i in idx]); grp = np.array(ga + [gv[i] for i in idx])
+    rf = lambda: RandomForestClassifier(n_estimators=300, random_state=0, class_weight="balanced")
+    p = cross_val_predict(rf(), X, y, groups=grp, cv=GroupKFold(5)); es_v = np.arange(len(y)) >= len(ya)
+    print(f"acierto con tomas/encuentros enteros fuera: actores {(p[~es_v] == y[~es_v]).mean():.0%} | visitas {(p[es_v] == y[es_v]).mean():.0%}")
+    modelo = rf().fit(X, y); viejo = pickle.load(open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "rb"))
+    pickle.dump({**viejo, "modelo": modelo, "BS": BS, "moods": MOODS, "W": W, "visitas": int(k)}, open(os.path.join(AQUI, "modelos", "animo_rf.pkl"), "wb"))
+    print(f"guardado modelos/animo_rf.pkl con {k} ventanas de visitas (el grabador lo carga al arrancar)")
+
+
