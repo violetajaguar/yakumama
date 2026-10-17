@@ -85,13 +85,21 @@ def emotibit_ahora():
     if eda > 100: eda = 0.0   # sensor sin contacto (10000)
     tempo = max(0.6, min(1.6, hr / 75.0)) if 30 < hr < 220 else 1.0; energia = max(0.0, min(1.0, (hr - 60) / 60)) if hr else 0.0; tension = max(0.0, min(1.0, (eda - 2) / 8)) if eda else 0.0
     return {"t": round(t, 1), "dur": round(dur), "hr": round(hr), "eda": round(eda, 2), "temp": round(temp, 1), "tempo": round(tempo, 2), "energia": round(energia, 2), "tension": round(tension, 2)}
+SONIDOS = os.path.expanduser("~/Desktop/Huk/whale sound"); _afplay = {"p": None}
+def sonar(animo):
+    """el sonido del animo, fuera de Blender (afplay), al arrancar un cuerpo; se corta al cambiar."""
+    if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
+    w = os.path.join(SONIDOS, f"{animo}.wav")
+    if os.path.exists(w): _afplay["p"] = subprocess.Popen(["afplay", "-v", "0.5", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 def matar_todo():
     for pat in ("bailar.py", "generar_animo.py", "reproducir.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
+    if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
 def tocar(i):
     with estado["lock"]:
         it = ITEMS[i]; matar_todo(); time.sleep(0.2)
         cmd = [PY, os.path.join(AQUI, "reproducir.py"), it["toma"], "--modo", "anclada", "--loop"] if it["toma"] else [PY, os.path.join(AQUI, "bailar.py"), it["ruta"], "--animo", it["animo"], "--loop"]
         estado["proc"] = subprocess.Popen(cmd, cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["actual"] = i; estado["desde"] = time.time()
+        sonar(it["animo"])
         print(f"  -> {it['grupo']} / {it['sub']} / {it['nombre']} ({it['animo']})", flush=True)
 def parar():
     with estado["lock"]: matar_todo(); estado["actual"] = None; estado["proc"] = None
