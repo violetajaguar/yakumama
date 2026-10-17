@@ -35,12 +35,17 @@ def ventanas(d, W=W, paso=12):
             xs.append(X[t0:t0 + W]); ms.append(m); cs.append(int(AN[k]) if AN[k] >= 0 else len(MOODS))
     return np.stack(xs).astype(np.float32), np.stack(ms), np.array(cs)
 def entrenar(a):
-    dev = torch.device("mps" if torch.backends.mps.is_available() else "cpu"); d = np.load(os.path.join(AQUI, "modelos", "ballena_datos.npz"), allow_pickle=True)
+    dev = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")); d = np.load(a.datos or os.path.join(AQUI, "modelos", "ballena_datos.npz"), allow_pickle=True)
     CAN = [str(c) for c in d["CANALES"]]; X, M, C = ventanas(d, W=a.W); nc = X.shape[2]; Wl = a.W
     mu = np.array([X[:, :, j][M[:, :, j]].mean() if M[:, :, j].any() else 0.0 for j in range(nc)], np.float32); sd = np.array([X[:, :, j][M[:, :, j]].std() + 1e-3 if M[:, :, j].any() else 1.0 for j in range(nc)], np.float32)
     Xn = torch.tensor(np.where(M, (X - mu) / sd, 0.0), device=dev); Mt = torch.tensor(M.astype(np.float32), device=dev); Ct = torch.eye(NCOND, device=dev)[torch.tensor(C, device=dev)]
     print(f"{len(Xn)} windows of {W / FPS:.0f} s, {nc} channels · device {dev} · " + ", ".join(f"{m} {int((C == i).sum())}" for i, m in enumerate(MOODS + ['libre'])), flush=True)
     b = betas_coseno(PASOS).to(dev); al = torch.cumprod(1 - b, 0); m = Denoiser(nc, Wl).to(dev); opt = torch.optim.AdamW(m.parameters(), lr=a.lr); n = len(Xn); t0 = time.time(); ep = 0
+    salida = a.out or os.path.join(AQUI, "modelos", "difusion_ballena.pt")
+    if a.desde and os.path.exists(a.desde):   # resume (cloud sessions can drop)
+        ck0 = torch.load(a.desde, map_location="cpu", weights_only=False); m.load_state_dict(ck0["dif"]); ep = int(ck0.get("epochs", 0)); print(f"resuming from {a.desde} at epoch {ep}", flush=True)
+    def guardar(ep_):
+        torch.save({"dif": m.state_dict(), "W": Wl, "nc": nc, "mu": mu, "sd": sd, "canales": CAN, "moods": MOODS, "pasos": PASOS, "fps": FPS, "epochs": ep_}, salida)
     while ep < a.epochs and (time.time() - t0) / 60 < a.minutos:
         perm = torch.randperm(n, device=dev); tot = nb = 0
         for i in range(0, n, a.batch):
@@ -54,7 +59,8 @@ def entrenar(a):
             opt.zero_grad(); loss.backward(); nn.utils.clip_grad_norm_(m.parameters(), 1.0); opt.step(); tot += float(loss.detach()); nb += 1
         ep += 1
         if ep % 5 == 0 or ep == 1: print(f"epoch {ep}  loss {tot / nb:.4f}  ({(time.time() - t0) / 60:.1f} min)", flush=True)
-    torch.save({"dif": m.state_dict(), "W": Wl, "nc": nc, "mu": mu, "sd": sd, "canales": CAN, "moods": MOODS, "pasos": PASOS, "fps": FPS, "epochs": ep}, os.path.join(AQUI, "modelos", "difusion_ballena.pt")); print("guardado modelos/difusion_ballena.pt", flush=True)
+        if ep % a.cada == 0: guardar(ep)   # checkpoint: a dropped session keeps what was learned
+    guardar(ep); print(f"guardado {salida} ({ep} epochs)", flush=True)
 class Inventora:
     def __init__(self, ruta=None):
         ck = torch.load(ruta or os.path.join(AQUI, "modelos", "difusion_ballena.pt"), map_location="cpu", weights_only=False)
@@ -88,7 +94,7 @@ class Inventora:
         X = torch.cat(out)[:total].numpy() * self.sd + self.mu; return X.astype(np.float32)
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--minutos", type=float, default=25.0); ap.add_argument("--epochs", type=int, default=400); ap.add_argument("--batch", type=int, default=64); ap.add_argument("--lr", type=float, default=2e-4)
-    ap.add_argument("--p_uncond", type=float, default=0.0); ap.add_argument("--peso_vel", type=float, default=5.0); ap.add_argument("--peso_suave", type=float, default=1.0); ap.add_argument("--W", type=int, default=W); ap.add_argument("--generar", default=None); ap.add_argument("--n", type=int, default=2); a = ap.parse_args()
+    ap.add_argument("--p_uncond", type=float, default=0.0); ap.add_argument("--peso_vel", type=float, default=5.0); ap.add_argument("--peso_suave", type=float, default=1.0); ap.add_argument("--W", type=int, default=W); ap.add_argument("--generar", default=None); ap.add_argument("--n", type=int, default=2); ap.add_argument("--datos", default=None); ap.add_argument("--out", default=None); ap.add_argument("--desde", default=None); ap.add_argument("--cada", type=int, default=25, help="checkpoint every N epochs"); a = ap.parse_args()
     if a.generar:
         inv = Inventora(); C = {c: i for i, c in enumerate(inv.CAN)}
         for k in range(a.n):
