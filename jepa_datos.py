@@ -134,6 +134,20 @@ if __name__ == "__main__":
         except Exception as e: print("  (salto", os.path.basename(ruta), e, ")"); continue
         if r is None: continue
         X, M, an, ac, fu, no = r; Xs.append(X); Ms.append(M); SEQ.append((pos, pos + len(X))); pos += len(X); ANIMO.append(an); ACTOR.append(ac); FUENTE.append(fu); NOMBRE.append(no)
+    # las tomas cortas de video del mismo grupo (misma coreografia y nivel de ImperialDance, mismo estilo de nado, mismo
+    # clavado de Diving48...) se encadenan en UNA pista larga: asi el nivel lento del H-JEPA (64 s) tambien las ve.
+    def grupo(fu, no):
+        if fu != "video": return None
+        partes = no.split("_"); return "_".join(partes[:-1]) if len(partes) > 1 and partes[-1].isdigit() else "_".join(partes[:2])
+    Xs2, Ms2, SEQ2, ANIMO2, ACTOR2, FUENTE2, NOMBRE2 = [], [], [], [], [], [], []; pos = 0; abierto = None
+    for X, M, (s_, e_), an, ac, fu, no in zip(Xs, Ms, SEQ, ANIMO, ACTOR, FUENTE, NOMBRE):
+        g = grupo(fu, no)
+        if g is not None and abierto == (g, an):
+            Xs2[-1] = np.concatenate([Xs2[-1], X]); Ms2[-1] = np.concatenate([Ms2[-1], M]); SEQ2[-1] = (SEQ2[-1][0], SEQ2[-1][1] + len(X)); pos += len(X); continue
+        abierto = (g, an) if g is not None else None
+        Xs2.append(X); Ms2.append(M); SEQ2.append((pos, pos + len(X))); pos += len(X); ANIMO2.append(an); ACTOR2.append(ac); FUENTE2.append(fu); NOMBRE2.append(g if g is not None else no)
+    print(f"  tomas de video encadenadas: {sum(1 for f in FUENTE if f == 'video')} -> {sum(1 for f in FUENTE2 if f == 'video')} pistas")
+    Xs, Ms, SEQ, ANIMO, ACTOR, FUENTE, NOMBRE = Xs2, Ms2, SEQ2, ANIMO2, ACTOR2, FUENTE2, NOMBRE2
     X = np.concatenate(Xs); M = np.concatenate(Ms); SEQ = np.array(SEQ); ANIMO = np.array(ANIMO); ACTOR = np.array(ACTOR); FUENTE = np.array(FUENTE); NOMBRE = np.array(NOMBRE)
     media = np.array([X[M[:, j], j].mean() if M[:, j].any() else 0.0 for j in range(NC)], np.float32); desvio = np.array([X[M[:, j], j].std() + 1e-3 if M[:, j].any() else 1.0 for j in range(NC)], np.float32)
     np.savez(os.path.join(AQUI, "modelos", "jepa_datos.npz"), X=X, M=M, SEQ=SEQ, ANIMO=ANIMO, ACTOR=ACTOR, FUENTE=FUENTE, NOMBRE=NOMBRE, CANALES=np.array(CANALES), media=media, desvio=desvio, fps=FPS)
