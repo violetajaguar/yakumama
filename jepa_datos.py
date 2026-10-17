@@ -104,7 +104,8 @@ VIDEO_ANIMO = {"freediver": "diving", "diving48": "diving", "tinku": "angry", "b
 def toma_apneista(ruta):
     """un cuerpo de video entra con el animo de su prefijo (apneistas y clavadistas -> diving, tinku -> angry, ballet -> sad);
     sin prefijo conocido entra libre, como un bailarin."""
-    pref = os.path.basename(ruta).split("_")[0].lower(); animo = VIDEO_ANIMO.get(pref)
+    nombre = os.path.basename(ruta).lower(); pref = nombre.split("_")[0]; animo = VIDEO_ANIMO.get(pref)
+    if pref == "swim": animo = "surfacing" if ("butterfly" in nombre or "freestyle" in nombre) else "feeding"   # mariposa y crol sacan el cuerpo del agua a cada brazada: salir; pecho y espalda: comer
     return toma_esqueleto(ruta, MOODS.index(animo) if animo else -1, pref, "video")
 def toma_surf(ruta):
     """los surfistas (importar_surf.py, ya en cuerpo_*) entran como SURFACING: el cuerpo que sube y gira sobre el agua."""
