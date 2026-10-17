@@ -136,6 +136,32 @@ HUK = os.path.expanduser("~/Desktop/Huk"); PY_DATOS = os.path.join(AQUI, "venv_d
 def voz_ella(texto, salida, lengua):
     """su voz (Kokoro local, Huk/voz_ella.py): suave, con aire, lenta; en ingles, o en su lengua inventada."""
     subprocess.run([PY_DATOS, os.path.join(HUK, "voz_ella.py"), texto, salida, "--lengua", lengua], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180); return salida if os.path.exists(salida) else None
+def poema_nuevo():
+    """ella escribe un poema nuevo desde el animo en que esta (el alma de Huk, Qwen local, con sus semillas), lo guarda y lo lee."""
+    try:
+        import sys as _s, json as _j; _s.path.insert(0, HUK); import yakumama_alma as A
+        i = estado["actual"]; animo = ITEMS[i]["animo"] if i is not None else "calm"; animo = animo if animo in MOODS else "calm"
+        cuerpo = {"calm": "Estas quieta en la superficie, respirando despacio.", "singing": "Cuelgas de cabeza, hondo, cantando.", "playful": "Saltas y das vueltas, golpeas el agua con las aletas.", "curious": "Te paras vertical y sacas la cabeza para mirar.",
+                  "feeding": "Embistes de lado con la boca abierta y filtras.", "sad": "Cuelgas escorada, con las aletas caidas, hundiendote.", "angry": "Levantas la cola y la golpeas contra el agua.", "alert": "Lomo arqueado, aletas pegadas, la cabeza barre rapido.",
+                  "diving": "Arqueas, picas con las colas arriba y bajas hondo.", "surfacing": "Subes desde abajo, soplas, te nivelas."}[animo]
+        snap = {"water": 0.7, "scene_color": "gray", "scene_bright": 0.4, "humidity": 40}
+        usuario = (f"TU CUERPO Y EL SALAR AHORA\n{A._estado_en_cuerpo(snap)}\n{cuerpo} Tu animo: {ES.get(animo, animo)}.\n\nLO QUE ACABA DE PASAR\nnadie se para frente a vos; te mueves por el espacio con el cuerpo que te presto una bailarina\n\n"
+                   f"LO QUE VE TU OJO\nla sala vacia, la luz de las pantallas\n\nLO QUE CARGAS\nlo que te dijeron con la voz\n\nLO ULTIMO QUE ESCRIBISTE, no lo repitas\n{chr(10).join(A._cargar(A.ARCH_POEMAS, [])[-2:]) or 'ninguno'}\n\n{A.semilla() if hasattr(A, 'semilla') else ''}\n\nEscribi. Solo JSON.")
+        crudo = A._ollama(A.MODELO_ALMA, A.PIEL_SISTEMA, usuario, json_estricto=True, temperatura=0.95, tokens=220)
+        poema = str(_j.loads(crudo).get("poema", "")).strip() if crudo else ""
+        if not poema: return {"error": "ollama no contesto"}
+        ps = A._cargar(A.ARCH_POEMAS, []); ps.append(poema); A._guardar(A.ARCH_POEMAS, ps[-200:]); print("   ┌─ POEMA (" + animo + ")\n   │  " + poema.replace("\n", "\n   │  ") + "\n   └─", flush=True)
+        return leer_poema()
+    except Exception as e: return {"error": str(e)[:120]}
+def hilo_escribe():
+    """escribe sola cada 4 minutos si esta encendido (/escribe?on=1)."""
+    while True:
+        time.sleep(5)
+        if estado.get("escribe") and time.time() - estado.get("escribio", 0) > 240 and not estado.get("escribiendo"):
+            estado["escribiendo"] = True
+            try: poema_nuevo(); estado["escribio"] = time.time()
+            finally: estado["escribiendo"] = False
+threading.Thread(target=hilo_escribe, daemon=True).start()
 def leer_poema():
     """lee el ultimo poema tres veces: castellano (Paulina), ingles (su voz suave) y su LENGUA inventada (lengua.py, su voz)."""
     try:
@@ -191,7 +217,7 @@ details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px
 <h1>Yakumama · un cuerpo a la vez</h1><div id=ahora>—</div><div id=ella></div><div id=emo></div>
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
 <button id=autov onclick="fetch('/auto?on='+(document.getElementById('autov').classList.contains('on')?0:1)+'&grupo=canto').then(tick)">carrusel de voces humanas</button>
-<button id=musica onclick="fetch('/musica?on='+(document.getElementById('musica').classList.contains('on')?0:1)).then(tick)">música de base</button><button onclick="fetch('/poema')">leer el último poema</button>
+<button id=musica onclick="fetch('/musica?on='+(document.getElementById('musica').classList.contains('on')?0:1)).then(tick)">música de base</button><button onclick="fetch('/poema_nuevo')">poema nuevo</button><button id=escribe onclick="fetch('/escribe?on='+(document.getElementById('escribe').classList.contains('on')?0:1)).then(tick)">escribe sola</button><button onclick="fetch('/poema')">leer el último poema</button>
 <label>segundos <input id=seg type=number value=40 min=5 onchange="fetch('/seg?s='+this.value)"></label><button onclick="fetch('/parar').then(tick)">parar</button></div>
 <div id=lista></div>
 <script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#555a70',angry:'#f21410',alert:'#1ae640',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
@@ -203,7 +229,7 @@ let h='';for(const [grupo,subs] of Object.entries(g)){const n=Object.values(subs
   h+='<details class=s><summary>'+sub+' <span>'+v.length+'</span></summary><div class=grupo>'+v.map(boton).join('')+'</div></details>'}
  h+='</details>'}document.getElementById('lista').innerHTML=h}
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
-document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');document.getElementById('musica').classList.toggle('on',!!s.musica);const it=s.actual!=null?items[s.actual]:null;
+document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');document.getElementById('musica').classList.toggle('on',!!s.musica);document.getElementById('escribe').classList.toggle('on',!!s.escribe);const it=s.actual!=null?items[s.actual]:null;
 document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')+(s.ojos?'  ·  ojos de '+s.ojos:'')):'nada suena';
 const w=s.ballena;document.getElementById('ella').innerHTML=w&&w.viva?('ella siente <i class=c style="background:'+(C[w.animo]||'#777')+'"></i><b>'+(w.animo_es||'—')+'</b> · pulso <b>'+Math.round(w.pulso||0)+'</b> lpm · tempo ×'+w.tempo+' · energía '+w.energia+' · tensión '+w.tension+' · latido '+w.latido+(w.cara?' · con cara':'')+' · '+w.fps+' fps'):'Blender no responde';
 const e=s.emotibit;document.getElementById('emo').innerHTML=e?('EmotiBit de la toma: pulso <b>'+e.hr+'</b> lpm → tempo <b>×'+e.tempo+'</b>, energía <b>'+e.energia+'</b> · piel <b>'+e.eda+'</b> µS → tensión <b>'+e.tension+'</b> · temperatura '+e.temp+' °C · '+e.t+' / '+e.dur+' s'):(it&&it.grupo!='performers'?'sin EmotiBit (el pulso lo pone la energía del cuerpo)':'');}
@@ -216,7 +242,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         if u.path == "/": b = HTML.encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         elif u.path == "/items": self._json([{k: v for k, v in it.items() if k not in ("ruta",)} for it in ITEMS])
-        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "musica": _base["on"], "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
+        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "musica": _base["on"], "escribe": bool(estado.get("escribe")), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
         elif u.path == "/tocar": estado["auto"] = False; tocar(int(q["i"][0])); self._json({"ok": 1})
         elif u.path == "/auto":
             estado["auto"] = q.get("on", ["1"])[0] == "1"; estado["grupo"] = q.get("grupo", [estado.get("grupo", "animos")])[0]
@@ -226,6 +252,8 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/parar": estado["auto"] = False; parar(); self._json({"ok": 1})
         elif u.path == "/musica": _base["on"] = q.get("on", ["1"])[0] == "1"; self._json({"ok": 1, "archivo": os.path.basename(base_archivo() or "")})
         elif u.path == "/poema": self._json({"poema": leer_poema()})
+        elif u.path == "/poema_nuevo": threading.Thread(target=poema_nuevo, daemon=True).start(); self._json({"ok": 1})
+        elif u.path == "/escribe": estado["escribe"] = q.get("on", ["1"])[0] == "1"; self._json({"ok": 1})
         else: self.send_response(404); self.end_headers()
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--auto", type=float, default=0); ap.add_argument("--puerto", type=int, default=8766); ap.add_argument("--sin-navegador", action="store_true"); a = ap.parse_args()
