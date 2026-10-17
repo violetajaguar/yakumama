@@ -7,8 +7,8 @@ Los .mat guardan tablas de MATLAB (objetos opacos): los lee leer_mat_opaco.py. O
 pelvis_tilt, pelvis_rotation, pelvis_obliquity, hip_flexion_r, knee_angle_r, arm_add_r, elbow_flex_r, hip_flexion_l,
 knee_angle_l, arm_add_l, elbow_flex_l (rad), luego el tiempo y pelvis_tz (m). IMU: 10 segmentos x 3 ejes de acc y luego
 de gyro, el torso primero.
-    cuerpo_pitch        sin(pelvis_tilt) / 0.7           (misma escala que el torso de un bailarin)
-    cuerpo_roll         sin(pelvis_obliquity) / 0.5
+    cuerpo_pitch        sin(pelvis_tilt - mediana) / 0.7      (respecto a la postura propia; misma escala que un bailarin)
+    cuerpo_roll         sin(pelvis_obliquity - mediana) / 0.5
     cuerpo_yaw          d(pelvis_rotation)/dt / 3 rad/s  (como en jepa_datos)
     cuerpo_profundidad  (pelvis_tz - percentil 80) / 0.35 (agachado negativo, como un bailarin)
     cuerpo_energia      giro del torso (norma del gyro), suavizado, 0..1 por el percentil 90
@@ -33,6 +33,7 @@ def importar(carpeta):
         n = int(len(tz) / FPS_PE * FPS); dur = len(tz) / FPS_PE
         X = np.zeros((n, 6), np.float32)
         tilt, rot, obl = (a12(ang[k], FPS_PE, n) for k in ("pelvis_tilt", "pelvis_rotation", "pelvis_obliquity")); z = a12(tz, FPS_PE, n)
+        tilt, obl = tilt - np.median(tilt), obl - np.median(obl)   # respecto a la postura propia (de lado en la tabla): la ballena rola respecto a su nivel
         X[:, 0] = np.clip(np.sin(tilt) / 0.7, -1, 1); X[:, 1] = np.clip(np.sin(obl) / 0.5, -1, 1)
         X[:, 2] = np.clip(np.gradient(np.unwrap(rot)) * FPS / 3.0, -1, 1); X[:, 3] = np.clip((z - np.percentile(z, 80)) / 0.35, -1, 1)
         g = a12(np.linalg.norm(gyr, axis=0), FS_IMU, n); ema = np.zeros(n); e = 0.0
