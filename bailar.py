@@ -21,7 +21,25 @@ ap.add_argument("--desde", type=float, default=0.0); ap.add_argument("--segundos
 ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--seco", action="store_true", help="no manda: imprime estadisticas"); ap.add_argument("--loop", action="store_true")
 ap.add_argument("--solo-cuerpo", action="store_true", help="manda solo el torso (inclinacion, giro, agachado, energia): la cara, las manos y el animo los pone otro (reproducir.py o la camara)")
 a = ap.parse_args()
-z = np.load(a.npz, allow_pickle=True); B = z["body"].astype(np.float64); J = {str(n): i for i, n in enumerate(z["joint_names"])}; fps = float(z["fps"]) if "fps" in z.files else 30.0
+z = np.load(a.npz, allow_pickle=True)
+if "body" not in z.files and "X" in z.files:   # una ballena real o un surfista (importar_ballenas / importar_surf): ya viene en cuerpo_*, se manda tal cual
+    X = np.nan_to_num(z["X"]).astype(float); can = [str(c) for c in z["canales"]]; fps = float(z["fps"]); nombre = os.path.basename(a.npz).replace(".npz", "")
+    f0 = int(a.desde * fps); f1 = int(min(len(X), f0 + a.segundos * fps)) if a.segundos else len(X); s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    print(f"   {nombre}: {len(X)} cuadros de cuerpo_* a {fps:.0f} fps, cuadros {f0}-{f1}, animo {a.animo}")
+    while True:
+        t0 = time.time()
+        for f in range(f0, f1):
+            q = {c: round(float(X[f, i]), 3) for i, c in enumerate(can)}; en = q.get("cuerpo_energia", 0.3)
+            pkt = {**q, "anclada": 1, "water": 0.8, "bailarin": nombre, "soltar_manual": 1 if f < f0 + 30 else 0, "emotibit_hr": round(60 + 70 * en, 1), "emotibit_eda": round(1 + 6 * en, 2)}
+            if a.animo != "auto": pkt["actor_animo"] = a.animo
+            if not a.seco:
+                s.sendto(json.dumps(pkt).encode(), ("127.0.0.1", a.puerto))
+                if f % int(fps) == 0: json.dump({"tramo": f"cuerpo:{nombre}", "modo": "anclada", "t": round((f - f0) / fps), "dur": round((f1 - f0) / fps), "loop": a.loop, "hora": time.time()}, open("/tmp/ballena_reproduciendo.json", "w"))
+                objetivo = t0 + (f - f0) / fps / a.velocidad
+                if (d_ := objetivo - time.time()) > 0: time.sleep(d_)
+        if a.seco or not a.loop: break
+    sys.exit(0)
+B = z["body"].astype(np.float64); J = {str(n): i for i, n in enumerate(z["joint_names"])}; fps = float(z["fps"]) if "fps" in z.files else 30.0
 def p(nombre, f): return B[f, J[nombre]]
 def norm(v): n = np.linalg.norm(v); return v / n if n > 1e-9 else v
 def clamp(v, lo=-1.0, hi=1.0): return float(max(lo, min(hi, v)))
