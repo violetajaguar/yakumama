@@ -207,7 +207,11 @@ if __name__ == "__main__":
     matar_todo(); print(f"  {len(ITEMS)} cuerpos en el menu | http://localhost:{a.puerto}")
     if a.auto: estado["seg"] = int(a.auto); estado["auto"] = True
     threading.Thread(target=hilo_auto, daemon=True).start()
-    signal.signal(signal.SIGTERM, lambda *_: (matar_todo(), sys.exit(0)))
+    def _salir(*_):
+        matar_todo(); _base["on"] = False
+        if _base["p"]: _base["p"].terminate()
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, _salir)
     srv = ThreadingHTTPServer(("0.0.0.0", a.puerto), H)
     if not a.sin_navegador:
         try: webbrowser.open(f"http://localhost:{a.puerto}")
