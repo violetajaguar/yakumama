@@ -50,6 +50,26 @@ def anclar(can, m, t, w):
         can["aleta_l"] = [can["aleta_l"][0] + 0.35 * arriba, can["aleta_l"][1], can["aleta_l"][2]]; can["aleta_r"] = [can["aleta_r"][0] + 0.35 * arriba, can["aleta_r"][1], can["aleta_r"][2]]; can["_rumbo"] = math.pi; can["_y"] = -1.2 * sube
     return can
 px = py_ = 0.0; rumbo = math.pi; ESCALA_PISO = 0.8; RADIO_MAX = 2.0
+import random
+acro = {"proximo": 4.0 + random.random() * 4.0, "tipo": None, "t0": 0.0}
+def acrobacia(m, tt, energia):
+    """PLAYFUL (Violeta): she turns to the side, goes upside down, barrel-rolls, when she invents. Every 5-9 s one of: lado (side, 1.3 rad held),
+    panza (upside down, pi held), vuelta (a full barrel roll, 2 pi in 1.6 s), doble (two). Returns the absolute roll (spin channel) or 0."""
+    if m != "playful": return 0.0
+    if acro["tipo"] is None and tt >= acro["proximo"]:
+        acro["tipo"] = random.choices(["lado", "panza", "vuelta", "doble"], weights=[3, 2, 3, 1])[0]; acro["t0"] = tt; acro["lado"] = random.choice([-1, 1])
+    if acro["tipo"] is None: return 0.0
+    e = tt - acro["t0"]; suave = lambda x: x * x * (3 - 2 * x)
+    if acro["tipo"] in ("lado", "panza"):
+        meta = 1.3 if acro["tipo"] == "lado" else math.pi; sube, hold, baja = 0.7, 1.4, 0.9
+        if e < sube: v = meta * suave(e / sube)
+        elif e < sube + hold: v = meta
+        elif e < sube + hold + baja: v = meta * (1 - suave((e - sube - hold) / baja))
+        else: acro["tipo"] = None; acro["proximo"] = tt + 5.0 + random.random() * 4.0; return 0.0
+        return acro["lado"] * v
+    dur = 1.6 if acro["tipo"] == "vuelta" else 3.0; n = 1 if acro["tipo"] == "vuelta" else 2
+    if e < dur: return acro["lado"] * 2 * math.pi * n * suave(e / dur)
+    acro["tipo"] = None; acro["proximo"] = tt + 5.0 + random.random() * 4.0; return 0.0
 while True:
     for m in moods:
         if MODO == "inventa": cuerpo = INV.inventar(m, segundos=32.0, prefijo=ultimo_cuerpo, temp=1.0 + 0.3 * a.ruido); ams = [m] * 4; ultimo_cuerpo = cuerpo[-12:]   # a new dance from noise, continuing her own last second
@@ -78,6 +98,8 @@ while True:
                 if MODO == "inventa": w_ancla = {"calm": 0.6, "surfacing": 0.6, "diving": 0.6}.get(m, 0.15)   # inventing: the script is only a light touch (Violeta: "let it be more free")
                 can = anclar(can, m, i / FPS, w_ancla)
                 if MODO == "inventa": can["spin"] = 0.0   # no scripted rounds on top of what she invents
+                giro_acro = acrobacia(m, i / FPS, g(f, "turbina"))
+                if abs(giro_acro) > 0.001: can["spin"] = giro_acro; can["roll"] = 0.0   # her acrobatics: side, upside down, barrel rolls (absolute roll through the receiver's spin path)
                 pk["canales"] = can;   # calm follows calm (mostly her behaviour); diving and surfacing lean on theirs pk["espacio"] = 0 if a.quieta else 1; pk["blink"] = 1.0 if g(f, "cara_parpado") > 0.5 else 0.0
                 if "pulso" in C and np.isfinite(cuerpo[f, C["pulso"]]) and cuerpo[f, C["pulso"]] > 0.3: pk["emotibit_hr"] = round(100.0 * g(f, "pulso"), 1)
             else:
