@@ -25,7 +25,11 @@ Constraints: every channel clamped to her ranges; the mouth never opens past 0.5
 
 Numbers (held-out bodies): the probe reads the mood from her body 86 %; the model beats "repeat the last frame" on tail and
 spine; the decoder still shrinks amplitude, so generation keeps the dancer's amplitude per channel (`continuar(..., amplitud=True)`).
-Honest limit: it generates posture, rhythm and travel; phrasing is still mostly the dancer's. A sampling head is the next step.
+**Sampling head (added later the same evening).** `modelos/banco_frases.npz` is her phrase bank: 29,662 real 2-s phrases of movement
+in her body space (dancers, swimmers, divers, performers, faces, behaviours), each with its level-1 latent. `HJepa.muestrear()` plans
+the 16 sub-goals of the next 32 s in latent space and, for each one, retrieves a real phrase whose latent is close (random among the
+12 closest, same mood favoured, continuity with the previous phrase). Every second she generates is real movement in whale form, never
+an average; two draws differ; 32 s take 0.1 s on CPU. The brain uses it automatically when the bank file is present.
 
 ## New in the brain (`cerebro_ballena.py`, the one you run next to TouchDesigner)
 
@@ -54,6 +58,8 @@ Yakumama/ballena_datos.py            builds the training set in her body space
 Yakumama/hjepa_ballena.py            trains the H-JEPA in her body space (minutes on CPU)
 Yakumama/modelos/hjepa_ballena.pt    the model (1.6 MB)
 Yakumama/modelos/ballena_datos.npz   the training set (53 MB), to retrain:  venv/bin/python hjepa_ballena.py
+Yakumama/modelos/banco_frases.npz    the phrase bank (20 MB), to rebuild after a retrain:  venv/bin/python banco_frases.py
+Yakumama/banco_frases.py             builds the phrase bank
 Yakumama/docs/ARTICULACIONES.md      map of all 30 bones of the rig, axes, what drives each, stream field, physical part
 ```
 
