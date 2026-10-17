@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17w una toma nueva limpia la ropa/visita/esqueleto del anterior"
+VERSION = "2026-10-17x mas ejes: columna de lado, cabeza rola, aletas barren, colas timonean (canales spine_lado/head_roll/barrido/fluke_lado)"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1251,10 +1251,11 @@ def breathe():
             comp["spine"] = [v - 0.04 * canto * (i / 5.0) for i, v in enumerate(comp["spine"])]   # la cola se levanta apenas con la nota
             comp["roll"] += 0.08 * canto * _onda(t, 2.5)                                          # y se mece
     spine_bones = ['spine', 'spine.001', 'spine.002', 'spine.003', 'spine.004', 'spine.005']
+    lado_sp = (canales or {}).get("spine_lado"); lado_sp = [float(v) for v in lado_sp][:6] if isinstance(lado_sp, (list, tuple)) else None   # MAS EJES (Violeta, 17 oct): la columna tambien se ladea
     for i, bone in enumerate(spine_bones):
-        rot(bone, comp["spine"][i], 0, 0.04); rot(bone, 0.0, 1, 0.04); rot(bone, 0.0, 2, 0.04)   # eje 2: la ola de nado se suma abajo
-    rot('head', comp["head"] * (0.3 if 'head_yaw' in d else 1.0), 0, 0.04); rot('head', 0.0, 1, 0.04); rot('head', 0.0, 2, 0.04)
-    rot('back_fin.U', comp["fluke"], 0, 0.05); rot('back_fin.U', 0.0, 2, 0.05)
+        rot(bone, comp["spine"][i], 0, 0.04); rot(bone, 0.0, 1, 0.04); rot(bone, (lado_sp[i] if lado_sp and i < len(lado_sp) else 0.0), 2, 0.06)   # eje 2: ladeo de cada vertebra (o la ola de nado, que se suma abajo)
+    rot('head', comp["head"] * (0.3 if 'head_yaw' in d else 1.0), 0, 0.04); rot('head', float((canales or {}).get("head_roll", 0.0) or 0.0), 1, 0.05); rot('head', 0.0, 2, 0.04)   # eje 1: la cabeza tambien rola
+    rot('back_fin.U', comp["fluke"], 0, 0.05); rot('back_fin.U', float((canales or {}).get("fluke_lado", 0.0) or 0.0), 2, 0.05)   # eje 2: las colas timonean de lado
     rot('back_fin.L', comp["fluke"] * 0.5, 0, 0.05); rot('back_fin.L', 0.0, 2, 0.05)
     rot('back_fin.R', comp["fluke"] * 0.5, 0, 0.05); rot('back_fin.R', 0.0, 2, 0.05)
     rot('root', comp["pitch"], 0, 0.03)
@@ -1352,7 +1353,8 @@ def breathe():
             rot(f'side_fine{suffix}', alas * sign, 1, 0.1)
             rot(f'side_fine{suffix}.001', alas * 0.35 * sign, 1, 0.1)
             rot(f'side_fine{suffix}.002', alas * 0.15 * sign, 1, 0.1)
-        rot(f'side_fine{suffix}', 0.12 * sign, 2, 0.04); rot(f'side_fine{suffix}.001', 0.08 * sign, 2, 0.04); rot(f'side_fine{suffix}.002', 0.05 * sign, 2, 0.04)
+        barrido = float((canales or {}).get("barrido_l" if suffix == ".L" else "barrido_r", 0.0) or 0.0)   # eje 2: la aleta barre adelante/atras (con la velocidad, cuando inventa)
+        rot(f'side_fine{suffix}', (0.12 + barrido) * sign, 2, 0.06); rot(f'side_fine{suffix}.001', (0.08 + 0.6 * barrido) * sign, 2, 0.06); rot(f'side_fine{suffix}.002', (0.05 + 0.3 * barrido) * sign, 2, 0.06)
     # LADEO: una mano mas alta que la otra -> una aleta sube y la otra baja (eje 0), como un viraje
     if not hasattr(breathe, '_ladeo'): breathe._ladeo = 0.0
     try:
