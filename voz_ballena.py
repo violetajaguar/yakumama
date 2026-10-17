@@ -15,7 +15,7 @@ con animo singing (cabeza abajo, colgada, como la yubarta que canta) y anclada. 
 """
 import os, sys, json, time, wave, socket, argparse, subprocess, numpy as np
 ap = argparse.ArgumentParser(); ap.add_argument("wav"); ap.add_argument("--loop", action="store_true"); ap.add_argument("--seco", action="store_true"); ap.add_argument("--puerto", type=int, default=9998)
-ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--humana", action="store_true", help="suena la voz humana tal cual (por defecto suena como ballena: una octava abajo, bajo el agua, con eco, con la misma melodia)")
+ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--sin-ojos", action="store_true", help="no manda parpadeo: los ojos los pone la toma de un performer (carrusel)"); ap.add_argument("--humana", action="store_true", help="suena la voz humana tal cual (por defecto suena como ballena: una octava abajo, bajo el agua, con eco, con la misma melodia)")
 a = ap.parse_args()
 CACHE = os.path.expanduser("~/Desktop/vocalset/ballena")
 def voz_de_ballena(wav):
@@ -62,7 +62,7 @@ try:
             yaw = 0.95 * yaw + 0.05 * float(np.clip((semi[min(n - 1, i + 3)] - semi[max(0, i - 3)]) / 4.0, -1, 1))   # hacia donde va la melodia
             tt = time.time() - t0
             if tt >= proximo_parpadeo: parpadeo_hasta = tt + 0.15; proximo_parpadeo = tt + 2.0 + random.random() * 3.0
-            pkt = {"actor_animo": "singing", "anclada": 1, "red": 1, "water": 0.8, "jaw_open": round(min(1.0, 1.2 * jaw), 3), "blink": 1.0 if tt < parpadeo_hasta else 0.0, "head_pitch": round(head, 3), "head_yaw": round(0.3 * yaw, 3),
+            pkt = {"actor_animo": "singing", "anclada": 1, "red": 1, "water": 0.8, "jaw_open": round(min(1.0, 1.2 * jaw), 3), **({} if a.sin_ojos else {"blink": 1.0 if tt < parpadeo_hasta else 0.0}), "head_pitch": round(head, 3), "head_yaw": round(0.3 * yaw, 3),
                    "cuerpo_pitch": -0.4, "cuerpo_yaw": round(0.5 * yaw, 3), "cuerpo_energia": round(0.2 + 0.6 * en, 3), "cuerpo_suavidad": 0.9, "emotibit_hr": round(60 + 50 * en, 1), "bailarin": "voz:" + nombre, "soltar_manual": 1 if i < 30 else 0}
             d = json.dumps(pkt).encode(); s.sendto(d, ("127.0.0.1", a.puerto))
             for h, p in espejos: s.sendto(d, (h, p))

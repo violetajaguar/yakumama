@@ -13,6 +13,7 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 ap = argparse.ArgumentParser(); ap.add_argument("tramo", help="p. ej. playful_001"); ap.add_argument("--modo", default="cara", choices=["cara", "fija", "cuerpo", "anclada"])
 ap.add_argument("--velocidad", type=float, default=1.0); ap.add_argument("--loop", action="store_true"); ap.add_argument("--puerto", type=int, default=9998)
 ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia (TouchDesigner / ballena fisica)")
+ap.add_argument("--solo-ojos", action="store_true", help="manda solo la cara de la toma (ojos, parpadeo, cejas, boca): el cuerpo y el animo los pone otro (el carrusel con una danza)")
 a = ap.parse_args()
 fc = os.path.join(AQUI, "datasets", "cara", a.tramo + ".jsonl"); fb = os.path.join(AQUI, "datasets", "cuerpo", a.tramo + ".jsonl")
 if not os.path.exists(fc): sys.exit(f"no existe {fc}")
@@ -20,6 +21,8 @@ cara = [json.loads(l) for l in open(fc)]; cuerpo = [json.loads(l) for l in open(
 flags = {"cara": {"solo_cara": 1}, "fija": {"solo_cara": 2}, "cuerpo": {}, "anclada": {"anclada": 1}}[a.modo]
 flags["actor_animo"] = a.tramo.split("_")[0]   # el animo de la toma manda el comportamiento (cuerpo de las fotos NOAA)
 flags["soltar_manual"] = 1                           # al arrancar, el panel vuelve a Automatico (si no, el menu manda sobre la toma)
+if a.solo_ojos: flags = {}
+OJOS = ("blink", "eye_yaw", "eye_pitch", "brow_up", "brow_down", "jaw_open", "mouth_sad", "mouth_smile", "tongue_out")
 def clamp(v, lo, hi): return max(lo, min(hi, v))
 def mirada(r):
     g = lambda k: float(r.get("face_" + k, 0))
@@ -48,6 +51,7 @@ try:
         for c, b in zip(cara, cuerpo):
             estado(c)
             pkt = {**c.get("todo", {}), **{k: v for k, v in b.items() if k not in ("t", "animo", "video_t")}, **{k: v for k, v in c.items() if k not in ("t", "animo", "todo", "video_t")}, **flags}
+            if a.solo_ojos: pkt = {k: v for k, v in pkt.items() if k in OJOS or k.startswith("face_")}
             espera = (c["t"] - tb) / a.velocidad - (time.time() - t0)
             if espera > 0: time.sleep(min(espera, 0.5))
             datos_pkt = json.dumps(pkt).encode(); s.sendto(datos_pkt, ("127.0.0.1", a.puerto))
