@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17x mas ejes: columna de lado, cabeza rola, aletas barren, colas timonean (canales spine_lado/head_roll/barrido/fluke_lado)"
+VERSION = "2026-10-17y tristeza: sombras claras/oscuras hasta transparente"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -883,8 +883,24 @@ def fijar_dientes_y_lengua():
         elif n.startswith("eye"): _fijar_color(o, NEGRO, "ojo_negro")
 try: fijar_dientes_y_lengua(); print("  dientes de oro, lengua azul (colores fijos)")
 except Exception as e: print("  (dientes/lengua:", e, ")")
-def tint_body(target_rgb, lerp_amount):
+def tint_body(target_rgb, lerp_amount, alpha=1.0):
+    """tine la piel hacia target_rgb; alpha < 1 la vuelve transparente (tristeza: sombras mas claras, mas oscuras, hasta desaparecer)."""
     if not whale_mesh: return
+    try:
+        for slot in whale_mesh.material_slots:
+            mat = slot.material
+            if not mat: continue
+            if alpha < 0.999 or getattr(tint_body, "_alpha", 1.0) < 0.999:
+                try:
+                    if hasattr(mat, "surface_render_method"): mat.surface_render_method = 'BLENDED'
+                    else: mat.blend_method = 'BLEND'
+                except Exception: pass
+                if mat.use_nodes:
+                    for node in mat.node_tree.nodes:
+                        if node.type == 'BSDF_PRINCIPLED' and node.inputs.get("Alpha") is not None:
+                            cur_a = float(node.inputs["Alpha"].default_value); node.inputs["Alpha"].default_value = cur_a + (alpha - cur_a) * max(lerp_amount, 0.03); break
+        tint_body._alpha = alpha
+    except Exception: pass
     try:   # color de objeto (sombreado Solido en modo Objeto) tambien, para que se vea en cualquier vista
         c = whale_mesh.color; whale_mesh.color = (c[0] + (target_rgb[0] - c[0]) * lerp_amount, c[1] + (target_rgb[1] - c[1]) * lerp_amount, c[2] + (target_rgb[2] - c[2]) * lerp_amount, 1.0)
     except Exception: pass
@@ -1442,6 +1458,10 @@ def breathe():
         tint_body(mezcla, lerp_amount=0.02)   # ~2 s: se tine despacio
     elif color_follow >= 0.5 and seen_color in COLOR_TO_MOOD and not cara_actor and not d.get('actor_animo') and not d.get('bailarin'):   # el color del cuarto solo cuando nada la conduce (ni animo ni cuerpo): si no, el animo manda   # el color de la escena solo cuando NO hay nadie: con una cara, manda el animo (la luz de la sala la dejaba dorada)
         tint_body(SCENE_COLORS_RGB[seen_color], lerp_amount=0.04 * color_follow)
+    elif dominant == "sad":   # TRISTEZA (Violeta, 17 oct): sombras que cambian, mas claras, mas oscuras, hasta volverse transparente
+        fase = 0.5 + 0.5 * math.sin(2 * math.pi * t / 16.0); brillo = 0.3 + 1.1 * fase   # 16 s: de casi negro a mas claro que su color
+        alfa = 1.0 - 0.9 * max(0.0, min(1.0, (brillo - 1.05) / 0.35))   # en lo mas claro se desvanece
+        tint_body(tuple(min(1.0, c * brillo + 0.25 * max(0.0, brillo - 1.0)) for c in MOOD_RGB["sad"]), lerp_amount=0.05, alpha=alfa)
     elif dominant in MOOD_RGB:
         tint_body(MOOD_RGB[dominant], lerp_amount=0.04)   # ~1 s de transicion
 
