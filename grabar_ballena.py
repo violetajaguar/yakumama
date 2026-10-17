@@ -490,7 +490,7 @@ def ventana_poema(gatillo, datos):
         snap = {"water": 0.7, "scene_color": "the colour of their clothes" if gatillo == "ropa" else "gray", "scene_bright": r.get("brillo", 0.5), "humidity": 40, "l_palm_x": 0.5}
         usuario = (f"TU CUERPO Y EL SALAR AHORA\n{A._estado_en_cuerpo(snap)}\n\nLO QUE ACABA DE PASAR\n{que}. Se mueve como {datos['estilo']}. "
                    f"{'Mueve el cuerpo.' if (cuerpo.get('cuerpo_energia') or 0) > 0.3 else 'Esta casi quieta.'}\n\nLO QUE VE TU OJO\nuna cara, de cerca\n\nLO QUE CARGAS\n{len(mem.personas)} personas en la memoria\n\n"
-                   f"LO ULTIMO QUE ESCRIBISTE, no lo repitas\n{chr(10).join(A._cargar(A.ARCH_POEMAS, [])[-2:]) or 'ninguno'}\n\nEscribi. Solo JSON.")
+                   f"LO ULTIMO QUE ESCRIBISTE, no lo repitas\n{chr(10).join(A._cargar(A.ARCH_POEMAS, [])[-2:]) or 'ninguno'}\n\n{A.semilla() if hasattr(A, 'semilla') else ''}\n\nEscribi. Solo JSON.")
         crudo = A._ollama(A.MODELO_ALMA, A.PIEL_SISTEMA, usuario, json_estricto=True, temperatura=0.95, tokens=220)
         if crudo:
             poema = str(json.loads(crudo).get("poema", "")).strip()
