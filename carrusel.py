@@ -130,7 +130,7 @@ details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
 <label>segundos <input id=seg type=number value=40 min=5 onchange="fetch('/seg?s='+this.value)"></label><button onclick="fetch('/parar').then(tick)">parar</button></div>
 <div id=lista></div>
-<script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff4d00',curious:'#b3ff00',feeding:'#33c04d',sad:'#555a70',angry:'#f21410',alert:'#ff4da6',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
+<script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#33c04d',sad:'#555a70',angry:'#f21410',alert:'#ff4da6',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
 let items=[];function toca(i){fetch('/tocar?i='+i).then(tick)}
 function boton(i){return '<button id=b'+i.id+' onclick="toca('+i.id+')"><i class=c style="background:'+(C[i.animo]||'#777')+'"></i>'+i.nombre+'</button>'}
 async function carga(){items=await (await fetch('/items')).json();const g={};items.forEach(i=>{(g[i.grupo]=g[i.grupo]||{});(g[i.grupo][i.sub]=g[i.grupo][i.sub]||[]).push(i)});
