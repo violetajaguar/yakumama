@@ -70,6 +70,11 @@ if a.jepa:
         if os.path.exists(rj): jepa = HJepa(rj); JEPA_BALLENA = True; BANCO = jepa.cargar_banco(); print("   H-JEPA in HER body space loaded (hjepa_ballena.pt): alone, she moves with what she learned from the dancers" + (f" | phrase bank: {len(jepa.banco['Z'])} real phrases" if BANCO else ""))
         else: jepa = HJepa(os.path.join(AQUI, "modelos", "hjepa.pt")); print("   H-JEPA loaded (six body qualities): she reads the body, foresees it and can act on her own")
     except Exception as e: print(f"   (H-JEPA off: {e})")
+INV = None
+try:
+    if a.jepa and os.path.exists(os.path.join(AQUI, "modelos", "difusion_ballena.pt")):
+        from difusion_ballena import Inventora; INV = Inventora(); print("   DIFFUSION loaded (difusion_ballena.pt): alone, she invents")
+except Exception as e: print(f"   (diffusion off: {e})")
 try: import retarget_ballena as RT; import numpy as np
 except Exception as e: RT = None; print(f"   (retarget off: {e})")
 J26 = {k: i for i, k in enumerate(["nose", "eye_l", "eye_r", "ear_l", "ear_r", "shoulder_l", "shoulder_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "hip_l", "hip_r", "knee_l", "knee_r", "ankle_l", "ankle_r", "head", "neck", "pelvis", "bigtoe_l", "bigtoe_r", "smalltoe_l", "smalltoe_r", "heel_l", "heel_r"])}
@@ -177,7 +182,8 @@ def paso():
             st["cuerpo_gen"] = None
             if jepa is not None:   # the JEPA generates her next 32 s: in her body space (whale channels) if hjepa_ballena.pt, else six qualities that conduct her
                 try:
-                    if JEPA_BALLENA and hasattr(jepa, "banco"): st["cuerpo_gen"], st["animos_gen"] = jepa.muestrear(accion, ruido=0.3, desde_contexto=jepa.n >= jepa.largo)   # SAMPLING HEAD: real phrases retrieved along her plan
+                    if JEPA_BALLENA and INV is not None: st["cuerpo_gen"] = INV.inventar(accion, segundos=32.0, prefijo=st.get("cuerpo_gen")[-12:] if st.get("cuerpo_gen") is not None else None); st["animos_gen"] = [accion]   # SHE INVENTS (diffusion, Paqarina's method in her body)
+                    elif JEPA_BALLENA and hasattr(jepa, "banco"): st["cuerpo_gen"], st["animos_gen"] = jepa.muestrear(accion, ruido=0.3, desde_contexto=jepa.n >= jepa.largo)   # SAMPLING HEAD: real phrases retrieved along her plan
                     elif JEPA_BALLENA and jepa.n >= jepa.largo: st["cuerpo_gen"], st["animos_gen"] = jepa.continuar(accion, ruido=0.3)   # continuing what she just did (the last 32 s in her buffer)
                     else: st["cuerpo_gen"], st["animos_gen"] = jepa.generar(accion)
                 except Exception: st["cuerpo_gen"] = None
