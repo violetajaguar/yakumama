@@ -98,6 +98,12 @@ while True:
                 if MODO == "inventa": w_ancla = {"calm": 0.6, "surfacing": 0.6, "diving": 0.6}.get(m, 0.15)   # inventing: the script is only a light touch (Violeta: "let it be more free")
                 can = anclar(can, m, i / FPS, w_ancla)
                 if MODO == "inventa": can["spin"] = 0.0   # no scripted rounds on top of what she invents
+                # MORE AXES when she invents (Violeta): sideways sway of the spine with her turning, head roll and yaw, fin sweep with her speed, flukes steering
+                giro_ = max(-0.8, min(0.8, g(f, "giro"))); av_ = g(f, "avance"); ola = math.sin(2 * math.pi * (i / FPS) * (0.4 + 0.3 * max(0.0, g(f, "turbina")) / 3.0))
+                can["spine_lado"] = [round(0.18 * giro_ * (k + 1) / 6 + 0.05 * ola * (k + 1) / 6, 3) for k in range(6)]
+                can["head_roll"] = round(0.25 * g(f, "roll") + 0.06 * ola, 3); pk["head_yaw"] = round(0.5 * g(f, "mirada_yaw") - 0.3 * giro_, 3)
+                can["barrido_l"] = round(0.25 * max(-1.0, min(1.0, av_)) + 0.1 * ola, 3); can["barrido_r"] = round(0.25 * max(-1.0, min(1.0, av_)) - 0.1 * ola, 3)
+                can["fluke_lado"] = round(-0.3 * giro_, 3)
                 giro_acro = acrobacia(m, i / FPS, g(f, "turbina"))
                 if abs(giro_acro) > 0.001: can["spin"] = giro_acro; can["roll"] = 0.0   # her acrobatics: side, upside down, barrel rolls (absolute roll through the receiver's spin path)
                 pk["canales"] = can;   # calm follows calm (mostly her behaviour); diving and surfacing lean on theirs pk["espacio"] = 0 if a.quieta else 1; pk["blink"] = 1.0 if g(f, "cara_parpado") > 0.5 else 0.0
