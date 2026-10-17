@@ -49,7 +49,9 @@ fins (flap, ladeo, fluke) and the six spine joints  ×  (0.4 + 1.3 * cuerpo_ener
 `hjepa_predecir.a_ballena(cuerpo6)` returns exactly those deltas for one frame, so you do not need to guess. The mood's
 behaviour itself (the base she adds to) is `comportamientos_animos.py` (`comp_<mood>(t)`), and the brain's packet on
 UDP 9994 is the finished result (pitch, roll, spine, fluke, flap, jaw, colour ...), so the simplest path is to take the
-packet and not touch the model at all. The `prevision` field in that packet is the model's raw six-channel forecast.
+packet and not touch the model at all. The `prevision` field in that packet is the model's raw six-channel forecast, and when
+she is alone (`iniciativa` = 1) the packet's `cuerpo` field is the body the model generated that frame (`cuerpo_jepa` = 1):
+that body is already applied inside the packet's pitch/roll/spine/fins through the mapping above.
 
 ## 4. One example input with her output, to confirm it gives the same answer
 
