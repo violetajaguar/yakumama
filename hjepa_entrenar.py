@@ -35,10 +35,10 @@ for k, (s, e) in enumerate(d["SEQ"]):
     if M.mean() < 0.5: continue
     fu = str(d["FUENTE"][k]); an = int(d["ANIMO"][k]); acc = an if (an >= 0 and fu != "bailarin") else ACCIONES.index("libre")
     pistas.append(dict(X=X, M=M, accion=acc, fuente=fu, nombre=str(d["NOMBRE"][k]), actor=str(d["ACTOR"][k])))
-for f in sorted(glob.glob(os.path.join(AQUI, "datasets", "ballenas", "*.npz"))):
-    b = np.load(f, allow_pickle=True); X = np.nan_to_num(b["X"]).astype(np.float32); M = b["M"]
-    for s in range(0, len(X), 12 * 3600):   # en pistas de 1 h
-        pistas.append(dict(X=X[s:s + 12 * 3600], M=M[s:s + 12 * 3600], accion=ACCIONES.index("ballena"), fuente="ballena", nombre=str(b["depid"]), actor=str(b["depid"])))
+for f in sorted(glob.glob(os.path.join(AQUI, "datasets", "ballenas", "*.npz")) + glob.glob(os.path.join(AQUI, "datasets", "surf", "*.npz"))):
+    b = np.load(f, allow_pickle=True); X = np.nan_to_num(b["X"]).astype(np.float32); M = b["M"]; surf = "/surf/" in f
+    for s in range(0, len(X), 12 * 3600):   # en pistas de 1 h (las de surf son un ciclo de 20 s: accion "libre", como los bailarines)
+        pistas.append(dict(X=X[s:s + 12 * 3600], M=M[s:s + 12 * 3600], accion=ACCIONES.index("libre" if surf else "ballena"), fuente="surf" if surf else "ballena", nombre=str(b["depid"]), actor=str(b["depid"])))
 # fuera: la yubarta mn18_175d entera, 1 de cada 8 bailarines, la ultima toma de cada (actor, animo) de yakumama/beat
 fuera = set(); vistos = {}
 for i, p in enumerate(pistas):
