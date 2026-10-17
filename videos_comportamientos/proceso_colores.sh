@@ -38,9 +38,9 @@ done
 tarjeta 15_emotibit ~/Desktop/Archivo/videos/whale.mov 4.5 $T/t_emotibit.png 0.35 60
 tarjeta 20_cuerpo "$F/serpiente_detalle.png" 4.5 $T/t_cuerpo.png 0.3
 tarjeta 21_flores "$D/0ff7f1d8-a066-43a0-9360-3e80b9a35ebf.JPG" 3.5 $T/p_flores.png 0.05
-foto 22_nazca "$F/nazca_lado.png" 3; foto 23_trazos "$F/trazos_arriba.png" 3; foto 24_piezas "$D/IMG_7146.JPG" 3
+foto 22_boceto "$F/boceto_tres_cuartos.png" 3; foto 23_trazos "$F/trazos_arriba.png" 3; foto 24_piezas "$D/IMG_7146.JPG" 3
 ffmpeg -v error -y -i "$R/yakumama_led.mp4" -filter_complex "[0:v]${VID},fade=t=in:st=0:d=0.5,fade=t=out:st=3.5:d=0.5[v]" -map "[v]" -t 4 "${ENC[@]}" seg_${L}_25_led.mp4; seg 25_led
-tarjeta 30_local "$F/boceto_tres_cuartos.png" 5 $T/t_local.png 0.45
+tarjeta 30_local "$F/nazca_lado.png" 5 $T/t_local.png 0.3
 tarjeta 35_salvajes "$D/IMG_8365.MOV" 4.5 $T/t_salvajes.png 0.4 10
 tarjeta 40_cierra "$Y/docs/yakumama.jpg" 5 $T/t_cierra.png 0.3
 ffmpeg -v error -y -f concat -safe 0 -i lista_$L.txt -c copy mudo_$L.mp4
