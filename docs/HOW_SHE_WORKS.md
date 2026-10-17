@@ -243,3 +243,36 @@ diving looks like in the body" from data where nobody dives.
 What would change that, in order: (1) performers acting her ten moods with face **and** body (the recorder does it now),
 (2) a mood label for the real whale tracks derived from their own depth cycle (descending, bottom, ascending, surface),
 so the whales teach level 2 what a dive cycle is, (3) only then the H-JEPA as her "own initiative" when nobody is in front.
+
+## 8. Night of 16–17 October: a body for each mood, from the world's data
+
+Decided with Violeta: faces, eyes and heartbeat are ours (four performers, RAVDESS). The ten poses and colours stay.
+The outside datasets lend **bodies** to the moods. Everything below is converted to the 26-point Paqarina skeleton and
+enters `jepa_datos.py` by file prefix (`VIDEO_ANIMO`, `DANZA_ANIMO`); the real whales label themselves by their own
+kinematics (`animos_ballena` in `hjepa_entrenar.py`).
+
+| mood | body | source | hours |
+|---|---|---|---|
+| sad | ballet; people expressing sadness | ImperialDance (OptiTrack); Emotional Body Motion Data (Zenodo, CC BY) | 6.6 |
+| feeding | swimming; the humpback's lateral lunges (roll > 60°) | SwimXYZ (CC BY, SMPL-H, forward kinematics); animaltags DTAG | 5.7 |
+| singing | jazz | ImperialDance | 5.4 |
+| calm | the humpback resting at the surface; people expressing neutral | DTAG; Emotional Body Motion | 5.0 |
+| diving | Diving48 platform dives (2677 clips, pose); 9 freedivers; the humpback's descents | SVCL Diving48; own videos; DTAG | 2.6 |
+| curious | suri sikuri; people expressing surprise | Paqarina; Emotional Body Motion | 2.4 |
+| alert | breaking (AIST++ and Paqarina); people expressing fear | Paqarina; Emotional Body Motion | 2.4 |
+| angry | tinku; people expressing anger | Paqarina; Emotional Body Motion | 2.3 |
+| playful | kullawada; people expressing happiness | Paqarina; Emotional Body Motion | 2.0 |
+| surfacing | surfers (Zenodo river wave); the humpback's ascents | Zenodo 14535620; DTAG | 0.1 + whale |
+
+Still open: calm from flowers (Violeta's rigged flowers on the Mac mini), feeding from calf suckling (Dryad, 41 GB, needs a
+browser login), BERD (downloading), VocalSet for her voice (downloading). Importers: `importar_ballenas.py`,
+`importar_surf.py`, `importar_video_cuerpo.py`, `importar_imperial.py`, `importar_swimxyz.py`, `importar_emociones.py`,
+`leer_mat_opaco.py`.
+
+**H-JEPA after five cycles (57 h, 1 in 8 of every source held out):** at 16 s it ties "repeat the last frame" (0.232 vs
+0.232) and at 32 s nearly (0.237 vs 0.230); at 2–4 s it still loses. The mood changes the plan by 0.035, as at the start.
+The planner's choice of action is **not stable between trainings**: one cycle it separated diving from surfacing cleanly
+(40/64 and 39/64), the next it chose feeding for diving and sad for surfacing. The mood prototypes in her latent are not
+yet robust. Conclusion for the morning: the labelled body is now there in hours; what is missing is a loss that pulls the
+latent apart by mood (a contrastive or probe term), and the performers' own bodies. The copying path (any body conducts
+her live) and the ten scripted behaviours do not depend on any of this.
