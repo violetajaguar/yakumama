@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17r coreografia en el espacio por animo + salida UDP 9994 para la hermana fisica"
+VERSION = "2026-10-17s la coreografia en el espacio sale de los bailarines, los nadadores y la yubarta"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1036,7 +1036,23 @@ LATIDO_ANIMO = {"calm": 0.1, "sad": 0.2, "singing": 0.3, "diving": 0.3, "surfaci
 # Unidades de Blender (la profundidad de los animos usa hasta 1.8). Con una visita conocida se acerca mas; con una desconocida guarda distancia.
 # ============================================================
 CERCA = {"conocida": 1.4, "nueva": 0.7, "nadie": 1.0}   # cuanto se acerca al visitante (multiplica el tramo hacia -Y)
+# los caminos reales (coreografias_extraer.py): por donde se movieron los bailarines, los nadadores y la yubarta, por animo
+try: COREOGRAFIAS = json.load(open(os.path.join(YAKUMAMA, "modelos", "coreografias.json")))
+except Exception: COREOGRAFIAS = {}
+RADIO_COREO, ALTO_COREO = 1.6, 1.4   # radio 1 del camino -> 1.6 unidades de Blender; z del camino -> 1.4
+def coreo_real(dom, t, cerca=1.0):
+    """el camino de un cuerpo real de ese animo, elegido al cambiar de animo; (x, y, z), rumbo por la tangente."""
+    tr = COREOGRAFIAS.get(dom)
+    if not tr: return None
+    k = int(getattr(breathe, "_coreo_t0", 0.0) * 7919) % len(tr); pts = tr[k]["pts"]; fps = tr[k]["fps"]; n = len(pts)
+    f = (t * fps) % n; i = int(f); a = f - i; p0, p1 = pts[i], pts[(i + 1) % n]
+    x, y, z = (p0[j] + (p1[j] - p0[j]) * a for j in range(3)); p2 = pts[(i + 3) % n]
+    dx, dy = p2[0] - p0[0], p2[1] - p0[1]; yaw = math.atan2(dx, dy) if (dx * dx + dy * dy) > 1e-4 else None
+    sesgo = -0.8 * cerca if dom in ("curious", "surfacing") else (0.6 if dom == "sad" else 0.0)   # curiosa y al salir se acerca al visitante; triste se aleja
+    return (RADIO_COREO * x, RADIO_COREO * y + sesgo, ALTO_COREO * z), yaw, {"angry": 1.0, "playful": 0.9, "alert": 0.9, "feeding": 0.8, "surfacing": 0.7, "diving": 0.7, "curious": 0.5, "singing": 0.4, "sad": 0.25, "calm": 0.25}.get(dom, 0.5)
 def coreo(dom, t, cerca=1.0):
+    r = coreo_real(dom, t, cerca)
+    if r is not None: return r
     pi = math.pi
     if dom == "calm":      a = 2 * pi * t / 60; return (1.2 * math.sin(a), 0.6 * math.sin(2 * a), 0.0), None, 0.25                   # deriva lenta en elipse, 60 s
     if dom == "singing":   return (0.0, 0.0, -0.5), (2 * pi * t / 40) % (2 * pi), 0.4                                                 # colgada en casa, una vuelta cada 40 s
