@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-16g diez comportamientos con firma propia (medidos: calm/singing, curious/alert, sad, diving, surfacing)"
+VERSION = "2026-10-17h sonido fuera de Blender (lo pone el carrusel): aud tiraba Blender"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -348,9 +348,12 @@ for _k, _v in _guardado.items():
 # ============================================================
 # AUDIO
 # ============================================================
+# El sonido dentro de Blender (aud) tiro Blender dos veces el 16-17 oct con "mutex lock failed" justo despues de un
+# ♪ de animo: queda APAGADO salvo BALLENA_SONIDO=1 en el entorno. Los sonidos de animo los pone el carrusel (afplay).
+SONIDO_EN_BLENDER = os.environ.get("BALLENA_SONIDO") == "1"
 try:
     import aud
-    _audio_available = True
+    _audio_available = SONIDO_EN_BLENDER
 except ImportError:
     _audio_available = False
 
@@ -404,7 +407,7 @@ def play_mood_sound(mood, force=False):
     for fn in files:
         p = os.path.join(SOUNDS_DIR, fn)
         if os.path.exists(p): candidates.append(p)
-    if not candidates: return
+    if not candidates or not SONIDO_EN_BLENDER: return
     path = random.choice(candidates)
     try:
         snd = sound_cache.get(path)
