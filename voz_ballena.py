@@ -15,7 +15,7 @@ con animo singing (cabeza abajo, colgada, como la yubarta que canta) y anclada. 
 """
 import os, sys, json, time, wave, socket, argparse, subprocess, numpy as np
 ap = argparse.ArgumentParser(); ap.add_argument("wav"); ap.add_argument("--loop", action="store_true"); ap.add_argument("--seco", action="store_true"); ap.add_argument("--puerto", type=int, default=9998)
-ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--sin-ojos", action="store_true", help="no manda parpadeo: los ojos los pone la toma de un performer (carrusel)"); ap.add_argument("--humana", action="store_true", help="suena la voz humana tal cual (por defecto suena como ballena: una octava abajo, bajo el agua, con eco, con la misma melodia)")
+ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--sin-ojos", action="store_true", help="no manda parpadeo: los ojos los pone la toma de un performer (carrusel)"); ap.add_argument("--ballena", action="store_true", help="suena la mezcla ballena+humana (por defecto suena la voz humana tal cual: la mezcla no gusto)")
 a = ap.parse_args()
 CACHE = os.path.expanduser("~/Desktop/vocalset/ballena")
 def voz_de_ballena(wav):
@@ -55,7 +55,7 @@ jaw = 0.0; head = 0.0; yaw = 0.0; en = 0.0
 import random; proximo_parpadeo = 2.0 + random.random() * 3.0; parpadeo_hasta = -1.0   # parpadea cada 2-5 s, 0.15 s cerrado
 try:
     while True:
-        rep = subprocess.Popen(["afplay", "-v", str(a.volumen), a.wav if a.humana else voz_de_ballena(a.wav)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); t0 = time.time()
+        rep = subprocess.Popen(["afplay", "-v", str(a.volumen), voz_de_ballena(a.wav) if a.ballena else a.wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); t0 = time.time()
         for i in range(n):
             jaw = 0.75 * jaw + 0.25 * float(fz[i]); en = 0.9 * en + 0.1 * float(fz[i])
             head = 0.85 * head + 0.15 * float(np.clip(semi[i] / 8.0, -1, 1)) * 0.6                  # una octava arriba = cabeza 0.6 arriba
