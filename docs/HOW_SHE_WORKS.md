@@ -301,3 +301,8 @@ latent apart by mood. Results on tracks never seen:
 
 Next, in order: more surfacing (the one mood with almost no body), Sanam and Suri head to toe, and a probe-guided plan in
 the receiver so her own initiative uses it.
+
+**Eighth cycle (17 Oct, 13:30, + Suri's two surfacing takes, 4.3 min):** body probe 55 % overall; surfacing from 0 % to 14 %
+(16 min of surfacing body in total: still the thinnest mood by far). The planner's choice swung back (diving 27/64,
+angry 36/64): between two trainings on nearly the same data the plan still moves a lot, so the next engineering step is
+stability (several seeds, keep the best probe; or more epochs at level 2), not more data.
