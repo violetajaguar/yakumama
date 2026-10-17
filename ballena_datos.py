@@ -97,6 +97,22 @@ def main():
         r = pista_esqueleto(B, J, fps, animo, nombre.split("_")[1] if "_" in nombre else "?", "performer", nombre, cara=cara)
         if r: pistas.append(r); npf += 1
     print(f"performers head to toe: {npf} tracks")
+    ncar = 0   # FACES (Violeta: "make sure she also learns facial movement"): every face take, mood of the take, body masked
+    con_cuerpo = {p["nombre"] for p in pistas if p["fuente"] == "performer"}
+    for ruta in sorted(glob.glob(os.path.join(AQUI, "datasets", "cara", "*.jsonl"))):
+        nombre = os.path.basename(ruta)[:-6]; animo = nombre.split("_")[0]
+        if animo not in MOODS or nombre in con_cuerpo: continue
+        try:
+            ca = [json.loads(l) for l in open(ruta)]; ca = [r for r in ca if "jaw_open" in r]
+            if len(ca) < 48: continue
+            t = np.array([r["t"] for r in ca], np.float64); t = t - t[0] + np.arange(len(ca)) * 1e-6; n = len(ca); full = np.full((n, NC), np.nan, np.float32)
+            g = lambda k: np.array([float(r.get(k, 0) or 0) for r in ca], np.float32)
+            full[:, CI["jaw"]] = np.clip(g("jaw_open"), 0, 1); full[:, CI["cara_parpado"]] = np.clip(g("blink"), 0, 1); full[:, CI["cara_rabia"]] = np.clip(g("brow_down"), 0, 1); full[:, CI["cara_tristeza"]] = np.clip(g("mouth_sad"), 0, 1); full[:, CI["cara_asombro"]] = np.clip(g("brow_up"), 0, 1)
+            full[:, CI["mirada_yaw"]] = np.clip(g("eye_yaw"), -1, 1); full[:, CI["mirada_pitch"]] = np.clip(g("eye_pitch"), -1, 1); full[:, CI["head"]] = np.clip(0.35 * g("head_pitch"), -0.4, 0.35)
+            Xg = a_rejilla(t, full)
+            if len(Xg) >= 48: pistas.append(dict(X=Xg, animo=MOODS.index(animo), actor=nombre.split("_")[1] if nombre.count("_") >= 2 else "actor", fuente="cara", nombre=nombre)); ncar += 1
+        except Exception as e: pass
+    print(f"faces: {ncar} tracks")
     for ruta in sorted(glob.glob(os.path.join(AQUI, "datasets", "ballenas", "*.npz"))):
         try: pistas.append(pista_ballena(ruta))
         except Exception as e: print("  (whale skipped", ruta, e, ")")
@@ -107,7 +123,7 @@ def main():
     for p in pistas: SEQ.append((pos, pos + len(p["X"]))); pos += len(p["X"])
     np.savez_compressed(os.path.join(AQUI, "modelos", "ballena_datos.npz"), X=Xz, M=M, SEQ=np.array(SEQ), ANIMO=np.array([p["animo"] for p in pistas]), ACTOR=np.array([p["actor"] for p in pistas]), FUENTE=np.array([p["fuente"] for p in pistas]), NOMBRE=np.array([p["nombre"] for p in pistas]), CANALES=np.array(CANALES), media=media, desvio=desvio, fps=FPS)
     horas = pos / FPS / 3600; print(f"\nmodelos/ballena_datos.npz: {len(pistas)} tracks, {horas:.1f} h at {FPS:.0f}/s, {NC} channels: {' '.join(CANALES)}")
-    for fu in ("bailarin", "video", "performer", "ballena", "comportamiento"): print(f"  {fu:14s} {sum(len(p['X']) for p in pistas if p['fuente'] == fu) / FPS / 60:7.1f} min")
+    for fu in ("bailarin", "video", "performer", "cara", "ballena", "comportamiento"): print(f"  {fu:14s} {sum(len(p['X']) for p in pistas if p['fuente'] == fu) / FPS / 60:7.1f} min")
     print("  per mood: " + ", ".join(f"{m} {sum(len(p['X']) for p in pistas if p['animo'] == i) / FPS / 60:.0f} min" for i, m in enumerate(MOODS)))
     print("  channel coverage: " + ", ".join(f"{c} {100 * M[:, j].mean():.0f}%" for j, c in enumerate(CANALES)))
 if __name__ == "__main__": main()

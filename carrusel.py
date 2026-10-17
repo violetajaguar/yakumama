@@ -60,11 +60,12 @@ for f in sorted(glob.glob(os.path.join(H26, "*.npz"))):
         item("danzas", quien, n, "auto", f, seg=30)
 for k in range(1, 10): item("apneistas", "", f"apneista {k}", "diving", os.path.join(CV, f"freediver_0{k}.npz"), seg=20)
 # ELLA SOLA: su H-JEPA en su propio cuerpo (modelos/hjepa_ballena.pt) sigue a un cuerpo real de ese animo y genera 32 s tras 32 s
-SEMILLAS = {"angry": "BF-JuanDavidNatalia_tinku_limpio.npz", "playful": "BF-Lucia_kullawada_limpio.npz", "curious": "BF-JuanDavid_suri_limpio.npz", "alert": "JC24-Galgo_breaking_limpio.npz"}
+SEMILLAS = {"angry": "BF-JuanDavidNatalia_tinku_limpio.npz", "playful": "BF-Lucia_kullawada_limpio.npz", "curious": "BF-JuanDavid_suri_limpio.npz", "alert": "JC24-Galgo_breaking_limpio.npz",
+            "diving": CV + "/freediver_01.npz", "surfacing": CV + "/swim_cmu_butterfly_125_05.npz", "feeding": CV + "/swim_cmu_breaststroke_125_01.npz", "sad": CV + "/ballet_experta_ch0_000.npz", "singing": CV + "/jazz_experta_ch0_000.npz", "calm": CV + "/feelneutral_01_1_01.npz"}
 if os.path.exists(os.path.join(AQUI, "modelos", "hjepa_ballena.pt")):
     for m in MOODS:
-        sem = os.path.expanduser("~/Desktop/h26_limpio/" + SEMILLAS[m]) if m in SEMILLAS else next(iter(sorted(glob.glob(os.path.join(AQUI, "datasets", "cuerpo", f"{m}_*_00[12].jsonl")))), None)
-        if sem and os.path.exists(sem): ITEMS.append(dict(id=len(ITEMS), grupo="ella sola", sub="JEPA en su cuerpo", nombre=f"{ES.get(m, m)} · ella sigue a {os.path.basename(sem).split('_')[0].split('-')[-1] if sem.endswith('.npz') else os.path.basename(sem).split('_')[1]}", animo=m, ruta=sem, toma=None, seg=64, jepa=True))
+        sem = SEMILLAS[m] if SEMILLAS[m].startswith("/") else os.path.expanduser("~/Desktop/h26_limpio/" + SEMILLAS[m])
+        if sem and os.path.exists(sem): ITEMS.append(dict(id=len(ITEMS), grupo="ella sola", sub="JEPA en su cuerpo", nombre=f"{ES.get(m, m)} · ella sigue a {os.path.basename(sem).replace('_limpio', '').replace('.npz', '').split('-')[-1][:22]}", animo=m, ruta=sem, toma=None, seg=64, jepa=True))
 for g, an, sub in (("ballet_experta_ch0", "sad", "ballet"), ("ballet_experta_ch3", "sad", "ballet"), ("ballet_principiante_ch1", "sad", "ballet"), ("jazz_experta_ch0", "singing", "jazz"), ("jazz_experta_ch2", "singing", "jazz"), ("jazz_intermedia_ch1", "singing", "jazz"),
                   ("swim_breaststroke_001", "feeding", "nado"), ("swim_butterfly_006", "feeding", "nado"), ("swim_freestyle_001", "feeding", "nado"), ("swim_backstroke_001", "feeding", "nado")):
     item("datos", sub, g, an, primero(os.path.join(CV, g + "*.npz")), seg=20)
