@@ -126,7 +126,7 @@ def leer_poema():
     """lee en voz alta el ultimo poema de la ventana (voz Monica del sistema), para oirlo."""
     try:
         import json as _j; poemas = _j.load(open(os.path.expanduser("~/Desktop/Huk/yakumama_poemas.json"))); txt = poemas[-1].replace("\n", " ... ")
-        subprocess.Popen(["say", "-v", "Mónica", "-r", "140", txt], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return poemas[-1]
+        subprocess.Popen(["say", "-v", "Paulina", "-r", "135", txt], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return poemas[-1]
     except Exception as e: return str(e)
 def matar_todo():
     for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
