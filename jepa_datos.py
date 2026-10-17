@@ -99,7 +99,7 @@ def toma_bailarin(ruta):
     nombre = os.path.basename(ruta).replace(".npz", ""); actor = nombre.split("_")[0].split("-")[-1].lower() if "-" in nombre.split("_")[0] else nombre.split("_")[0].lower()
     an = danza_de(nombre); return toma_esqueleto(ruta, MOODS.index(an) if an else -1, actor, "bailarin")
 # cuerpos sacados de videos (importar_video_cuerpo.py): el prefijo del archivo dice que ANIMO le toca a la ballena
-VIDEO_ANIMO = {"freediver": "diving", "diving48": "diving", "tinku": "angry", "ballet": "sad", "jazz": "singing"}   # ImperialDance: ballet -> sad, jazz -> singing; kpop/hiphop/urban entran libres
+VIDEO_ANIMO = {"freediver": "diving", "diving48": "diving", "tinku": "angry", "ballet": "sad", "jazz": "singing", "swim": "feeding"}   # comer es nadar (SwimXYZ)   # ImperialDance: ballet -> sad, jazz -> singing; kpop/hiphop/urban entran libres
 def toma_apneista(ruta):
     """un cuerpo de video entra con el animo de su prefijo (apneistas y clavadistas -> diving, tinku -> angry, ballet -> sad);
     sin prefijo conocido entra libre, como un bailarin."""
