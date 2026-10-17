@@ -129,7 +129,7 @@ async function carga(){items=await (await fetch('/items')).json();const g={};ite
 let h='';for(const [grupo,subs] of Object.entries(g)){h+='<h2>'+grupo+'</h2><div class=grupo>';
  if(grupo=='animos'){h+=subs[''].map(i=>'<button id=b'+i.id+' onclick="toca('+i.id+')"><i class=c style="background:'+(C[i.animo]||'#777')+'"></i>'+i.nombre+'</button>').join('')}
  else{for(const [sub,v] of Object.entries(subs)){if(v.length==1&&!sub){h+='<button id=b'+v[0].id+' onclick="toca('+v[0].id+')"><i class=c style="background:'+(C[v[0].animo]||'#777')+'"></i>'+v[0].nombre+'</button>';continue}
-  h+='<div class=menu><span>'+(sub||grupo)+'</span><select onchange="if(this.value!=='')toca(this.value)"><option value="">elegir ('+v.length+')</option>'+v.map(i=>'<option value='+i.id+'>'+i.nombre+'</option>').join('')+'</select><button onclick="toca('+v[0].id+')">▶</button></div>'}}
+  h+='<div class=menu><span>'+(sub||grupo)+'</span><select onchange="this.value&&toca(this.value)"><option value="">elegir ('+v.length+')</option>'+v.map(i=>'<option value='+i.id+'>'+i.nombre+'</option>').join('')+'</select><button onclick="toca('+v[0].id+')">▶</button></div>'}}
  h+='</div>'}document.getElementById('lista').innerHTML=h}
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
 document.getElementById('auto').classList.toggle('on',s.auto);const it=s.actual!=null?items[s.actual]:null;
