@@ -36,7 +36,15 @@ def anclar(can, m, t, w):
     for k in ("pitch", "roll", "head", "fluke", "depth", "jaw", "spin"): can[k] = mix(can[k], float(c[k]))
     can["spine"] = [mix(a_, b_) for a_, b_ in zip(can["spine"], c["spine"])]; can["cara"] = [mix(a_, b_) for a_, b_ in zip(can["cara"], c["cara"])]
     for lado in ("aleta_l", "aleta_r"): can[lado] = [mix(can[lado][0], float(c["flap"])), mix(can[lado][1], 0.35 * float(c["flap"])), mix(can[lado][2], 0.15 * float(c["flap"]))]
-    tb = CA.TURBINA_ANIMO.get(m, 1.0); can["turbina"] = mix(can["turbina"], 1.2 if tb == "pulso" else float(tb)); return can
+    tb = CA.TURBINA_ANIMO.get(m, 1.0); can["turbina"] = mix(can["turbina"], 1.2 if tb == "pulso" else float(tb))
+    if m == "diving":   # DIVING turns down and INSIDE: away from the viewer, nose down, deep, flukes up
+        tt = t % 20.0; baja = min(1.0, tt / 8.0) if tt < 14 else max(0.0, 1 - (tt - 14) / 6.0)
+        can["pitch"] = min(can["pitch"], -0.25 - 0.4 * baja); can["depth"] = -1.8 * baja; can["spine"] = [min(v, 0.0) - 0.1 * k * baja for k, v in enumerate(can["spine"])]; can["fluke"] = min(can["fluke"], -0.45 * baja); can["_rumbo"] = 0.0; can["_y"] = 1.2 * baja   # TAIL UP (Violeta, jepa moods): tail vertebrae and flukes raised as she goes down
+    if m == "surfacing":   # SURFACING comes up from below towards the viewer
+        tt = t % 12.0; sube = min(1.0, tt / 5.0); arriba = max(0.0, 1 - abs(tt - 6.0) / 2.0)   # 5 s up from deep, a blow at the top, then rests at the surface
+        can["pitch"] = max(can["pitch"], 0.45 * (1 - sube) + 0.1 * arriba); can["depth"] = -1.6 + 1.8 * sube; can["head"] = can["head"] + 0.3 * arriba; can["jaw"] = max(can["jaw"], 0.4 * arriba)
+        can["aleta_l"] = [can["aleta_l"][0] + 0.35 * arriba, can["aleta_l"][1], can["aleta_l"][2]]; can["aleta_r"] = [can["aleta_r"][0] + 0.35 * arriba, can["aleta_r"][1], can["aleta_r"][2]]; can["_rumbo"] = math.pi; can["_y"] = -1.2 * sube
+    return can
 px = py_ = 0.0; rumbo = math.pi; ESCALA_PISO = 0.8; RADIO_MAX = 2.0
 while True:
     for m in moods:
@@ -57,7 +65,8 @@ while True:
                     px += (av * math.sin(rumbo) + de * math.cos(rumbo)) * dt; py_ += (av * math.cos(rumbo) - de * math.sin(rumbo)) * dt; r_ = math.hypot(px, py_)
                     if r_ > RADIO_MAX: px, py_ = px * RADIO_MAX / r_, py_ * RADIO_MAX / r_
                     can["x"], can["y"], can["z"], can["rumbo"] = round(px, 3), round(py_, 3), 0.0, round((rumbo + math.pi) % (2 * math.pi) - math.pi, 3)
-                can = anclar(can, m, i / FPS, a.ancla); pk["canales"] = can; pk["espacio"] = 0 if a.quieta else 1; pk["blink"] = 1.0 if g(f, "cara_parpado") > 0.5 else 0.0
+                if "_rumbo" in can: can["rumbo"] = round(can.pop("_rumbo"), 3); can["x"], can["y"], can["z"] = round(px, 3), round(py_ + can.pop("_y"), 3), 0.0; rumbo = can["rumbo"]
+                can = anclar(can, m, i / FPS, {"calm": 0.85, "surfacing": 0.8, "diving": 0.7}.get(m, a.ancla)); pk["canales"] = can;   # calm follows calm (mostly her behaviour); diving and surfacing lean on theirs pk["espacio"] = 0 if a.quieta else 1; pk["blink"] = 1.0 if g(f, "cara_parpado") > 0.5 else 0.0
                 if "pulso" in C and np.isfinite(cuerpo[f, C["pulso"]]) and cuerpo[f, C["pulso"]] > 0.3: pk["emotibit_hr"] = round(100.0 * g(f, "pulso"), 1)
             else:
                 pk.update({c: round(g(f, c), 4) for c in h.CUERPO})

@@ -65,7 +65,10 @@ def esqueleto_a_ballena(B, J, fps, largo_brazo=0.56):
         ang = math.atan2(frente[1], frente[0]); giro = 0.0
         if prev_ang is not None: dd = (ang - prev_ang + math.pi) % (2 * math.pi) - math.pi; giro = _clamp(dd * fps / 3.0)
         prev_ang = ang
-        out[f, C["pitch"]] = -0.5 * lean; out[f, C["roll"]] = 0.35 * roll_h; out[f, C["yaw"]] = 0.4 * giro
+        pitch_ = -0.5 * lean
+        if torso[2] < -0.3: pitch_ = -0.6 * min(1.0, -torso[2])   # a body head-down (a freediver going down): her nose goes down too
+        elif torso[2] < 0.3 and abs(lean) < 0.3: pitch_ = 0.0           # a body lying flat (a swimmer): she swims level
+        out[f, C["pitch"]] = pitch_; out[f, C["roll"]] = 0.35 * roll_h; out[f, C["yaw"]] = 0.4 * giro
         if hay_camino:
             v = vel_xy[f]; out[f, C["avance"]] = float(np.dot(v, frente[:2])); out[f, C["deriva"]] = float(np.dot(v, lado[:2])); out[f, C["giro"]] = giro * 3.0
         else: out[f, C["avance"]] = 0.0; out[f, C["deriva"]] = 0.0; out[f, C["giro"]] = 0.0
@@ -167,6 +170,14 @@ if __name__ == "__main__":
                 r_ = math.hypot(px, py_)
                 if r_ > RADIO_MAX: px, py_ = px * RADIO_MAX / r_, py_ * RADIO_MAX / r_   # her space has an edge: she slides along it
                 can["x"], can["y"], can["z"], can["rumbo"] = round(px, 3), round(py_, 3), 0.0, round((rumbo + math.pi) % (2 * math.pi) - math.pi, 3)
+            if animo == "diving":   # DIVING turns down and INSIDE: away from the viewer, nose down, deep (Violeta, 17 Oct), whatever the body says
+                tt_d = (i / FPS) % 20.0; baja = min(1.0, tt_d / 8.0) if tt_d < 14 else max(0.0, 1 - (tt_d - 14) / 6.0)
+                can["pitch"] = min(can["pitch"], -0.25 - 0.4 * baja); can["depth"] = -1.8 * baja; can["spine"] = [min(v, 0.0) - 0.1 * k * baja for k, v in enumerate(can["spine"])]; can["fluke"] = min(can["fluke"], -0.45 * baja)   # tail up as she goes down
+                rumbo += (0.0 - rumbo + math.pi) % (2 * math.pi) - math.pi if False else 0.0; can["x"], can["y"], can["z"], can["rumbo"] = round(px, 3), round(py_ + 1.2 * baja, 3), 0.0, 0.0   # heading 0 = facing away from the viewer, moving inward
+            elif animo == "surfacing":   # SURFACING comes up from below towards the viewer
+                tt_s = (i / FPS) % 12.0; sube = min(1.0, tt_s / 5.0); arriba = max(0.0, 1 - abs(tt_s - 6.0) / 2.0)
+                can["pitch"] = max(can["pitch"], 0.45 * (1 - sube) + 0.1 * arriba); can["depth"] = -1.6 + 1.8 * sube; can["head"] += 0.3 * arriba; can["aleta_l"][0] += 0.35 * arriba; can["aleta_r"][0] += 0.35 * arriba
+                can["x"], can["y"], can["z"], can["rumbo"] = round(px, 3), round(py_ - 1.2 * sube, 3), 0.0, round(math.pi, 3)
             pk = {"actor_animo": animo, "bailarin": "retarget:" + nombre, "water": 0.8, "red": 1, "soltar_manual": 1 if i < 30 else 0, "espacio": 0 if a.quieta else 1, "canales": can, "head_yaw": round(0.5 * ult.get("mirada_yaw", 0), 3), "head_pitch": round(0.5 * ult.get("mirada_pitch", 0), 3),
                   "l_palm_y": round(float(np.clip(0.5 - ult.get("flap_l", 0.0) / 1.2, 0, 1)), 3), "r_palm_y": round(float(np.clip(0.5 - ult.get("flap_r", 0.0) / 1.2, 0, 1)), 3)}   # receiver: hand height -> that side's fin (0 = hand up)
             tt_ = i / FPS
