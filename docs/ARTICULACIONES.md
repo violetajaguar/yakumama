@@ -1,7 +1,7 @@
 # Yakumama · map of every articulation (whale.blend, armature `side_fine.R`, 30 bones) · 17 October 2026
 
 Axes are the bone's local rotation axes as the receiver uses them (`rot(bone, angle, axis)`), radians. Picture: `Yakumama_articulaciones.png`.
-Nose points to +Y; the viewer stands at −Y; +Z is up; +X is her left fin.
+Nose points to +Y; the viewer stands at −Y; +Z is up; her left fin (`side_fine.L`) is at −X, her right at +X.
 
 | part | bone(s) | parent | what moves | axis | driven by (receiver) | stream field (9994) | physical whale |
 |---|---|---|---|---|---|---|---|
