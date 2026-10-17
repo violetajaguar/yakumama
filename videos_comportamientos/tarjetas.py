@@ -27,6 +27,9 @@ def columnas(nombre, en, es, titulo=None, tam=50, y0=None, regla=True):
     alto = max(len(L), len(R)) * int(tam * 1.35); y = y0 if y0 is not None else (560 if titulo else (540 - alto // 2))
     for i, l in enumerate(L): d.text((xl + ancho - d.textlength(l, font=fen), y + i * int(tam * 1.35)), l, font=fen, fill=C)      # ingles alineado a la derecha, hacia la regla
     for i, l in enumerate(R): d.text((xr, y + i * int(tam * 1.35)), l, font=fes, fill=CS)                                        # castellano alineado a la izquierda
+    if L or R:   # panel oscuro difuminado detras del texto, para que se lea sobre cualquier fondo
+        panel = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0)); pd = ImageDraw.Draw(panel); pd.rounded_rectangle([110, y - 60, 1810, y + alto + 50], radius=40, fill=(0, 0, 0, 135)); panel = panel.filter(ImageFilter.GaussianBlur(28))
+        fondo = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0)); fondo.alpha_composite(panel); fondo.alpha_composite(im); im = fondo; d = ImageDraw.Draw(im)
     if regla and (L or R): d.line([(960, y - 10), (960, y + alto + 4)], fill=(236, 230, 218, 120), width=2)
     sombra(im).save(f"{CARP}/{nombre}.png")
 def pie(nombre, en, es):
@@ -38,7 +41,12 @@ columnas("t_emotibit", ["an EmotiBit on the performer's wrist: heartbeat, skin c
 columnas("t_cuerpo", ["we are building her body, all of it in house: printed vertebrae, fins, a turbine tail, light under the skin", "", "she will live in Barcelona first"], ["su cuerpo lo hacemos nosotras, todo en casa: vértebras impresas, aletas, cola turbina, luz bajo la piel", "", "vivirá primero en Barcelona"])
 columnas("t_local", ["all her AI runs on one laptop, locally. no cloud.", "", "she remembers faces without photos, learns who moves like whom, and writes."], ["toda su inteligencia corre en una laptop, local. sin nube.", "", "recuerda caras sin fotos, aprende quién se mueve como quién, y escribe."])
 columnas("t_salvajes", ["the techbros can't deal with las salvajes"], ["los techbros no pueden con las salvajes"], tam=72)
-columnas("t_cierra", ["Violeta Jaguar · Dan · Jícara · Paqarina"], ["MozFest Wilding · 2026"], titulo="YAKUMAMA", tam=46, regla=False)
+def centrada(nombre, titulo, lineas, tam=46):
+    im = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0)); d = ImageDraw.Draw(im); ft = ImageFont.truetype(F, 140); f = ImageFont.truetype(FI, tam)
+    w = d.textlength(titulo, font=ft); d.text(((1920 - w) / 2, 330), titulo, font=ft, fill=C); y = 560
+    for l in lineas: w = d.textlength(l, font=f); d.text(((1920 - w) / 2, y), l, font=f, fill=CS); y += int(tam * 1.5)
+    sombra(im).save(f"{CARP}/{nombre}.png")
+centrada("t_cierra", "YAKUMAMA", ["Violeta Jaguar · Dan · Jícara · Paqarina", "MozFest Wilding · 2026"])
 pie("p_flores", "the flowers · Jícara", "las flores · Jícara")
 P = {"calm": ("calm · logging at the surface", "calma · descanso en superficie"), "singing": ("singing · head down, the song", "canto · cabeza abajo, el canto"), "playful": ("playful · the breach", "juego · el salto"),
      "curious": ("curious · spyhop", "curiosidad · asomarse"), "feeding": ("feeding · the lunge", "hambre · la embestida"), "sad": ("sad · sinking", "tristeza · hundirse"), "angry": ("angry · lobtail", "rabia · golpe de cola"),
