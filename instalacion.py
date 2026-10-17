@@ -20,6 +20,9 @@ ap.add_argument("--blender", default="", help="ejecutable de Blender")
 ap.add_argument("--espejo", action="append", default=[], help="host:puerto que recibe una copia de cada paquete")
 ap.add_argument("--sin-blender", action="store_true"); ap.add_argument("--panel", type=int, default=8765)
 ap.add_argument("--con-emotibit", action="store_true", help="si en algun lugar si hay EmotiBit")
+ap.add_argument("--cerebro", action="store_true", help="tambien el cerebro sin Blender (cerebro_ballena.py): grabador 9998 -> cerebro -> 9994 (TouchDesigner / ballena fisica)")
+ap.add_argument("--salida", action="append", default=[], help="host:puerto adonde el cerebro manda lo que ella hace (repetible; por defecto 127.0.0.1:9994)")
+ap.add_argument("--sin-jepa", action="store_true", help="cerebro sin el H-JEPA (sin torch)")
 a = ap.parse_args()
 HUK = a.huk or next((d for d in (os.path.join(os.path.dirname(AQUI), "Huk"), os.path.expanduser("~/Desktop/Huk")) if os.path.exists(os.path.join(d, "whale.blend"))), "")
 if not HUK: sys.exit("no encuentro whale.blend: pasa --huk <carpeta con whale.blend y ballena3.py>")
@@ -41,6 +44,10 @@ if not a.sin_blender:
     else:
         print(f">>> Blender: {bl}"); subprocess.Popen([bl, os.path.join(HUK, "whale.blend"), "--python", os.path.join(AQUI, "receptor_ballena.py")])
         time.sleep(3)
+if a.cerebro:
+    cc = [py, os.path.join(AQUI, "cerebro_ballena.py"), "--callado"] + (["--jepa", "0"] if a.sin_jepa else [])
+    for e in a.salida: cc += ["--salida", e]
+    print(">>> cerebro:", " ".join(cc[1:])); subprocess.Popen(cc, cwd=AQUI)
 cmd = [py, os.path.join(AQUI, "grabar_ballena.py"), "--panel", str(a.panel), "--visitas", "1", "--script", os.path.join(HUK, "ballena3.py")]
 if not a.con_emotibit: cmd += ["--emotibit", "0", "--emotibit-directo", "0"]
 for e in a.espejo: cmd += ["--espejo", e]
