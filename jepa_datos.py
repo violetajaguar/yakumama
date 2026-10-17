@@ -87,9 +87,17 @@ def toma_esqueleto(ruta, animo, actor, fuente):
     for k in ("jaw_open", "blink", "brow_up", "brow_down", "mouth_sad", "mouth_smile", "eye_yaw", "eye_pitch", "hr", "eda"): P[k][:] = False
     X, M = rejilla(t, S, P); nombre = os.path.basename(ruta).replace(".npz", "")
     return X, M, animo, actor, fuente, nombre
+# las danzas de Paqarina con animo (por lo que hace el cuerpo): tinku pelea -> angry; kullawada fiesta ligera -> playful;
+# breaking (y el breaking de AIST++, gBR) explosivo, con freezes -> alert; suri sikuri gira y mira con las plumas -> curious
+DANZA_ANIMO = {"tinku": "angry", "kullawada": "playful", "breaking": "alert", "toprock": "alert", "gbr": "alert", "suri": "curious"}
+def danza_de(nombre):
+    n = nombre.lower()
+    for k, a in DANZA_ANIMO.items():
+        if k in n: return a
+    return None
 def toma_bailarin(ruta):
     nombre = os.path.basename(ruta).replace(".npz", ""); actor = nombre.split("_")[0].split("-")[-1].lower() if "-" in nombre.split("_")[0] else nombre.split("_")[0].lower()
-    return toma_esqueleto(ruta, -1, actor, "bailarin")
+    an = danza_de(nombre); return toma_esqueleto(ruta, MOODS.index(an) if an else -1, actor, "bailarin")
 # cuerpos sacados de videos (importar_video_cuerpo.py): el prefijo del archivo dice que ANIMO le toca a la ballena
 VIDEO_ANIMO = {"freediver": "diving", "diving48": "diving", "tinku": "angry", "ballet": "sad"}
 def toma_apneista(ruta):
