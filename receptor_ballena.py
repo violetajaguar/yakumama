@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17h sonido fuera de Blender (lo pone el carrusel): aud tiraba Blender"
+VERSION = "2026-10-17i juego naranja; pulso y latido en el heartbeat"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -78,7 +78,7 @@ COLOR_TO_MOOD = {
 # color de piel por animo (inverso de COLOR_TO_MOOD, aclarado para que siga leyendose como piel)
 MOOD_RGB = {   # saturados: se ven desde lejos y en cualquier luz
     "angry":     (0.95, 0.08, 0.06),
-    "playful":   (1.00, 0.45, 0.00),
+    "playful":   (1.00, 0.30, 0.00),   # naranja (curious es amarillo: que no se confundan)
     "curious":   (1.00, 0.85, 0.00),
     "feeding":   (0.05, 0.80, 0.15),
     "surfacing": (0.00, 0.90, 0.95),
@@ -1500,7 +1500,7 @@ def breathe():
                                 if _n.type == 'BSDF_PRINCIPLED': _col = [round(v, 2) for v in _n.inputs["Base Color"].default_value[:3]]; break
                         if _col: break
                 except Exception: pass
-                json.dump({"version": VERSION, "t": time.time(), "fps": round(getattr(breathe, "_fps", 0.0), 1), "reproduciendo_animacion": bool(getattr(bpy.context.screen, "is_animation_playing", False)) if bpy.context.screen else None, "cuadro": bpy.context.scene.frame_current, "accion": (armature.animation_data.action.name if armature.animation_data and armature.animation_data.action else None), "dominante": dominant, "manual": _manual, "objeto_rot": [round(float(v), 3) for v in armature.rotation_euler], "objeto_loc": [round(float(v), 2) for v in armature.location], "malla_rot": ([round(float(v), 3) for v in whale_mesh.rotation_euler] if whale_mesh else None), "actor": d.get('actor_animo'), "color": _col, "color_follow": round(color_follow, 2), "material": [sl.material.name for sl in whale_mesh.material_slots if sl.material] if whale_mesh else None, "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
+                json.dump({"version": VERSION, "t": time.time(), "fps": round(getattr(breathe, "_fps", 0.0), 1), "reproduciendo_animacion": bool(getattr(bpy.context.screen, "is_animation_playing", False)) if bpy.context.screen else None, "cuadro": bpy.context.scene.frame_current, "accion": (armature.animation_data.action.name if armature.animation_data and armature.animation_data.action else None), "dominante": dominant, "manual": _manual, "pulso": round(float(getattr(breathe, "_hr", 75.0)), 1), "tempo": round(float(tempo), 2), "energia": round(float(energia), 2), "tension": round(float(tension), 2), "latido": round(float(fuerza_latido), 2), "objeto_rot": [round(float(v), 3) for v in armature.rotation_euler], "objeto_loc": [round(float(v), 2) for v in armature.location], "malla_rot": ([round(float(v), 3) for v in whale_mesh.rotation_euler] if whale_mesh else None), "actor": d.get('actor_animo'), "color": _col, "color_follow": round(color_follow, 2), "material": [sl.material.name for sl in whale_mesh.material_slots if sl.material] if whale_mesh else None, "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
                            "cara": bool(cara_actor), "fin_L": [round(v, 2) for v in armature.pose.bones['side_fine.L'].rotation_euler], "fin_R": [round(v, 2) for v in armature.pose.bones['side_fine.R'].rotation_euler],
                            "pose": {pb.name: [round(v, 3) for v in pb.rotation_euler] for pb in armature.pose.bones},
                            "root_loc": [round(v, 3) for v in armature.pose.bones['root'].location],
