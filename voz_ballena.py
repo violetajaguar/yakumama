@@ -15,7 +15,16 @@ con animo singing (cabeza abajo, colgada, como la yubarta que canta) y anclada. 
 """
 import os, sys, json, time, wave, socket, argparse, subprocess, numpy as np
 ap = argparse.ArgumentParser(); ap.add_argument("wav"); ap.add_argument("--loop", action="store_true"); ap.add_argument("--seco", action="store_true"); ap.add_argument("--puerto", type=int, default=9998)
-ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); a = ap.parse_args()
+ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--humana", action="store_true", help="suena la voz humana tal cual (por defecto suena como ballena: una octava abajo, bajo el agua, con eco, con la misma melodia)")
+a = ap.parse_args()
+CACHE = os.path.expanduser("~/Desktop/vocalset/ballena")
+def voz_de_ballena(wav):
+    """la voz humana vuelta ballena, conservando sus tonos: una octava abajo (asetrate/atempo, misma duracion), filtro bajo el
+    agua, eco de caverna. Se guarda en ~/Desktop/vocalset/ballena/ la primera vez."""
+    os.makedirs(CACHE, exist_ok=True); sal = os.path.join(CACHE, os.path.basename(wav))
+    if not os.path.exists(sal):
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", wav, "-af", "asetrate=22050,aresample=44100,atempo=2.0,lowpass=f=1600,aecho=0.7:0.6:280|640:0.45|0.3,volume=2.2", sal], check=False)
+    return sal if os.path.exists(sal) else wav
 FPS = 30.0
 def leer(ruta):
     w = wave.open(ruta, "rb"); sr = w.getframerate(); n = w.getnframes(); ch = w.getnchannels(); sw = w.getsampwidth(); raw = w.readframes(n); w.close()
@@ -44,7 +53,7 @@ jaw = 0.0; head = 0.0; yaw = 0.0; en = 0.0
 import random; proximo_parpadeo = 2.0 + random.random() * 3.0; parpadeo_hasta = -1.0   # parpadea cada 2-5 s, 0.15 s cerrado
 try:
     while True:
-        rep = subprocess.Popen(["afplay", "-v", str(a.volumen), a.wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); t0 = time.time()
+        rep = subprocess.Popen(["afplay", "-v", str(a.volumen), a.wav if a.humana else voz_de_ballena(a.wav)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); t0 = time.time()
         for i in range(n):
             jaw = 0.75 * jaw + 0.25 * float(fz[i]); en = 0.9 * en + 0.1 * float(fz[i])
             head = 0.85 * head + 0.15 * float(np.clip(semi[i] / 8.0, -1, 1)) * 0.6                  # una octava arriba = cabeza 0.6 arriba
