@@ -1,7 +1,7 @@
 #!/bin/zsh
 # proceso_colores.sh - ~75 s del proyecto: la ballena en el salar, los diez animos (cada clip del taller tintado con el
 # color del animo y la ballena encima, sin el recuadro de la cara), el cuerpo fisico, la memoria. Con palabras (tarjetas
-# PNG hechas con Pillow en proceso/texto/). 1920x1080, 24 fps, sin audio.
+# PNG hechas con Pillow en proceso/texto/; la del cuerpo dice 'we are building her body' y 'she will live in Barcelona first'). 1920x1080, 24 fps, sin audio.
 set -e
 Y=~/Desktop/Yakumama; D=~/Downloads; F=~/Desktop/Yakumama_Paqarina_koa/Yakumama/fotos/ballena_fisica; R=~/Desktop/"yakumama robot"
 OUT=$Y/videos_comportamientos/proceso; T=$OUT/texto; mkdir -p $OUT; cd $OUT; rm -f lista.txt
