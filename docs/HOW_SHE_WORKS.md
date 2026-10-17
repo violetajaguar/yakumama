@@ -276,3 +276,8 @@ The planner's choice of action is **not stable between trainings**: one cycle it
 yet robust. Conclusion for the morning: the labelled body is now there in hours; what is missing is a loss that pulls the
 latent apart by mood (a contrastive or probe term), and the performers' own bodies. The copying path (any body conducts
 her live) and the ten scripted behaviours do not depend on any of this.
+
+**Sixth cycle (17 Oct, 01:40, with BERD: 61 h, labelled human emotion 11 h from 52 people):** at 16 s the H-JEPA beats
+"repeat the last frame" for the first time (0.192 vs 0.198) and ties at 32 s (0.196 vs 0.194); at 2–4 s it still loses.
+The mood still changes the plan by only 0.034 and the planner's choice of action is still unstable. Same conclusion: the
+next step is a loss that separates the latent by mood, not more hours.
