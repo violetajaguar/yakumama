@@ -122,11 +122,24 @@ def hilo_base():
             if f: _base["p"] = subprocess.Popen(["afplay", "-v", str(_base["vol"]), f], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if not _base["on"] and _base["p"] is not None: _base["p"].terminate(); _base["p"] = None
 threading.Thread(target=hilo_base, daemon=True).start()
-def leer_poema():
-    """lee en voz alta el ultimo poema de la ventana (voz Monica del sistema), para oirlo."""
+def traducir(poema):
+    """el poema en ingles, con Qwen local: mismas lineas, minusculas, sin comentario."""
     try:
-        import json as _j; poemas = _j.load(open(os.path.expanduser("~/Desktop/Huk/yakumama_poemas.json"))); txt = poemas[-1].replace("\n", " ... ")
-        subprocess.Popen(["say", "-v", "Paulina", "-r", "135", txt], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return poemas[-1]
+        import urllib.request as _u, json as _j
+        cuerpo = _j.dumps({"model": "qwen3.6", "stream": False, "think": False, "options": {"temperature": 0.2, "num_predict": 200},
+                           "messages": [{"role": "system", "content": "Translate the poem to English. Keep the same number of lines and line breaks. Lowercase. No title, no comment, no quotes: only the translated lines."}, {"role": "user", "content": poema}]}).encode()
+        r = _u.urlopen(_u.Request("http://localhost:11434/api/chat", data=cuerpo, headers={"Content-Type": "application/json"}), timeout=60); t = _j.loads(r.read())["message"]["content"].strip()
+        if "</think>" in t: t = t.split("</think>")[-1].strip()
+        return t
+    except Exception: return None
+def leer_poema():
+    """lee en voz alta el ultimo poema: en castellano (Paulina) y despues en ingles (Samantha), uno tras otro."""
+    try:
+        import json as _j; poemas = _j.load(open(os.path.expanduser("~/Desktop/Huk/yakumama_poemas.json"))); es = poemas[-1]; en = traducir(es)
+        def _leer():
+            subprocess.run(["say", "-v", "Paulina", "-r", "135", es.replace("\n", " ... ")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if en: time.sleep(0.8); subprocess.run(["say", "-v", "Samantha", "-r", "150", en.replace("\n", " ... ")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        threading.Thread(target=_leer, daemon=True).start(); return {"es": es, "en": en}
     except Exception as e: return str(e)
 def matar_todo():
     for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
