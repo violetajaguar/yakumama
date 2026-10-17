@@ -488,7 +488,7 @@ VENTANA_HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta n
 <div id=poema></div><div id=linea></div>
 <div id=hace><span><i id=color></i><span id=animo></span></span><span id=comp></span><span id=estilo></span><span id=memo></span><span id=cuerpo></span></div>
 <script>
-const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#1e1e1e',angry:'#f21410',alert:'#ff4da6',diving:'#102a6b',surfacing:'#19d6e8'};
+const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#1e1e1e',angry:'#f21410',alert:'#1ae640',diving:'#102a6b',surfacing:'#19d6e8'};
 const B={calm:'logging',singing:'canto',playful:'breach',curious:'spyhop',feeding:'lunge',sad:'hundida',angry:'lobtail',alert:'escaneo',diving:'buceo',surfacing:'soplo'};
 let ultimaLinea='';
 async function tick(){try{const s=await (await fetch('/ventana_estado')).json();
