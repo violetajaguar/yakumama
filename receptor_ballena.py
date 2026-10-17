@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17i juego naranja; pulso y latido en el heartbeat"
+VERSION = "2026-10-17j curiosidad amarillo limon, juego naranja: ya no se confunden"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -79,7 +79,7 @@ COLOR_TO_MOOD = {
 MOOD_RGB = {   # saturados: se ven desde lejos y en cualquier luz
     "angry":     (0.95, 0.08, 0.06),
     "playful":   (1.00, 0.30, 0.00),   # naranja (curious es amarillo: que no se confundan)
-    "curious":   (1.00, 0.85, 0.00),
+    "curious":   (0.70, 1.00, 0.00),   # amarillo limon, verdoso: a 45 grados del naranja de playful en la rueda
     "feeding":   (0.05, 0.80, 0.15),
     "surfacing": (0.00, 0.90, 0.95),
     "calm":      (0.92, 0.94, 0.98),   # plateada, clara
