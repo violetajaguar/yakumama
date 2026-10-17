@@ -306,3 +306,9 @@ the receiver so her own initiative uses it.
 (16 min of surfacing body in total: still the thinnest mood by far). The planner's choice swung back (diving 27/64,
 angry 36/64): between two trainings on nearly the same data the plan still moves a lot, so the next engineering step is
 stability (several seeds, keep the best probe; or more epochs at level 2), not more data.
+
+**Ninth cycle (17 Oct, 12:20, swimming as surfacing: SwimXYZ butterfly+freestyle and the real CMU swimmers 125/126):**
+surfacing body 0.27 h → 0.72 h. The planner now reaches surfacing for a surfacing goal 26/64 (it was 0) and keeps diving at
+63/64; the whale's depth 32 s ahead correlates 0.76 (best so far); the mood changes the plan by 0.052 (best so far); at 16 s
+she beats "repeat the last frame". The body probe reads surfacing at 3 % (14 % before): the label now spans two very
+different bodies, humans rising and swimmers lying flat, and the probe cannot yet hold both. Overall probe 53 %.
