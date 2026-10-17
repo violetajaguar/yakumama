@@ -69,3 +69,27 @@ The mood recogniser is `modelos/animo_rf.pkl` (scikit‑learn random forest); it
   es una firma de 210 distancias de la cara (sin imagenes), solo en la Mac del grabador; ver memoria.py.
 - `cuerpo_pitch cuerpo_roll cuerpo_yaw cuerpo_profundidad cuerpo_energia cuerpo_suavidad`: el cuerpo de quien esta frente a la
   camara (MediaPipe Pose), las mismas cualidades que bailar.py saca de un esqueleto. -1..1 (energia y suavidad 0..1).
+
+## Two more streams (17 October 2026)
+
+**What she does → the physical whale: UDP 9994** (from `receptor_ballena.py`, 30/s; also to every `host:port` in the
+env var `BALLENA_SALIDA`, comma-separated). One JSON per frame:
+
+```
+{"animo": "curious", "fuente": "actor",            mood and where it came from (actor = a person's face, escena = the room)
+ "x": 0.0, "y": -2.2, "z": 1.2, "yaw": -3.2,         where she is in space (Blender units; viewer at -Y; yaw pi = facing the viewer)
+ "pitch": 0.45, "roll": 0.0, "jaw": 0.0, "fluke": 0.0, "flap": 0.2,     body (rad / 0..1)
+ "color": [0.7, 1.0, 0.0], "turbina": 1.4, "latido": 0.5,               skin colour, tail speed rad/s, heartbeat strength
+ "blink": 0, "eye_yaw": 0.1, "eye_pitch": -0.2, "pulso": 78, "t": ...}  eyes and pulse
+```
+This is her choreography in space too: each mood has a path (calm drifts in an ellipse, curious approaches the viewer and
+turns to face them, angry charges and veers, sad drifts away and sinks, diving leaves and returns from below, surfacing rises
+toward the viewer, playful figure-eights, feeding lunges through, singing hangs and spins slowly, alert holds and snaps its
+gaze). Known visitors are approached closer than strangers.
+
+**The physical whale → her: UDP 9995** (the recorder listens; send from Dan's system):
+
+```
+{"tacto": 0.8, "zona": "lomo", "presencia": 1}     touch 0..1, where (cabeza | lomo | cola | aleta), someone near 0..1
+```
+`tacto` and `tacto_zona` then travel inside every packet, and the first touch makes her write about it in the window.

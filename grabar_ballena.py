@@ -468,15 +468,34 @@ FRASES = {"llega": ["alguien se acerca. todavia no se quien.", "una cara nueva e
           "estilo": ["te mueves como {estilo}. te contesto con su cuerpo.", "en vos hay algo de {estilo}. lo uso.", "te parezco {estilo}. no lo elegiste vos."],
           "animo": ["te leo {animo}.", "ahora te veo {animo}. cambio.", "hay {animo} en tu cara. lo tomo."],
           "ropa": ["me gusta tu color. me lo quedo un rato.", "tu ropa tiene agua adentro. me tino.", "ese color lo quiero. lo llevo puesto."],
-          "sevа": ["te fuiste. me quedo con lo que trajiste.", "la cara se fue. el peso queda."]}
+          "sevа": ["te fuiste. me quedo con lo que trajiste.", "la cara se fue. el peso queda."],
+          "tacto": ["me tocan. la costra siente la mano.", "una mano en el lomo. me quedo.", "el cuerpo de mi hermana siente tu mano. yo también."]}
 ANIMO_ES = {"calm": "calma", "singing": "canto", "playful": "juego", "curious": "curiosidad", "feeding": "hambre", "sad": "tristeza", "angry": "rabia", "alert": "alerta", "diving": "hondo", "surfacing": "aire"}
+# --- RETORNO DE LA HERMANA FISICA (17 oct): Dan manda por UDP 9995 lo que la ballena de verdad siente: {"tacto": 0..1,
+# "zona": "cabeza"|"lomo"|"cola"|"aleta", "presencia": 0..1}. Entra en cada paquete (tacto, tacto_zona) y, al primer toque,
+# dispara en la ventana el gatillo "tacto" (la linea y el poema de "alguien te esta tocando").
+retorno = {"tacto": 0.0, "zona": "", "presencia": 0.0, "t": 0.0, "ultimo_gatillo": 0.0}
+def _hilo_retorno(puerto=9995):
+    import socket as _s
+    try: sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM); sk.bind(("0.0.0.0", puerto))
+    except Exception as e: print(f"   (retorno 9995: {e})"); return
+    while True:
+        try: b, _ = sk.recvfrom(2048); d = json.loads(b.decode()); ahora = time.time()
+        except Exception: continue
+        retorno["tacto"] = float(d.get("tacto", 0) or 0); retorno["zona"] = str(d.get("zona", "")); retorno["presencia"] = float(d.get("presencia", 0) or 0); retorno["t"] = ahora
+        extra["tacto"] = round(retorno["tacto"], 3); extra["tacto_zona"] = retorno["zona"]
+        if retorno["tacto"] > 0.3 and ahora - retorno["ultimo_gatillo"] > 45:
+            retorno["ultimo_gatillo"] = ahora
+            try: ventana_evento("tacto")
+            except Exception: pass
+threading.Thread(target=_hilo_retorno, daemon=True).start()
 def ventana_evento(gatillo):
     import random
     datos = {"estilo": reconocedor.get("estilo") or "nadie", "estilo_previo": visita.get("estilo_previo") or "nadie", "animo": ANIMO_ES.get(reconocedor.get("animo") or "", "nada"), "nombre": visita.get("nombre") or ""}
     if gatillo == "conocida" and visita.get("nombre"): gatillo = "nombre"
     frase = random.choice(FRASES.get(gatillo, ["..."])).format(**datos)
     ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": frase, "gatillo": gatillo}])[-6:]
-    if gatillo in ("llega", "conocida", "ropa") or (gatillo == "animo" and time.time() - ventana["poema_t"] > 45):
+    if gatillo in ("llega", "conocida", "ropa", "tacto") or (gatillo == "animo" and time.time() - ventana["poema_t"] > 45):
         threading.Thread(target=ventana_poema, args=(gatillo, dict(datos)), daemon=True).start()
 def ventana_poema(gatillo, datos):
     """pide un poema al alma (ollama) con lo que le pasa; si no hay ollama, no escribe mas que la frase"""
@@ -485,7 +504,8 @@ def ventana_poema(gatillo, datos):
     try:
         sys.path.insert(0, HUK); import yakumama_alma as A
         que = {"llega": "una persona nueva se paro frente a vos y te mira", "conocida": f"volvio alguien que ya vino; la otra vez le contestaste como {datos['estilo_previo']}", "nombre": f"volvio {datos['nombre']}, que ya vino {mem.personas.get(visita.get('id') or '', {}).get('visitas', 0)} veces; la conoces por su nombre",
-               "ropa": "te gusta el color de la ropa de quien tienes enfrente y te tines de ese color", "animo": f"en la cara de quien te mira lees {datos['animo']}"}[gatillo]
+               "ropa": "te gusta el color de la ropa de quien tienes enfrente y te tines de ese color", "animo": f"en la cara de quien te mira lees {datos['animo']}",
+               "tacto": f"alguien esta tocando el cuerpo de tu hermana de metal{(' en ' + retorno['zona']) if retorno.get('zona') else ''}; lo sientes como si fuera el tuyo"}[gatillo]
         r = _pose.get("ropa") or {}; cuerpo = _pose.get("ultimo") or {}
         snap = {"water": 0.7, "scene_color": "the colour of their clothes" if gatillo == "ropa" else "gray", "scene_bright": r.get("brillo", 0.5), "humidity": 40, "l_palm_x": 0.5}
         usuario = (f"TU CUERPO Y EL SALAR AHORA\n{A._estado_en_cuerpo(snap)}\n\nLO QUE ACABA DE PASAR\n{que}. Se mueve como {datos['estilo']}. "
