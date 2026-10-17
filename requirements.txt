@@ -1,5 +1,5 @@
 # Yakumama · festival computer (recorder + brain). Python 3.11.  pip install -r requirements.txt
-numpy
+numpy==2.4.4
 opencv-python
 opencv-contrib-python
 mediapipe==0.10.14
@@ -7,4 +7,4 @@ depthai==2.32.0.0
 scikit-learn
 pyserial
 sounddevice
-torch            # only for the H-JEPA inside cerebro_ballena.py (CPU is enough); skip it and run with --sin-jepa
+torch==2.11.0      # only for the H-JEPA (CPU is enough); without it run with --sin-jepa
