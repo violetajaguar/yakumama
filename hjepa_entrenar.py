@@ -35,10 +35,26 @@ for k, (s, e) in enumerate(d["SEQ"]):
     if M.mean() < 0.5: continue
     fu = str(d["FUENTE"][k]); an = int(d["ANIMO"][k]); acc = an if an >= 0 else ACCIONES.index("libre")
     pistas.append(dict(X=X, M=M, accion=acc, fuente=fu, nombre=str(d["NOMBRE"][k]), actor=str(d["ACTOR"][k])))
+def animos_ballena(b, fps=12):
+    """la ballena real se etiqueta con lo que hace su propio cuerpo, por segundo: feeding = rola mas de 60 grados (la embestida
+    lateral), diving = baja con la nariz a mas de 30 grados, surfacing = sube a mas de 30 grados y llega cerca de la superficie,
+    calm = en superficie casi sin moverse; lo demas queda "ballena" (sin animo)."""
+    n = len(b["X"]); pitch = np.degrees(np.nan_to_num(b["pitch"])); roll = np.degrees(np.abs(np.nan_to_num(b["roll"]))); prof = np.nan_to_num(b["prof"]); en = np.nan_to_num(b["X"][:, 4])
+    acc = np.full(n, ACCIONES.index("ballena"))
+    dprof = np.gradient(np.convolve(prof, np.ones(fps * 3) / (fps * 3), "same")) * fps   # m/s, + baja
+    acc[(roll > 60)] = MOODS.index("feeding")
+    acc[(pitch < -30) & (dprof > 0.15) & (roll <= 60)] = MOODS.index("diving")
+    acc[(pitch > 30) & (dprof < -0.15) & (prof < 25) & (roll <= 60)] = MOODS.index("surfacing")
+    acc[(prof < 3) & (np.abs(pitch) < 12) & (en < 0.15) & (roll <= 20)] = MOODS.index("calm")
+    return acc
 for f in sorted(glob.glob(os.path.join(AQUI, "datasets", "ballenas", "*.npz"))):   # (surf y apneistas entran por jepa_datos, con animo)
-    b = np.load(f, allow_pickle=True); X = np.nan_to_num(b["X"]).astype(np.float32); M = b["M"]; surf = "/surf/" in f
-    for s in range(0, len(X), 12 * 3600):   # en pistas de 1 h (las de surf son un ciclo de 20 s: accion "libre", como los bailarines)
-        pistas.append(dict(X=X[s:s + 12 * 3600], M=M[s:s + 12 * 3600], accion=ACCIONES.index("libre" if surf else "ballena"), fuente="surf" if surf else "ballena", nombre=str(b["depid"]), actor=str(b["depid"])))
+    b = np.load(f, allow_pickle=True); X = np.nan_to_num(b["X"]).astype(np.float32); M = b["M"]; acc = animos_ballena(b)
+    # tramos de accion constante (minimo 8 s), como pistas con animo; lo largo se parte en trozos de 1 h
+    cortes = np.flatnonzero(np.diff(acc)) + 1; ini = np.concatenate([[0], cortes]); fin = np.concatenate([cortes, [len(acc)]])
+    for s, e in zip(ini, fin):
+        if e - s < 8 * 12: continue
+        for s2 in range(s, e, 12 * 3600):
+            e2 = min(e, s2 + 12 * 3600); pistas.append(dict(X=X[s2:e2], M=M[s2:e2], accion=int(acc[s]), fuente="ballena", nombre=str(b["depid"]), actor=str(b["depid"])))
 # fuera: la yubarta mn18_175d entera, 1 de cada 8 bailarines, la ultima toma de cada (actor, animo) de yakumama/beat
 fuera = set(); vistos = {}
 for i, p in enumerate(pistas):
@@ -49,6 +65,7 @@ for k, idxs in vistos.items():
 bail = [i for i, p in enumerate(pistas) if p["fuente"] == "bailarin"]; fuera.update(bail[::8])
 Xn = [np.where(p["M"], (p["X"] - media) / desvio, 0.0).astype(np.float32) for p in pistas]; Mf = [p["M"].astype(np.float32) for p in pistas]
 ACC = np.array([p["accion"] for p in pistas]); horas = sum(len(x) for x in Xn) / FPS / 3600
+print("horas con animo: " + ", ".join(f"{ACCIONES[k]} {sum(len(p['X']) for p in pistas if p['accion'] == k) / FPS / 3600:.2f}" for k in range(NA) if any(p['accion'] == k for p in pistas)))
 print(f"pistas {len(pistas)} ({len(fuera)} fuera) | {horas:.1f} h | por fuente: " + ", ".join(f"{f} {sum(1 for p in pistas if p['fuente'] == f)}" for f in sorted(set(p["fuente"] for p in pistas))))
 dev = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 Xcat = torch.tensor(np.concatenate(Xn), device=dev); Mcat = torch.tensor(np.concatenate(Mf), device=dev)
