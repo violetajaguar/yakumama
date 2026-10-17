@@ -53,12 +53,18 @@ for f in sorted(glob.glob(os.path.join(H26, "*.npz"))):
     n = os.path.basename(f).replace("_limpio.npz", "").replace(".npz", "")
     if n.startswith("gBR") or n.startswith("_"): continue
     d = danza_de(n)
-    if d: item("danzas", d, n, {"tinku": "angry", "kullawada": "playful", "suri": "curious", "breaking": "alert", "toprock": "alert"}[d], f, 30)
+    if d: item("danzas", d, n, {"tinku": "angry", "kullawada": "playful", "suri": "curious", "breaking": "alert", "toprock": "alert"}[d], f, seg=30)   # (antes 30 caia en toma: las danzas no sonaban)
     else:
         cand = [t for t in re.split(r"[-_]", n) if re.fullmatch(r"[A-Za-z]{3,}", t) and not t.isupper() and t.lower() not in ("limpio", "toma")]
         quien = cand[0].lower() if cand else "otros"   # "T-HJ_Harold_Juan" -> harold, "Cami-Galgo" -> cami, "V-Carmen" -> carmen
-        item("danzas", quien, n, "auto", f, 30)
+        item("danzas", quien, n, "auto", f, seg=30)
 for k in range(1, 10): item("apneistas", "", f"apneista {k}", "diving", os.path.join(CV, f"freediver_0{k}.npz"), seg=20)
+# ELLA SOLA: su H-JEPA en su propio cuerpo (modelos/hjepa_ballena.pt) sigue a un cuerpo real de ese animo y genera 32 s tras 32 s
+SEMILLAS = {"angry": "BF-JuanDavidNatalia_tinku_limpio.npz", "playful": "BF-Lucia_kullawada_limpio.npz", "curious": "BF-JuanDavid_suri_limpio.npz", "alert": "JC24-Galgo_breaking_limpio.npz"}
+if os.path.exists(os.path.join(AQUI, "modelos", "hjepa_ballena.pt")):
+    for m in MOODS:
+        sem = os.path.expanduser("~/Desktop/h26_limpio/" + SEMILLAS[m]) if m in SEMILLAS else next(iter(sorted(glob.glob(os.path.join(AQUI, "datasets", "cuerpo", f"{m}_*_00[12].jsonl")))), None)
+        if sem and os.path.exists(sem): ITEMS.append(dict(id=len(ITEMS), grupo="ella sola", sub="JEPA en su cuerpo", nombre=f"{ES.get(m, m)} · ella sigue a {os.path.basename(sem).split('_')[0].split('-')[-1] if sem.endswith('.npz') else os.path.basename(sem).split('_')[1]}", animo=m, ruta=sem, toma=None, seg=64, jepa=True))
 for g, an, sub in (("ballet_experta_ch0", "sad", "ballet"), ("ballet_experta_ch3", "sad", "ballet"), ("ballet_principiante_ch1", "sad", "ballet"), ("jazz_experta_ch0", "singing", "jazz"), ("jazz_experta_ch2", "singing", "jazz"), ("jazz_intermedia_ch1", "singing", "jazz"),
                   ("swim_breaststroke_001", "feeding", "nado"), ("swim_butterfly_006", "feeding", "nado"), ("swim_freestyle_001", "feeding", "nado"), ("swim_backstroke_001", "feeding", "nado")):
     item("datos", sub, g, an, primero(os.path.join(CV, g + "*.npz")), seg=20)
@@ -196,17 +202,37 @@ def leer_poema():
             if _poema["gen"] == mi_gen and estado["actual"] is not None and not ITEMS[estado["actual"]].get("voz"): sonar(ITEMS[estado["actual"]]["animo"])   # vuelve el sonido del animo
         threading.Thread(target=_leer, daemon=True).start(); return {"es": es, "en": en, "ella": ella}
     except Exception as e: return str(e)
+def toma_con_cuerpo(toma, animo):
+    """translated mode needs the whole body: the take itself if it was recorded head to toe (17 Oct on), else a take of the
+    same performer and mood with a body, else any performer's take of that mood with a body; None if there is none."""
+    import glob as _g
+    def con_cuerpo(n):
+        f = os.path.join(AQUI, "datasets", "cuerpo", n + ".jsonl")
+        try: return os.path.exists(f) and sum(1 for l in open(f) if '"esqueleto": [' in l) > 100
+        except Exception: return False
+    if con_cuerpo(toma): return toma
+    actor = toma.split("_")[1] if toma.count("_") >= 2 else ""
+    for pat in ([f"{animo}_{actor}_*.jsonl"] if actor else []) + [f"{animo}_*.jsonl"]:
+        for f in sorted(_g.glob(os.path.join(AQUI, "datasets", "cuerpo", pat)), reverse=True):
+            n = os.path.basename(f)[:-6]
+            if con_cuerpo(n): return n
+    return None
 def matar_todo():
-    for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
+    for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py", "retarget_ballena.py", "jepa_mueve.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
 def tocar(i):
     with estado["lock"]:
         it = ITEMS[i]; matar_todo(); time.sleep(0.2)
-        if it.get("voz"): cmd = [PY, os.path.join(AQUI, "voz_ballena.py"), it["ruta"], "--loop", "--canta", "--volumen", "1.0"]   # ella canta la melodia humana con su propia voz
+        rt = estado.get("retarget") and not it.get("voz")
+        if it.get("jepa"): cmd = [PY, os.path.join(AQUI, "jepa_mueve.py"), it["animo"], "--semilla", (it["ruta"] if it["ruta"].endswith(".npz") else os.path.basename(it["ruta"])[:-6]), "--ruido", "0.3"]; rt = False   # TRADUCIDA (17 oct): el cuerpo entero del bailarin o performer sobre el cuerpo de ella (retarget_ballena.py, mapa de Violeta)
+        if it.get("jepa"): pass
+        elif it.get("voz"): cmd = [PY, os.path.join(AQUI, "voz_ballena.py"), it["ruta"], "--loop", "--canta", "--volumen", "1.0"]   # ella canta la melodia humana con su propia voz
+        elif rt and isinstance(it["toma"], str) and toma_con_cuerpo(it["toma"], it["animo"]): cmd = [PY, os.path.join(AQUI, "retarget_ballena.py"), toma_con_cuerpo(it["toma"], it["animo"]), "--tocar", "--loop"]
+        elif rt and not it["toma"] and str(it.get("ruta", "")).endswith(".npz"): cmd = [PY, os.path.join(AQUI, "retarget_ballena.py"), it["ruta"], "--tocar", "--animo", it["animo"], "--loop"]
         elif it["toma"]: cmd = [PY, os.path.join(AQUI, "reproducir.py"), it["toma"], "--modo", "anclada", "--loop"]
         else: cmd = [PY, os.path.join(AQUI, "bailar.py"), it["ruta"], "--animo", it["animo"], "--loop"]
-        ojos = toma_de_ojos(it["animo"]) if (not it["toma"] and it["animo"] in MOODS) else None   # los ojos de un performer en ese animo
+        ojos = toma_de_ojos(it["animo"]) if (not it["toma"] and it["animo"] in MOODS and not rt and not it.get("jepa")) else None   # los ojos de un performer en ese animo (traducida: la cara prestada ya va dentro)
         if ojos and it.get("voz"): cmd.append("--sin-ojos")
         estado["proc"] = subprocess.Popen(cmd, cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["actual"] = i; estado["desde"] = time.time()
         if ojos: estado["proc_ojos"] = subprocess.Popen([PY, os.path.join(AQUI, "reproducir.py"), ojos, "--solo-ojos", "--loop"], cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["ojos"] = ojos
@@ -236,7 +262,7 @@ details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px
 <h1>Yakumama · un cuerpo a la vez</h1><div id=ahora>—</div><div id=ella></div><div id=emo></div>
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
 <button id=autov onclick="fetch('/auto?on='+(document.getElementById('autov').classList.contains('on')?0:1)+'&grupo=canto').then(tick)">carrusel de voces humanas</button>
-<button id=musica onclick="fetch('/musica?on='+(document.getElementById('musica').classList.contains('on')?0:1)).then(tick)">música de base</button><button onclick="fetch('/poema_nuevo')">poema nuevo</button><button id=escribe onclick="fetch('/escribe?on='+(document.getElementById('escribe').classList.contains('on')?0:1)).then(tick)">escribe sola</button><button onclick="fetch('/poema')">leer el último poema</button>
+<button id=musica onclick="fetch('/musica?on='+(document.getElementById('musica').classList.contains('on')?0:1)).then(tick)">música de base</button><button id=retarget onclick="fetch('/retarget?on='+(document.getElementById('retarget').classList.contains('on')?0:1)).then(tick)" title="el cuerpo entero del bailarin o performer traducido al cuerpo de ella: manos a aletas, cabeza, columna, cola con los pies, desplazamiento">traducida</button><button onclick="fetch('/poema_nuevo')">poema nuevo</button><button id=escribe onclick="fetch('/escribe?on='+(document.getElementById('escribe').classList.contains('on')?0:1)).then(tick)">escribe sola</button><button onclick="fetch('/poema')">leer el último poema</button>
 <label>segundos <input id=seg type=number value=40 min=5 onchange="fetch('/seg?s='+this.value)"></label><button onclick="fetch('/parar').then(tick)">parar</button></div>
 <div id=lista></div>
 <script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#555a70',angry:'#f21410',alert:'#1ae640',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
@@ -248,7 +274,7 @@ let h='';for(const [grupo,subs] of Object.entries(g)){const n=Object.values(subs
   h+='<details class=s><summary>'+sub+' <span>'+v.length+'</span></summary><div class=grupo>'+v.map(boton).join('')+'</div></details>'}
  h+='</details>'}document.getElementById('lista').innerHTML=h}
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
-document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');document.getElementById('musica').classList.toggle('on',!!s.musica);document.getElementById('escribe').classList.toggle('on',!!s.escribe);const it=s.actual!=null?items[s.actual]:null;
+document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');document.getElementById('musica').classList.toggle('on',!!s.musica);document.getElementById('escribe').classList.toggle('on',!!s.escribe);document.getElementById('retarget').classList.toggle('on',!!s.retarget);const it=s.actual!=null?items[s.actual]:null;
 document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')+(s.ojos?'  ·  ojos de '+s.ojos:'')):'nada suena';
 const w=s.ballena;document.getElementById('ella').innerHTML=w&&w.viva?('ella siente <i class=c style="background:'+(C[w.animo]||'#777')+'"></i><b>'+(w.animo_es||'—')+'</b> · pulso <b>'+Math.round(w.pulso||0)+'</b> lpm · tempo ×'+w.tempo+' · energía '+w.energia+' · tensión '+w.tension+' · latido '+w.latido+(w.cara?' · con cara':'')+' · '+w.fps+' fps'):'Blender no responde';
 const e=s.emotibit;document.getElementById('emo').innerHTML=e?('EmotiBit de la toma: pulso <b>'+e.hr+'</b> lpm → tempo <b>×'+e.tempo+'</b>, energía <b>'+e.energia+'</b> · piel <b>'+e.eda+'</b> µS → tensión <b>'+e.tension+'</b> · temperatura '+e.temp+' °C · '+e.t+' / '+e.dur+' s'):(it&&it.grupo!='performers'?'sin EmotiBit (el pulso lo pone la energía del cuerpo)':'');}
@@ -261,7 +287,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         if u.path == "/": b = HTML.encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         elif u.path == "/items": self._json([{k: v for k, v in it.items() if k not in ("ruta",)} for it in ITEMS])
-        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "musica": _base["on"], "escribe": bool(estado.get("escribe")), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
+        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "musica": _base["on"], "escribe": bool(estado.get("escribe")), "retarget": bool(estado.get("retarget")), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
         elif u.path == "/tocar": estado["auto"] = False; tocar(int(q["i"][0])); self._json({"ok": 1})
         elif u.path == "/auto":
             estado["auto"] = q.get("on", ["1"])[0] == "1"; estado["grupo"] = q.get("grupo", [estado.get("grupo", "animos")])[0]
@@ -273,6 +299,10 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/poema": self._json({"poema": leer_poema()})
         elif u.path == "/poema_nuevo": threading.Thread(target=poema_nuevo, daemon=True).start(); self._json({"ok": 1})
         elif u.path == "/escribe": estado["escribe"] = q.get("on", ["1"])[0] == "1"; estado["escribio"] = time.time(); self._json({"ok": 1})
+        elif u.path == "/retarget":
+            estado["retarget"] = q.get("on", ["1"])[0] == "1"; i = estado["actual"]
+            if i is not None: threading.Thread(target=tocar, args=(i,), daemon=True).start()   # lo que suena, vuelve a sonar traducido (o sin traducir)
+            self._json({"ok": 1})
         else: self.send_response(404); self.end_headers()
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--auto", type=float, default=0); ap.add_argument("--puerto", type=int, default=8766); ap.add_argument("--sin-navegador", action="store_true"); a = ap.parse_args()

@@ -63,11 +63,37 @@ red = {"m": None, "estilo": None, "t0": 0.0}
 try:
     import yakumama_modelo; red["m"] = yakumama_modelo.Modelo(os.path.join(AQUI, "modelos", "movimiento_pesos.npz"))
 except Exception as e: print(f"   (style net off: {e})")
-jepa = None
+jepa = None; JEPA_BALLENA = False
 if a.jepa:
     try:
-        from hjepa_predecir import HJepa; jepa = HJepa(os.path.join(AQUI, "modelos", "hjepa.pt")); print("   H-JEPA loaded: she reads the body, foresees it and can act on her own")
+        from hjepa_predecir import HJepa; rj = os.path.join(AQUI, "modelos", "hjepa_ballena.pt")
+        if os.path.exists(rj): jepa = HJepa(rj); JEPA_BALLENA = True; print("   H-JEPA in HER body space loaded (hjepa_ballena.pt): alone, she moves with what she learned from the dancers")
+        else: jepa = HJepa(os.path.join(AQUI, "modelos", "hjepa.pt")); print("   H-JEPA loaded (six body qualities): she reads the body, foresees it and can act on her own")
     except Exception as e: print(f"   (H-JEPA off: {e})")
+try: import retarget_ballena as RT; import numpy as np
+except Exception as e: RT = None; print(f"   (retarget off: {e})")
+J26 = {k: i for i, k in enumerate(["nose", "eye_l", "eye_r", "ear_l", "ear_r", "shoulder_l", "shoulder_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "hip_l", "hip_r", "knee_l", "knee_r", "ankle_l", "ankle_r", "head", "neck", "pelvis", "bigtoe_l", "bigtoe_r", "smalltoe_l", "smalltoe_r", "heel_l", "heel_r"])}
+BOCA_MAX = 0.5   # her mouth never opens more than this (Violeta, 17 Oct)
+baile = {"buf": [], "ts": [], "activo": False, "sube": None, "baja": None}
+def bailar_de_vuelta(d, t):
+    """if the public dances, she dances back: the visitor's 26-point skeleton (in every recorder packet) translated live onto her body."""
+    if RT is None or not isinstance(d.get("esqueleto"), list): return None
+    e = q(d, "cuerpo_energia", 0, 1)
+    if not baile["activo"] and e > 0.35:
+        baile["sube"] = baile["sube"] or t
+        if t - baile["sube"] > 1.5: baile["activo"] = True
+    elif not baile["activo"]: baile["sube"] = None
+    if baile["activo"] and e < 0.15:
+        baile["baja"] = baile["baja"] or t
+        if t - baile["baja"] > 3.0: baile["activo"] = False; baile["buf"].clear(); baile["ts"].clear()
+    elif baile["activo"]: baile["baja"] = None
+    fila = np.array([np.nan if v is None else float(v) for v in d["esqueleto"]], np.float32).reshape(26, 3)
+    if not baile["ts"] or t - baile["ts"][-1] > 0.04: baile["buf"].append(fila); baile["ts"].append(t)
+    while baile["ts"] and t - baile["ts"][0] > 3.0: baile["buf"].pop(0); baile["ts"].pop(0)
+    if not baile["activo"] or len(baile["buf"]) < 12: return None
+    B = np.array(baile["buf"]); fps = (len(B) - 1) / max(0.2, baile["ts"][-1] - baile["ts"][0]); x = RT.esqueleto_a_ballena(B, J26, fps)[-1]; C = {c: i for i, c in enumerate(RT.CANALES_BALLENA)}
+    g = lambda c: float(x[C[c]]) if np.isfinite(x[C[c]]) else 0.0
+    return dict(pitch=g("pitch"), roll=g("roll"), yaw=g("yaw"), head=g("head"), spine=[g(f"spine{k}") for k in range(6)], fluke=g("fluke"), flap=0.0, ladeo=0.0, aleta_l=[g("flap_l"), g("codo_l"), g("muneca_l")], aleta_r=[g("flap_r"), g("codo_r"), g("muneca_r")], jaw=0.0, cara=[0, 0, 0, 0], mirada=[g("mirada_yaw"), g("mirada_pitch")], spin=0.0, depth=g("depth"), turbina=max(0.3, g("turbina")))
 
 # ---------------- input ----------------
 latest = {}; recibido = {"t": 0.0, "n": 0}
@@ -149,13 +175,20 @@ def paso():
                 if p and p["accion"] in MOODS: accion = p["accion"]
             st["ella"], st["ella_t0"], st["meta"] = accion, t, meta
             st["cuerpo_gen"] = None
-            if jepa is not None:   # the JEPA generates the body that will conduct her for these 32 s: what it learned from the dancers and swimmers of that mood
-                try: st["cuerpo_gen"], st["animos_gen"] = jepa.generar(accion)
+            if jepa is not None:   # the JEPA generates her next 32 s: in her body space (whale channels) if hjepa_ballena.pt, else six qualities that conduct her
+                try:
+                    if JEPA_BALLENA and jepa.n >= jepa.largo: st["cuerpo_gen"], st["animos_gen"] = jepa.continuar(accion, ruido=0.3)   # continuing what she just did (the last 32 s in her buffer)
+                    else: st["cuerpo_gen"], st["animos_gen"] = jepa.generar(accion)
                 except Exception: st["cuerpo_gen"] = None
         actor = st["ella"]; fuente = "ella"
-        if st.get("cuerpo_gen") is not None and not hay_persona:   # her own generated body, frame by frame at 12/s, as if a dancer conducted her
+        if st.get("cuerpo_gen") is not None and not hay_persona:   # her own generated body, frame by frame at 12/s
             i = min(len(st["cuerpo_gen"]) - 1, int((t - st["ella_t0"]) * jepa.fps)); fila = st["cuerpo_gen"][i]
-            for c, v in zip(jepa.CUERPO, fila): d[c] = float(v)
+            if JEPA_BALLENA:   # whale channels: they ARE her movement this frame
+                C = {c: k for k, c in enumerate(jepa.CUERPO)}; g = lambda c: float(fila[C[c]]) if c in C and np.isfinite(fila[C[c]]) else 0.0
+                d["canales"] = dict(pitch=g("pitch"), roll=g("roll"), yaw=g("yaw"), head=g("head"), spine=[g(f"spine{k}") for k in range(6)], fluke=g("fluke"), flap=0.0, ladeo=0.0, aleta_l=[g("flap_l"), g("codo_l"), g("muneca_l")], aleta_r=[g("flap_r"), g("codo_r"), g("muneca_r")], jaw=max(0.0, g("jaw")), cara=[max(0.0, g(c)) for c in ("cara_parpado", "cara_rabia", "cara_tristeza", "cara_asombro")], mirada=[g("mirada_yaw"), g("mirada_pitch")], spin=g("spin"), depth=g("depth"), turbina=max(0.3, g("turbina")), avance=g("avance"), deriva=g("deriva"), giro=g("giro"))
+                if "pulso" in C and g("pulso") > 0.3: d["emotibit_hr"] = 100.0 * g("pulso")
+            else:
+                for c, v in zip(jepa.CUERPO, fila): d[c] = float(v)
             d["cuerpo_jepa"] = 1
     else: st["ella"] = None
     if actor in m:
@@ -174,6 +207,13 @@ def paso():
     excitacion = max(0.0, min(1.0, 0.6 * energia + 0.4 * tension)); beat *= LATIDO_ANIMO.get(dom, 0.5) * (0.5 + 0.5 * excitacion)
     # --- the behaviour of the mood, with the style's energy and the body that conducts
     comp = dict(comportamiento(st["tiempo"], dom, sec, 1.0 if actor in m else 0.8))
+    canales = d.get("canales") if isinstance(d.get("canales"), dict) else (bailar_de_vuelta(d, t) if hay_persona else None)
+    if canales:
+        for kk in ("pitch", "roll", "yaw", "head", "fluke", "flap", "ladeo", "jaw", "spin", "depth"):
+            if kk in canales: comp[kk] = float(canales[kk])
+        if "spine" in canales: comp["spine"] = [float(v) for v in canales["spine"]][:6]
+        if "cara" in canales: comp["cara"] = tuple(float(v) for v in canales["cara"])
+        if "mirada" in canales: comp["mirada"] = tuple(float(v) for v in canales["mirada"])
     k_est = ESTILO_ENERGIA.get(str(d.get("estilo") or ""), 1.0)
     if k_est != 1.0:
         for kk in ("head", "flap", "ladeo", "fluke"): comp[kk] *= k_est
@@ -197,6 +237,10 @@ def paso():
         if yaw_obj is None:
             dx, dy = tx - st["ax"], ty - st["ay"]; yaw_obj = math.atan2(dx, dy) if (dx * dx + dy * dy) > 0.01 else st["wy"]
         dyaw = (yaw_obj - st["wy"] + math.pi) % (2 * math.pi) - math.pi; st["wy"] += max(-0.03, min(0.03, dyaw * (0.01 + 0.03 * rap)))
+    if canales and canales.get("avance") is not None:   # travel from the body itself (the JEPA's or a dancer's): forward, sideways and turning speeds in her own heading
+        dt_ = 1.0 / a.fps; st["wy"] += float(canales.get("giro", 0)) * dt_; av, de = float(canales["avance"]) * 0.8, float(canales.get("deriva", 0)) * 0.8
+        st["ax"] += (av * math.sin(st["wy"]) + de * math.cos(st["wy"])) * dt_; st["ay"] += (av * math.cos(st["wy"]) - de * math.sin(st["wy"])) * dt_; r_ = math.hypot(st["ax"], st["ay"])
+        if r_ > 2.0: st["ax"], st["ay"] = st["ax"] * 2.0 / r_, st["ay"] * 2.0 / r_   # the mountains: the edge of her salar
     x, y, z = st["ax"], st["ay"] - m.get("diving", 0) * 0.2 + m.get("surfacing", 0) * 0.15, st["az"] + comp["depth"]
     # --- H-JEPA: feed the body at 12/s, read every 2 s
     lectura = st["lectura"]
@@ -211,7 +255,8 @@ def paso():
     col = MOOD_RGB.get(dom, (0.5, 0.5, 0.5)); r3 = lambda v: round(float(v), 3)
     pk = {"animo": dom, "secundario": sec, "fuente": fuente, "x": r3(x), "y": r3(y), "z": r3(z), "yaw": r3((st["wy"] + math.pi) % (2 * math.pi) - math.pi),
           "pitch": r3(comp["pitch"]), "roll": r3(comp["roll"]), "giro": r3(comp["yaw"]), "head": r3(comp["head"]), "spine": [r3(v) for v in comp["spine"]], "fluke": r3(comp["fluke"]), "flap": r3(comp["flap"]), "ladeo": r3(comp["ladeo"]),
-          "jaw": r3(comp["jaw"]), "jaw_actor": r3(q(d, "jaw_open", 0, 1)) if cara_actor else None, "boca": r3(max(comp["jaw"], q(d, "jaw_open", 0, 1) if cara_actor else 0.0)),
+          "jaw": r3(min(BOCA_MAX, comp["jaw"])), "jaw_actor": r3(q(d, "jaw_open", 0, 1)) if cara_actor else None, "boca": r3(min(BOCA_MAX, max(comp["jaw"], q(d, "jaw_open", 0, 1) if cara_actor else 0.0))),
+          "aleta_l": [r3(v) for v in canales["aleta_l"]] if canales and "aleta_l" in canales else None, "aleta_r": [r3(v) for v in canales["aleta_r"]] if canales and "aleta_r" in canales else None, "baila_de_vuelta": int(bool(baile["activo"])), "turbina_viva": r3(canales["turbina"]) if canales and "turbina" in canales else None,
           "cara": [r3(v) for v in comp["cara"]], "mirada": [r3(v) for v in comp["mirada"]], "spin": r3(comp["spin"]), "depth": r3(comp["depth"]),
           "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dom, 1.0), "latido": round(float(LATIDO_ANIMO.get(dom, 0.5)), 2), "beat": r3(beat), "tempo": r3(tempo), "energia": r3(energia), "tension": r3(tension),
           "blink": round(q(d, "blink", 0, 1), 2), "eye_yaw": r3(q(d, "eye_yaw")), "eye_pitch": r3(q(d, "eye_pitch")), "head_yaw": r3(q(d, "head_yaw")), "head_pitch": r3(q(d, "head_pitch")), "brow_up": r3(q(d, "brow_up", 0, 1)), "mouth_smile": r3(q(d, "mouth_smile", 0, 1)),
