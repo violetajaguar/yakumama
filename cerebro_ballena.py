@@ -148,7 +148,15 @@ def paso():
                 p = jepa.plan(meta)
                 if p and p["accion"] in MOODS: accion = p["accion"]
             st["ella"], st["ella_t0"], st["meta"] = accion, t, meta
+            st["cuerpo_gen"] = None
+            if jepa is not None:   # the JEPA generates the body that will conduct her for these 32 s: what it learned from the dancers and swimmers of that mood
+                try: st["cuerpo_gen"], st["animos_gen"] = jepa.generar(accion)
+                except Exception: st["cuerpo_gen"] = None
         actor = st["ella"]; fuente = "ella"
+        if st.get("cuerpo_gen") is not None and not hay_persona:   # her own generated body, frame by frame at 12/s, as if a dancer conducted her
+            i = min(len(st["cuerpo_gen"]) - 1, int((t - st["ella_t0"]) * jepa.fps)); fila = st["cuerpo_gen"][i]
+            for c, v in zip(jepa.CUERPO, fila): d[c] = float(v)
+            d["cuerpo_jepa"] = 1
     else: st["ella"] = None
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
@@ -208,7 +216,7 @@ def paso():
           "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dom, 1.0), "latido": round(float(LATIDO_ANIMO.get(dom, 0.5)), 2), "beat": r3(beat), "tempo": r3(tempo), "energia": r3(energia), "tension": r3(tension),
           "blink": round(q(d, "blink", 0, 1), 2), "eye_yaw": r3(q(d, "eye_yaw")), "eye_pitch": r3(q(d, "eye_pitch")), "head_yaw": r3(q(d, "head_yaw")), "head_pitch": r3(q(d, "head_pitch")), "brow_up": r3(q(d, "brow_up", 0, 1)), "mouth_smile": r3(q(d, "mouth_smile", 0, 1)),
           "pulso": round(st["hr"], 1), "estilo": d.get("estilo"), "visita": d.get("visita"), "conocida": int(bool(d.get("conocida"))), "persona": int(bool(hay_persona)), "tacto": d.get("tacto"), "tacto_zona": d.get("tacto_zona"),
-          "animo_cuerpo": lectura.get("animo_cuerpo"), "p_cuerpo": lectura.get("p_cuerpo"), "prevision": lectura.get("prevision"), "iniciativa": int(fuente == "ella"), "meta": st["meta"] if fuente == "ella" else None, "t": round(t, 3)}
+          "animo_cuerpo": lectura.get("animo_cuerpo"), "p_cuerpo": lectura.get("p_cuerpo"), "prevision": lectura.get("prevision"), "iniciativa": int(fuente == "ella"), "meta": st["meta"] if fuente == "ella" else None, "cuerpo_jepa": int(bool(d.get("cuerpo_jepa"))), "cuerpo": [round(float(d.get(c, 0) or 0), 3) for c in ("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")] if "cuerpo_pitch" in d else None, "t": round(t, 3)}
     return pk
 
 if __name__ == "__main__":
@@ -219,7 +227,7 @@ if __name__ == "__main__":
         if not a.prueba:
             for h, p in SALIDAS: sock_out.sendto(b, (h, p))
         if time.time() - ult >= 1.0 and not a.callado:
-            ult = time.time(); print(f"   {pk['animo']:10s} {pk['fuente']:6s} | at ({pk['x']:+.2f},{pk['y']:+.2f},{pk['z']:+.2f}) yaw {pk['yaw']:+.2f} | pitch {pk['pitch']:+.2f} roll {pk['roll']:+.2f} boca {pk['boca']:.2f} | pulse {pk['pulso']:.0f} | body reads {pk['animo_cuerpo']} | in {recibido['n']} pkts" + (f" | plan {pk['meta']}->{pk['animo']}" if pk['iniciativa'] else ""), flush=True)
+            ult = time.time(); print(f"   {pk['animo']:10s} {pk['fuente']:6s} | at ({pk['x']:+.2f},{pk['y']:+.2f},{pk['z']:+.2f}) yaw {pk['yaw']:+.2f} | pitch {pk['pitch']:+.2f} roll {pk['roll']:+.2f} boca {pk['boca']:.2f} | pulse {pk['pulso']:.0f} | body reads {pk['animo_cuerpo']} | in {recibido['n']} pkts" + (f" | plan {pk['meta']}->{pk['animo']}" + (f" | body from JEPA {pk['cuerpo']}" if pk['cuerpo_jepa'] else "") if pk['iniciativa'] else ""), flush=True)
         if a.prueba and time.time() - t0 > 3: break
         i += 1; esp = t0 + i / a.fps - time.time()
         if esp > 0: time.sleep(esp)

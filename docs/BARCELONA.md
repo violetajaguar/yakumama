@@ -74,7 +74,10 @@ in `comportamientos_y_docs/curvas/` if you prefer to play them yourself and only
 ## 4. Her own initiative
 
 When nobody has been in front for 20 s (`--iniciativa`, 0 = never), every 32 s she picks the mood she has done least lately
-as a goal and asks the H-JEPA which mood-action leads there; `fuente` becomes `ella`. With a person in front, their face rules.
+as a goal and asks the H-JEPA which mood-action leads there; `fuente` becomes `ella`. Then **the H-JEPA generates her body**:
+32 s of the six body qualities for that mood, learned from the dancers, swimmers and whales of that mood, and that generated
+body conducts her exactly as a live dancer would (`cuerpo_jepa` = 1 in the packet, `cuerpo` = the six values that frame).
+So alone she moves with what she learned, not with a script. With a person in front, their face and body rule again.
 
 ## 5. Rebuilding the model (if you ever need to)
 
