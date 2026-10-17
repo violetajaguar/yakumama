@@ -216,3 +216,30 @@ motifs she just used. Note the two prompts disagree on purpose: the song forbids
   brows, blink, hands, joystick, humidity) and "Respond with ONLY a JSON object … keys calm, singing, playful, curious,
   feeding, sad, angry, alert, diving, surfacing, each 0.0 to 1.0". Every 5 s, temperature 0.6. The receiver blends it in
   only when *use_brain* is on and no performer mood is present; the random forest made it unnecessary for visitors.
+
+## 7. Real whales and the H-JEPA (16 October, evening): what the numbers say
+
+**Real whale tags** (`importar_ballenas.py`, open data from animaltags.org, 31 h): a Cape Cod humpback dives for 250 s to
+59 m, goes down at −67° and comes up at +57°, stays 76 s at the surface between dives, and rolls past 60° in 37 % of its
+frames while feeding. A second humpback (10 h, shallow 32 m dives of 141 s, 336 s at the surface) and a Cuvier's beaked
+whale (18 h, dives of 23 min to 1700 m). These are the first real numbers for `comp_diving`, `comp_surfacing` and
+`comp_feeding`; today those behaviours use invented durations and angles.
+
+**H-JEPA** (`hjepa_entrenar.py`, two levels, action = the mood, planning by subgoals), measured on held-out tracks:
+
+| horizon | H-JEPA | repeat last frame | mean |
+|---|---|---|---|
+| 2 s (level 1) | 0.094 pitch, 0.102 roll | 0.076, 0.074 | 0.253, 0.338 |
+| 4 s (level 2) | 0.172 | 0.114 | 0.333 |
+| 16 s | 0.218 | 0.206 | 0.333 |
+| 32 s | 0.249 | 0.244 | 0.332 |
+
+It loses to "repeat the last frame" at every horizon, like the first JEPA. Changing the action with the same history
+changes the plan by 0.027 (almost nothing), and the planner's choice of action is noise. The reason is in the data, not
+the architecture: **none of Yakumama's own takes have a body** (the pose capture is one day old), so the moods only
+appear through BEAT speakers standing still, and the real whales carry no mood at all. A model cannot learn "what
+diving looks like in the body" from data where nobody dives.
+
+What would change that, in order: (1) performers acting her ten moods with face **and** body (the recorder does it now),
+(2) a mood label for the real whale tracks derived from their own depth cycle (descending, bottom, ascending, surface),
+so the whales teach level 2 what a dive cycle is, (3) only then the H-JEPA as her "own initiative" when nobody is in front.
