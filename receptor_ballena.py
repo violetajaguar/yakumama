@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17l el color del cuarto ya no pisa al del animo cuando algo la conduce"
+VERSION = "2026-10-17m hambre rosa claro fluo"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -80,7 +80,7 @@ MOOD_RGB = {   # saturados: se ven desde lejos y en cualquier luz
     "angry":     (0.95, 0.08, 0.06),
     "playful":   (1.00, 0.50, 0.00),   # naranja brillante (curious es amarillo limon: que no se confundan)
     "curious":   (0.70, 1.00, 0.00),   # amarillo limon, verdoso: a 45 grados del naranja de playful en la rueda
-    "feeding":   (0.05, 0.80, 0.15),
+    "feeding":   (1.00, 0.55, 0.85),   # rosa claro fluo (alert es un rosa magenta mas oscuro)
     "surfacing": (0.00, 0.90, 0.95),
     "calm":      (0.92, 0.94, 0.98),   # plateada, clara
     "singing":   (0.62, 0.10, 0.95),
