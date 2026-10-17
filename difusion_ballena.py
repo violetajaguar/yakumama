@@ -79,7 +79,9 @@ class Inventora:
         """a new dance of `segundos` for the mood, window after window, each continuing the last `solape` frames of the previous one
         (inpainting, as in Paqarina). prefijo: (k, nc) real frames in body units to start from (None = from nothing). Returns (n, nc)."""
         c = torch.zeros(1, NCOND); c[0, MOODS.index(animo) if animo in MOODS else len(MOODS)] = 1.0
-        pre = None if prefijo is None else torch.tensor(((np.nan_to_num(prefijo[-solape:]) - self.mu) / self.sd).astype(np.float32))
+        if prefijo is not None:   # a prefix with fewer channels (e.g. the 30 of retarget_ballena, without pulse and skin) is completed with the means
+            pf = np.asarray(prefijo, np.float32)[-solape:]; pad = np.tile(self.mu, (len(pf), 1)); pad[:, :min(self.nc, pf.shape[1])] = pf[:, :self.nc]; pf = np.where(np.isfinite(pad), pad, self.mu)
+        pre = None if prefijo is None else torch.tensor(((pf - self.mu) / self.sd).astype(np.float32))
         out = []; total = int(segundos * self.fps)
         while sum(len(o) for o in out) < total:
             w = self._ventana(c, temp, pre, guia, pasos); out.append(w if pre is None else w[len(pre):]); pre = w[-solape:]
