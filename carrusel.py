@@ -143,7 +143,8 @@ def leer_poema():
         _s.path.insert(0, HUK); import lengua as _L; ella = _L.traducir(es)
         def _leer():
             d = os.path.join(HUK, "poemas_voz"); os.makedirs(d, exist_ok=True)
-            subprocess.run(["say", "-v", "Paulina", "-r", "135", es.replace("\n", " ... ")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            w = voz_ella(es.replace("\n", ". "), os.path.join(d, "poema_es.wav"), "es")   # su voz tambien en castellano
+            if w: subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if en:
                 w = voz_ella(en.replace("\n", ". "), os.path.join(d, "poema_en.wav"), "en")
                 if w: time.sleep(0.6); subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
