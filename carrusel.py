@@ -163,18 +163,19 @@ def hilo_escribe():
             finally: estado["escribiendo"] = False
 threading.Thread(target=hilo_escribe, daemon=True).start()
 def leer_poema():
-    """lee el ultimo poema tres veces: castellano (Paulina), ingles (su voz suave) y su LENGUA inventada (lengua.py, su voz)."""
+    """lee el ultimo poema tres veces con su voz: primero en su LENGUA inventada (lengua.py), despues en ingles, al final en castellano."""
     try:
         import json as _j, sys as _s; poemas = _j.load(open(os.path.join(HUK, "yakumama_poemas.json"))); es = poemas[-1]; en = traducir(es)
         _s.path.insert(0, HUK); import lengua as _L; ella = _L.traducir(es)
         def _leer():
             d = os.path.join(HUK, "poemas_voz"); os.makedirs(d, exist_ok=True)
-            w = voz_ella(es.replace("\n", ". "), os.path.join(d, "poema_es.wav"), "es")   # su voz tambien en castellano
+            # primero en SU lengua, despues en ingles, al final en castellano
+            w = voz_ella(ella.replace("\n", ". "), os.path.join(d, "poema_ella.wav"), "ella")
             if w: subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if en:
                 w = voz_ella(en.replace("\n", ". "), os.path.join(d, "poema_en.wav"), "en")
                 if w: time.sleep(0.6); subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            w = voz_ella(ella.replace("\n", ". "), os.path.join(d, "poema_ella.wav"), "ella")
+            w = voz_ella(es.replace("\n", ". "), os.path.join(d, "poema_es.wav"), "es")   # su voz tambien en castellano
             if w: time.sleep(0.6); subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         threading.Thread(target=_leer, daemon=True).start(); return {"es": es, "en": en, "ella": ella}
     except Exception as e: return str(e)
