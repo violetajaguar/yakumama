@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17m hambre rosa claro fluo"
+VERSION = "2026-10-17n diez colores sin repetir: alerta verde"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -84,7 +84,7 @@ MOOD_RGB = {   # saturados: se ven desde lejos y en cualquier luz
     "surfacing": (0.00, 0.90, 0.95),
     "calm":      (0.92, 0.94, 0.98),   # plateada, clara
     "singing":   (0.62, 0.10, 0.95),
-    "alert":     (1.00, 0.25, 0.65),
+    "alert":     (0.10, 0.90, 0.25),   # verde (el rosa fue para hambre)
     "diving":    (0.02, 0.10, 0.55),
     "sad":       (0.10, 0.12, 0.20),
 }
