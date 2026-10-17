@@ -67,12 +67,18 @@ while True:
                        "aleta_l": [g(f, "flap_l"), g(f, "codo_l"), g(f, "muneca_l")], "aleta_r": [g(f, "flap_r"), g(f, "codo_r"), g(f, "muneca_r")], "jaw": max(0.0, g(f, "jaw")),
                        "cara": [max(0.0, g(f, c)) for c in ("cara_parpado", "cara_rabia", "cara_tristeza", "cara_asombro")], "mirada": [g(f, "mirada_yaw"), g(f, "mirada_pitch")], "spin": g(f, "spin"), "depth": g(f, "depth"), "turbina": max(0.3, g(f, "turbina"))}
                 if not a.quieta:
-                    dt = 1.0 / FPS; rumbo += g(f, "giro") * dt; av, de = max(-0.6, min(0.8, g(f, "avance"))) * ESCALA_PISO, max(-0.5, min(0.5, g(f, "deriva"))) * ESCALA_PISO
+                    dt = 1.0 / FPS; giro_ = max(-0.8, min(0.8, g(f, "giro"))) * (0.5 if MODO == "inventa" else 1.0); rumbo += giro_ * dt
+                    if MODO == "inventa": rumbo += ((math.pi - rumbo + math.pi) % (2 * math.pi) - math.pi) * 0.004   # and she slowly comes back to facing the viewer instead of circling
+                    av, de = max(-0.6, min(0.8, g(f, "avance"))) * ESCALA_PISO, max(-0.5, min(0.5, g(f, "deriva"))) * ESCALA_PISO
                     px += (av * math.sin(rumbo) + de * math.cos(rumbo)) * dt; py_ += (av * math.cos(rumbo) - de * math.sin(rumbo)) * dt; r_ = math.hypot(px, py_)
                     if r_ > RADIO_MAX: px, py_ = px * RADIO_MAX / r_, py_ * RADIO_MAX / r_
                     can["x"], can["y"], can["z"], can["rumbo"] = round(px, 3), round(py_, 3), 0.0, round((rumbo + math.pi) % (2 * math.pi) - math.pi, 3)
                 if "_rumbo" in can: can["rumbo"] = round(can.pop("_rumbo"), 3); can["x"], can["y"], can["z"] = round(px, 3), round(py_ + can.pop("_y"), 3), 0.0; rumbo = can["rumbo"]
-                can = anclar(can, m, i / FPS, {"calm": 0.85, "surfacing": 0.8, "diving": 0.7}.get(m, a.ancla)); pk["canales"] = can;   # calm follows calm (mostly her behaviour); diving and surfacing lean on theirs pk["espacio"] = 0 if a.quieta else 1; pk["blink"] = 1.0 if g(f, "cara_parpado") > 0.5 else 0.0
+                w_ancla = {"calm": 0.85, "surfacing": 0.8, "diving": 0.7}.get(m, a.ancla)
+                if MODO == "inventa": w_ancla = {"calm": 0.6, "surfacing": 0.6, "diving": 0.6}.get(m, 0.15)   # inventing: the script is only a light touch (Violeta: "let it be more free")
+                can = anclar(can, m, i / FPS, w_ancla)
+                if MODO == "inventa": can["spin"] = 0.0   # no scripted rounds on top of what she invents
+                pk["canales"] = can;   # calm follows calm (mostly her behaviour); diving and surfacing lean on theirs pk["espacio"] = 0 if a.quieta else 1; pk["blink"] = 1.0 if g(f, "cara_parpado") > 0.5 else 0.0
                 if "pulso" in C and np.isfinite(cuerpo[f, C["pulso"]]) and cuerpo[f, C["pulso"]] > 0.3: pk["emotibit_hr"] = round(100.0 * g(f, "pulso"), 1)
             else:
                 pk.update({c: round(g(f, c), 4) for c in h.CUERPO})
