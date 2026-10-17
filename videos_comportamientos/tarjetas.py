@@ -40,7 +40,7 @@ columnas("t_animos", ["a human performer moves her: face, hands, body, heartbeat
 columnas("t_emotibit", ["an EmotiBit on the performer's wrist: heartbeat, skin conductance, temperature", "", "her pulse becomes the whale's rhythm"], ["un EmotiBit en la muñeca de quien la mueve: latido, conductancia de la piel, temperatura", "", "su pulso es el ritmo de la ballena"])
 columnas("t_cuerpo", ["we are building her body, all of it in house: printed vertebrae, fins, a turbine tail, light under the skin", "", "she will live in Barcelona first"], ["su cuerpo lo hacemos nosotras, todo en casa: vértebras impresas, aletas, cola turbina, luz bajo la piel", "", "vivirá primero en Barcelona"])
 columnas("t_local", ["all her AI runs on one laptop, locally. no cloud.", "", "she remembers faces without photos, learns who moves like whom, and writes."], ["toda su inteligencia corre en una laptop, local. sin nube.", "", "recuerda caras sin fotos, aprende quién se mueve como quién, y escribe."])
-columnas("t_salvajes", ["the techbros can't deal with las salvajes"], ["los techbros no pueden con las salvajes"], tam=72)
+columnas("t_salvajes", ["the techbros can't deal with wild humans"], ["los techbros no pueden con las humanas salvajes"], tam=72)
 def centrada(nombre, titulo, lineas, tam=46):
     im = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0)); d = ImageDraw.Draw(im); ft = ImageFont.truetype(F, 140); f = ImageFont.truetype(FI, tam)
     w = d.textlength(titulo, font=ft); d.text(((1920 - w) / 2, 330), titulo, font=ft, fill=C); y = 560

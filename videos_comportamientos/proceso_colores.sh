@@ -25,8 +25,8 @@ tarjeta() {
     -map "[v]" -t $dur "${ENC[@]}" seg_${L}_$n.mp4; seg $n
 }
 foto() { local n=$1 src=$2 dur=$3; ffmpeg -v error -y -loop 1 -framerate 24 -t $dur -i "$src" -filter_complex "[0:v]${FOTO},fade=t=in:st=0:d=0.5,fade=t=out:st=$((dur-0.5)):d=0.5[v]" -map "[v]" -t $dur "${ENC[@]}" seg_${L}_$n.mp4; seg $n; }
-tarjeta 00_abre "$D/YakuMama .png" 6 $T/t_abre.png 0.25
-tarjeta 01_nada "$D/IMG_8365.MOV" 4.5 $T/t_animos.png 0.22 4
+tarjeta 00_abre "$D/YakuMama .png" 8 $T/t_abre.png 0.25
+tarjeta 01_nada "$D/IMG_8365.MOV" 7 $T/t_animos.png 0.22 4
 DUR=4.5
 for a in calm singing playful curious feeding sad angry alert diving surfacing; do
   src=$SRC[$a]; c=$COL[$a]; ss=$SS[$a]
@@ -35,17 +35,17 @@ for a in calm singing playful curious feeding sad angry alert diving surfacing; 
     -filter_complex "$PROC,hue=s=0.25,eq=contrast=1.1:brightness=0.05[p];[2:v]scale=1920:1080,setsar=1[c];[p][c]blend=all_mode=multiply:shortest=1[t];[1:v]crop=1440:810:0:135,scale=1920:1080,fps=24,setsar=1[w];[t][w]blend=all_mode=screen:shortest=1[m];[3:v]format=rgba,fade=t=in:st=0.5:d=0.6:alpha=1,fade=t=out:st=3.6:d=0.6:alpha=1[x];[m][x]overlay=0:0,fade=t=in:st=0:d=0.5,fade=t=out:st=4:d=0.5[v]" \
     -map "[v]" -t $DUR "${ENC[@]}" seg_${L}_10_$a.mp4; seg 10_$a
 done
-tarjeta 15_emotibit ~/Desktop/Archivo/videos/whale.mov 4.5 $T/t_emotibit.png 0.35 60
-tarjeta 20_cuerpo "$F/serpiente_detalle.png" 4.5 $T/t_cuerpo.png 0.3
-tarjeta 21_flores "$D/0ff7f1d8-a066-43a0-9360-3e80b9a35ebf.JPG" 3.5 $T/p_flores.png 0.05
+tarjeta 15_emotibit ~/Desktop/Archivo/videos/whale.mov 7 $T/t_emotibit.png 0.35 60
+tarjeta 20_cuerpo "$F/serpiente_detalle.png" 7.5 $T/t_cuerpo.png 0.3
+tarjeta 21_flores "$D/0ff7f1d8-a066-43a0-9360-3e80b9a35ebf.JPG" 4 $T/p_flores.png 0.05
 foto 22_nazca "$F/nazca_lado.png" 3; foto 23_trazos "$F/trazos_arriba.png" 3; foto 24_piezas "$D/IMG_7146.JPG" 3
 ffmpeg -v error -y -i "$R/yakumama_led.mp4" -filter_complex "[0:v]${VID},fade=t=in:st=0:d=0.5,fade=t=out:st=3.5:d=0.5[v]" -map "[v]" -t 4 "${ENC[@]}" seg_${L}_25_led.mp4; seg 25_led
-tarjeta 30_local "$Y/docs/yakumama.jpg" 5 $T/t_local.png 0.35
-tarjeta 35_salvajes "$D/IMG_8365.MOV" 4.5 $T/t_salvajes.png 0.4 10
-tarjeta 40_cierra "$D/YakuMama .png" 5 $T/t_cierra.png 0.45
+tarjeta 30_local "$Y/docs/yakumama.jpg" 7.5 $T/t_local.png 0.35
+tarjeta 35_salvajes "$D/IMG_8365.MOV" 6.5 $T/t_salvajes.png 0.4 10
+tarjeta 40_cierra "$D/YakuMama .png" 6 $T/t_cierra.png 0.45
 ffmpeg -v error -y -f concat -safe 0 -i lista_$L.txt -c copy mudo_$L.mp4
 TOT=$(ffprobe -v error -show_entries format=duration -of csv=p=0 mudo_$L.mp4)
 # --- sonido (banda.py): la musica de base + el sonido de cada animo bajo su tramo
-[[ -f banda.wav ]] || python3 $Y/videos_comportamientos/banda.py $TOT banda.wav
+[[ -f banda.wav ]] || python3 $Y/videos_comportamientos/banda.py $TOT banda.wav 15
 ffmpeg -v error -y -i mudo_$L.mp4 -i banda.wav -c:v copy -c:a aac -b:a 192k -shortest proceso_colores_animos_$L.mp4
 echo "$L: $TOT s"
