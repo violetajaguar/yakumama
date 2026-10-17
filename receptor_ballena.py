@@ -1070,7 +1070,7 @@ _sock_salida = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 def salida(d, dominant, comp, x, y, z, yaw, fuente):
     """lo que ELLA hace, cada cuadro, para la hermana fisica (TouchDesigner): UDP 9994 y BALLENA_SALIDA=host:puerto,..."""
     try:
-        col = MOOD_RGB.get(dominant, (0.5, 0.5, 0.5)); pk = {"animo": dominant, "fuente": fuente, "x": round(x, 3), "y": round(y, 3), "z": round(z, 3), "yaw": round(yaw, 3), "pitch": round(float(comp["pitch"]), 3), "roll": round(float(comp["roll"]), 3),
+        col = MOOD_RGB.get(dominant, (0.5, 0.5, 0.5)); pk = {"animo": dominant, "fuente": fuente, "x": round(x, 3), "y": round(y, 3), "z": round(z, 3), "yaw": round((yaw + math.pi) % (2 * math.pi) - math.pi, 3), "pitch": round(float(comp["pitch"]), 3), "roll": round(float(comp["roll"]), 3),
               "jaw": round(float(comp["jaw"]), 3), "fluke": round(float(comp["fluke"]), 3), "flap": round(float(comp["flap"]), 3), "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dominant, 1.0), "latido": round(float(LATIDO_ANIMO.get(dominant, 0.5)), 2),
               "blink": round(float(d.get("blink", 0) or 0), 2), "eye_yaw": round(float(d.get("eye_yaw", 0) or 0), 3), "eye_pitch": round(float(d.get("eye_pitch", 0) or 0), 3), "pulso": round(float(getattr(breathe, "_hr", 75.0)), 1), "t": round(time.time(), 3)}
         b = json.dumps(pk).encode()
