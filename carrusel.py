@@ -135,7 +135,7 @@ def matar_todo():
 def tocar(i):
     with estado["lock"]:
         it = ITEMS[i]; matar_todo(); time.sleep(0.2)
-        if it.get("voz"): cmd = [PY, os.path.join(AQUI, "voz_ballena.py"), it["ruta"], "--loop"]
+        if it.get("voz"): cmd = [PY, os.path.join(AQUI, "voz_ballena.py"), it["ruta"], "--loop", "--muda"]   # la voz humana no gusto: la melodia la mueve, el sonido es su propio canto
         elif it["toma"]: cmd = [PY, os.path.join(AQUI, "reproducir.py"), it["toma"], "--modo", "anclada", "--loop"]
         else: cmd = [PY, os.path.join(AQUI, "bailar.py"), it["ruta"], "--animo", it["animo"], "--loop"]
         ojos = toma_de_ojos(it["animo"]) if (not it["toma"] and it["animo"] in MOODS) else None   # los ojos de un performer en ese animo
@@ -143,8 +143,7 @@ def tocar(i):
         estado["proc"] = subprocess.Popen(cmd, cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["actual"] = i; estado["desde"] = time.time()
         if ojos: estado["proc_ojos"] = subprocess.Popen([PY, os.path.join(AQUI, "reproducir.py"), ojos, "--solo-ojos", "--loop"], cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["ojos"] = ojos
         else: estado["ojos"] = None
-        if it.get("voz"): sonar(None)
-        else: sonar(it["animo"])
+        sonar(it["animo"])
         print(f"  -> {it['grupo']} / {it['sub']} / {it['nombre']} ({it['animo']})", flush=True)
 def parar():
     with estado["lock"]: matar_todo(); estado["actual"] = None; estado["proc"] = None
