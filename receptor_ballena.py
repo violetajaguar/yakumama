@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17q ojos negros de verdad (compartian material con la lengua)"
+VERSION = "2026-10-17r coreografia en el espacio por animo + salida UDP 9994 para la hermana fisica"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -121,6 +121,7 @@ class BallenaProps(bpy.types.PropertyGroup):
     toma: bpy.props.EnumProperty(name="Toma", items=_tomas_items, description="Tramo grabado en datasets/ (cara + cuerpo)")
     modo_toma: bpy.props.EnumProperty(name="Modo", items=[("anclada", "Anclada", "cuerpo entero, sin viajar"), ("cuerpo", "Cuerpo", "cuerpo entero, viaja"), ("cara", "Solo cara", "cuerpo quieto"), ("fija", "Cara, cabeza fija", "solo boca, parpadeo y cejas")], default="anclada")
     loop_toma: bpy.props.BoolProperty(name="Repetir", default=False)
+    coreografia: bpy.props.BoolProperty(name="Coreografía en el espacio", default=True, description="cada animo tiene su camino en el espacio (acercarse, alejarse, dar vueltas, hundirse); apagado: se queda donde esta")
     actor_red: bpy.props.StringProperty(name="Estilo de", default="auto", description="auto = el actor al que mas se parece la visita (parecido del grabador); o un nombre: violeta, sanam, suri, dan; o promedio")
     comportamiento: bpy.props.EnumProperty(name="Comportamiento", default="auto", description="Posicion y movimiento del cuerpo, de las fotos de NOAA (referencias/noaa_comportamientos)", items=[
         ("auto", "Automático (ánimo)", "el animo viene del actor, los colores o el cerebro"),
@@ -287,6 +288,7 @@ class BALLENA_PT_panel(bpy.types.Panel):
 
         col.label(text="Mind")
         col.prop(p, "use_brain", toggle=True)
+        col.prop(p, "coreografia", toggle=True)
         col.separator()
 
         col.label(text="Color tint")
@@ -1027,6 +1029,37 @@ COMPORTAMIENTOS = {"calm": comp_calm, "singing": comp_singing, "playful": comp_p
 # la cola (turbina) gira distinto en cada animo: radianes por segundo, o "pulso" = una vuelta por latido del actor
 TURBINA_ANIMO = {"calm": 0.6, "sad": 0.25, "diving": 0.9, "surfacing": 1.8, "curious": 1.4, "feeding": 2.5, "alert": 3.0, "playful": 4.0, "angry": 7.0, "singing": "pulso"}
 LATIDO_ANIMO = {"calm": 0.1, "sad": 0.2, "singing": 0.3, "diving": 0.3, "surfacing": 0.5, "curious": 0.5, "alert": 0.8, "playful": 0.8, "feeding": 1.0, "angry": 1.0}
+# ============================================================
+# COREOGRAFIA EN EL ESPACIO (17 oct): como se mueve la digital por el espacio, por animo. La casa es donde estaba al
+# empezar; el visitante esta hacia -Y (la camara mira hacia +Y); yaw 0 = mirando a +Y (de espaldas al visitante), pi = de frente.
+# Cada funcion devuelve (x, y, z) objetivo respecto de la casa, el yaw deseado (None = hacia donde viaja) y la rapidez (0..1).
+# Unidades de Blender (la profundidad de los animos usa hasta 1.8). Con una visita conocida se acerca mas; con una desconocida guarda distancia.
+# ============================================================
+CERCA = {"conocida": 1.4, "nueva": 0.7, "nadie": 1.0}   # cuanto se acerca al visitante (multiplica el tramo hacia -Y)
+def coreo(dom, t, cerca=1.0):
+    pi = math.pi
+    if dom == "calm":      a = 2 * pi * t / 60; return (1.2 * math.sin(a), 0.6 * math.sin(2 * a), 0.0), None, 0.25                   # deriva lenta en elipse, 60 s
+    if dom == "singing":   return (0.0, 0.0, -0.5), (2 * pi * t / 40) % (2 * pi), 0.4                                                 # colgada en casa, una vuelta cada 40 s
+    if dom == "playful":   a = 2 * pi * t / 20; return (1.5 * math.sin(a), 0.9 * math.sin(2 * a), 0.0), None, 0.9                     # ocho, 20 s, rapida
+    if dom == "curious":   f = min(1.0, t / 10); return (0.0, -1.6 * cerca * f, 0.5), pi + 0.3 * math.sin(2 * pi * t / 14), 0.5       # se acerca en 10 s, mira de frente, gira despacio
+    if dom == "feeding":   a = 2 * pi * t / 12; return (1.3 * math.sin(a), 0.4 * (1 - math.cos(a)), 0.0), None, 0.8                   # embiste a traves de la casa y vuelve
+    if dom == "sad":       f = min(1.0, t / 30); return (0.3, 1.4 * f, -0.8 * f), 0.0, 0.2                                            # se aleja despacio, de espaldas, hundiendose
+    if dom == "angry":     a = (t % 8) / 8; return ((0.9 if a > 0.6 else 0.0) * (1 if int(t / 8) % 2 else -1), -1.4 * cerca * min(1, a / 0.6), 0.0), None, 1.0   # carga hacia el visitante y vira
+    if dom == "alert":     k = int(t / 2.4); return (0.0, 0.0, 0.0), pi + (0.6 if k % 3 == 1 else -0.6 if k % 3 == 2 else 0.0), 0.9   # quieta, la cara gira a saltos cada 2.4 s
+    if dom == "diving":    a = (t % 20) / 20; return (0.0, 1.5 * math.sin(pi * a), -1.6 * math.sin(pi * a)), 0.0, 0.7              # se aleja y baja, vuelve por abajo, 20 s
+    if dom == "surfacing": a = (t % 12) / 12; return (0.0, -0.8 * cerca * a, -1.0 + 2.0 * min(1, a / 0.5)), pi, 0.7                  # sube desde abajo hacia el visitante, 12 s
+    return (0.0, 0.0, 0.0), None, 0.3
+SALIDA = [("127.0.0.1", 9994)] + [(h, int(pt)) for e in os.environ.get("BALLENA_SALIDA", "").split(",") if ":" in e for h, pt in [e.rsplit(":", 1)]]
+_sock_salida = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def salida(d, dominant, comp, x, y, z, yaw, fuente):
+    """lo que ELLA hace, cada cuadro, para la hermana fisica (TouchDesigner): UDP 9994 y BALLENA_SALIDA=host:puerto,..."""
+    try:
+        col = MOOD_RGB.get(dominant, (0.5, 0.5, 0.5)); pk = {"animo": dominant, "fuente": fuente, "x": round(x, 3), "y": round(y, 3), "z": round(z, 3), "yaw": round(yaw, 3), "pitch": round(float(comp["pitch"]), 3), "roll": round(float(comp["roll"]), 3),
+              "jaw": round(float(comp["jaw"]), 3), "fluke": round(float(comp["fluke"]), 3), "flap": round(float(comp["flap"]), 3), "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dominant, 1.0), "latido": round(float(LATIDO_ANIMO.get(dominant, 0.5)), 2),
+              "blink": round(float(d.get("blink", 0) or 0), 2), "eye_yaw": round(float(d.get("eye_yaw", 0) or 0), 3), "eye_pitch": round(float(d.get("eye_pitch", 0) or 0), 3), "pulso": round(float(getattr(breathe, "_hr", 75.0)), 1), "t": round(time.time(), 3)}
+        b = json.dumps(pk).encode()
+        for h, pt in SALIDA: _sock_salida.sendto(b, (h, pt))
+    except Exception: pass
 COMP_CERO = dict(pitch=0.0, roll=0.0, yaw=0.0, head=0.0, spine=[0.0] * 6, fluke=0.0, flap=0.0, ladeo=0.0, jaw=0.0, cara=(0.0, 0.0, 0.0, 0.0), mirada=(0.0, 0.0), spin=0.0, depth=0.0)
 def comportamiento(t, dom, sec, w_dom=0.8):
     a = COMPORTAMIENTOS.get(dom, comp_calm)(t); b = COMPORTAMIENTOS.get(sec, comp_calm)(t); w = 1.0 - w_dom
@@ -1446,10 +1479,26 @@ def breathe():
         breathe._auto_y *= 0.998
 
     depth_y = 0.0 if quieta else -m.get("diving",0) * 0.2 + m.get("surfacing",0) * 0.15
+    # COREOGRAFIA: cada animo tiene su camino (coreo); la ballena va hacia el objetivo con la rapidez del animo y mira hacia donde va o hacia el visitante
+    try: coreo_on = bool(bpy.context.scene.ballena.coreografia) and int(d.get('espacio', 1)) == 1 and not solo_cara
+    except Exception: coreo_on = False
+    if coreo_on:
+        if getattr(breathe, "_coreo_dom", None) != dominant: breathe._coreo_dom = dominant; breathe._coreo_t0 = t
+        cerca = CERCA["conocida" if d.get('conocida') else ("nueva" if d.get('visita') else "nadie")]
+        (tx, ty, tz), yaw_obj, rap = coreo(dominant, t - breathe._coreo_t0, cerca); k = 0.004 + 0.03 * rap
+        breathe._auto_x += (tx - breathe._auto_x) * k; breathe._auto_y += (ty - breathe._auto_y) * k
+        breathe._coreo_z = getattr(breathe, "_coreo_z", 0.0) + (tz - getattr(breathe, "_coreo_z", 0.0)) * k
+        if yaw_obj is None:
+            dx, dy = tx - breathe._auto_x, ty - breathe._auto_y
+            yaw_obj = math.atan2(dx, dy) if (dx * dx + dy * dy) > 0.01 else breathe._wy
+        dyaw = (yaw_obj - breathe._wy + math.pi) % (2 * math.pi) - math.pi; breathe._wy += dyaw * (0.02 + 0.06 * rap)
+        final_z_extra = breathe._coreo_z
+    else: final_z_extra = 0.0
     final_x = hx + breathe._auto_x
     final_y = hy + depth_y + breathe._auto_y
-    final_z = hz + breathe._wz + (auto_z if water > 0.5 else 0) + comp["depth"]   # diving baja, surfacing y curious suben
+    final_z = hz + breathe._wz + (auto_z if water > 0.5 else 0) + comp["depth"] + final_z_extra   # diving baja, surfacing y curious suben
     loc('root', sm('bfx',final_x,0.03), sm('bfy',final_y,0.03), sm('bfz',final_z,0.03))
+    salida(d, dominant, comp, final_x, final_y, final_z, breathe._wy, "actor" if d.get('actor_animo') else "escena")
 
     # TURBINE
     if jbtn == 1 and prev_btn == 0: turbine_active = not turbine_active
