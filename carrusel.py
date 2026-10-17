@@ -132,14 +132,24 @@ def traducir(poema):
         if "</think>" in t: t = t.split("</think>")[-1].strip()
         return t
     except Exception: return None
+HUK = os.path.expanduser("~/Desktop/Huk"); PY_DATOS = os.path.join(AQUI, "venv_datos", "bin", "python")
+def voz_ella(texto, salida, lengua):
+    """su voz (Kokoro local, Huk/voz_ella.py): suave, con aire, lenta; en ingles, o en su lengua inventada."""
+    subprocess.run([PY_DATOS, os.path.join(HUK, "voz_ella.py"), texto, salida, "--lengua", lengua], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180); return salida if os.path.exists(salida) else None
 def leer_poema():
-    """lee en voz alta el ultimo poema: en castellano (Paulina) y despues en ingles (Samantha), uno tras otro."""
+    """lee el ultimo poema tres veces: castellano (Paulina), ingles (su voz suave) y su LENGUA inventada (lengua.py, su voz)."""
     try:
-        import json as _j; poemas = _j.load(open(os.path.expanduser("~/Desktop/Huk/yakumama_poemas.json"))); es = poemas[-1]; en = traducir(es)
+        import json as _j, sys as _s; poemas = _j.load(open(os.path.join(HUK, "yakumama_poemas.json"))); es = poemas[-1]; en = traducir(es)
+        _s.path.insert(0, HUK); import lengua as _L; ella = _L.traducir(es)
         def _leer():
+            d = os.path.join(HUK, "poemas_voz"); os.makedirs(d, exist_ok=True)
             subprocess.run(["say", "-v", "Paulina", "-r", "135", es.replace("\n", " ... ")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if en: time.sleep(0.8); subprocess.run(["say", "-v", "Samantha", "-r", "150", en.replace("\n", " ... ")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        threading.Thread(target=_leer, daemon=True).start(); return {"es": es, "en": en}
+            if en:
+                w = voz_ella(en.replace("\n", ". "), os.path.join(d, "poema_en.wav"), "en")
+                if w: time.sleep(0.6); subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            w = voz_ella(ella.replace("\n", ". "), os.path.join(d, "poema_ella.wav"), "ella")
+            if w: time.sleep(0.6); subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        threading.Thread(target=_leer, daemon=True).start(); return {"es": es, "en": en, "ella": ella}
     except Exception as e: return str(e)
 def matar_todo():
     for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
