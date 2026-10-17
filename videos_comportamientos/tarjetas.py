@@ -28,7 +28,7 @@ def columnas(nombre, en, es, titulo=None, tam=50, y0=None, regla=True):
     for i, l in enumerate(L): d.text((xl + ancho - d.textlength(l, font=fen), y + i * int(tam * 1.35)), l, font=fen, fill=C)      # ingles alineado a la derecha, hacia la regla
     for i, l in enumerate(R): d.text((xr, y + i * int(tam * 1.35)), l, font=fes, fill=CS)                                        # castellano alineado a la izquierda
     if L or R:   # panel oscuro difuminado detras del texto, para que se lea sobre cualquier fondo
-        panel = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0)); pd = ImageDraw.Draw(panel); pd.rounded_rectangle([110, y - 60, 1810, y + alto + 50], radius=40, fill=(0, 0, 0, 135)); panel = panel.filter(ImageFilter.GaussianBlur(28))
+        panel = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0)); pd = ImageDraw.Draw(panel); pd.rounded_rectangle([110, y - 60, 1810, y + alto + 50], radius=40, fill=(0, 0, 0, 175)); panel = panel.filter(ImageFilter.GaussianBlur(28))
         fondo = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0)); fondo.alpha_composite(panel); fondo.alpha_composite(im); im = fondo; d = ImageDraw.Draw(im)
     if regla and (L or R): d.line([(960, y - 10), (960, y + alto + 4)], fill=(236, 230, 218, 120), width=2)
     sombra(im).save(f"{CARP}/{nombre}.png")
