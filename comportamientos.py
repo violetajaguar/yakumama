@@ -12,13 +12,14 @@ turbina (rad/s), latido (0..1).
     venv/bin/python comportamientos.py --exportar DIR  -> DIR/<animo>.csv + DIR/comportamientos.json (40 s a 30/s)
 """
 import os, re, sys, json, math, argparse, numpy as np
+AQUI_R = os.path.dirname(os.path.abspath(__file__))
 AQUI = os.path.dirname(os.path.abspath(__file__))
 MOODS = ["calm", "singing", "playful", "curious", "feeding", "sad", "angry", "alert", "diving", "surfacing"]
 def cargar():
     """exec del tramo de receptor_ballena.py que define _onda .. COMPORTAMIENTOS (sin bpy)."""
     src = open(os.path.join(AQUI, "receptor_ballena.py"), encoding="utf-8").read()
-    a = src.index("def _onda("); b = src.index("COMP_CERO = ")
-    ns = {"math": math}; exec(src[a:b], ns)
+    a = src.index("def _onda("); b = src.index("# ====", src.index("LATIDO_ANIMO = "))   # hasta antes del bloque de coreografia
+    ns = {"math": math, "os": os, "json": json, "np": np, "sys": sys, "__file__": os.path.join(AQUI_R, "receptor_ballena.py")}; exec(src[a:b], ns)
     extra = {}
     for k in ("TURBINA_ANIMO", "LATIDO_ANIMO", "MOOD_RGB", "PLAYFUL_VUELTAS"):
         m = re.search(r"^%s\s*=\s*(\{.*?\}|\d+)" % k, src, re.S | re.M)
