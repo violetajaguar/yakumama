@@ -18,7 +18,9 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 EMO = {1: "feelhappy", 2: "feelsad", 3: "feelsurprised", 4: "feelangry", 5: None, 6: "feelfearful", 7: "feelneutral"}
 NOMBRES = ["nose", "eye_l", "eye_r", "ear_l", "ear_r", "shoulder_l", "shoulder_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "hip_l", "hip_r", "knee_l", "knee_r", "ankle_l", "ankle_r", "head", "neck", "pelvis", "bigtoe_l", "bigtoe_r", "smalltoe_l", "smalltoe_r", "heel_l", "heel_r"]
 MAPA = {"nose": "Head", "head": "Head", "neck": "Neck", "pelvis": "Hips", "shoulder_l": "LeftArm", "shoulder_r": "RightArm", "elbow_l": "LeftForeArm", "elbow_r": "RightForeArm", "wrist_l": "LeftHand", "wrist_r": "RightHand",
-        "hip_l": "LeftUpLeg", "hip_r": "RightUpLeg", "knee_l": "LeftLeg", "knee_r": "RightLeg", "ankle_l": "LeftFoot", "ankle_r": "RightFoot", "heel_l": "LeftFoot", "heel_r": "RightFoot"}
+        # en estos csv las piernas tienen izquierda/derecha al reves que los brazos (LeftArm en -x, LeftUpLeg en +x): se cruzan
+        # las piernas para que caderas y hombros miren al mismo lado, si no el torso parece torcido 180 grados
+        "hip_l": "RightUpLeg", "hip_r": "LeftUpLeg", "knee_l": "RightLeg", "knee_r": "LeftLeg", "ankle_l": "RightFoot", "ankle_r": "LeftFoot", "heel_l": "RightFoot", "heel_r": "LeftFoot"}
 def leer(ruta):
     with open(ruta) as fh:
         r = csv.reader(fh); cab = next(r); filas = [[float(x) for x in f] for f in r if f]
