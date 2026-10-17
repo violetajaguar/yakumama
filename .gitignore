@@ -5,3 +5,4 @@ __pycache__/
 videos_comportamientos/*.mp4
 videos_comportamientos/**/*.mp4
 modelos/jepa_datos.npz
+venv_datos/
