@@ -110,9 +110,27 @@ def toma_de_ojos(animo):
     """una toma grabada de ese animo (Sanam, Dan, Suri o Violeta), para que los ojos sean los de una persona en esa emocion."""
     tomas = [os.path.basename(f)[:-6] for f in glob.glob(os.path.join(AQUI, "datasets", "cara", f"{animo}_*.jsonl")) if not any(x in f for x in ("beat", "ravdess", "llama"))]
     return random.choice(tomas) if tomas else None
+# --- musica de base: un wav en bucle, bajito (hoy Bjork - Frosti, de prueba; despues quenas de Bolivia). /musica?on=1|0
+BASE_DIR = os.path.join(SONIDOS, "base"); _base = {"on": False, "p": None, "vol": 0.3}
+def base_archivo():
+    fs = sorted(glob.glob(os.path.join(BASE_DIR, "*.wav")) + glob.glob(os.path.join(BASE_DIR, "*.mp3"))); return fs[0] if fs else None
+def hilo_base():
+    while True:
+        time.sleep(0.5)
+        if _base["on"] and (_base["p"] is None or _base["p"].poll() is not None):
+            f = base_archivo()
+            if f: _base["p"] = subprocess.Popen(["afplay", "-v", str(_base["vol"]), f], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if not _base["on"] and _base["p"] is not None: _base["p"].terminate(); _base["p"] = None
+threading.Thread(target=hilo_base, daemon=True).start()
+def leer_poema():
+    """lee en voz alta el ultimo poema de la ventana (voz Monica del sistema), para oirlo."""
+    try:
+        import json as _j; poemas = _j.load(open(os.path.expanduser("~/Desktop/Huk/yakumama_poemas.json"))); txt = poemas[-1].replace("\n", " ... ")
+        subprocess.Popen(["say", "-v", "Mónica", "-r", "140", txt], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return poemas[-1]
+    except Exception as e: return str(e)
 def matar_todo():
     for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
-    subprocess.run(["pkill", "-x", "afplay"], capture_output=True)
+    if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
 def tocar(i):
     with estado["lock"]:
@@ -149,6 +167,7 @@ details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px
 <h1>Yakumama · un cuerpo a la vez</h1><div id=ahora>—</div><div id=ella></div><div id=emo></div>
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
 <button id=autov onclick="fetch('/auto?on='+(document.getElementById('autov').classList.contains('on')?0:1)+'&grupo=canto').then(tick)">carrusel de voces humanas</button>
+<button id=musica onclick="fetch('/musica?on='+(document.getElementById('musica').classList.contains('on')?0:1)).then(tick)">música de base</button><button onclick="fetch('/poema')">leer el último poema</button>
 <label>segundos <input id=seg type=number value=40 min=5 onchange="fetch('/seg?s='+this.value)"></label><button onclick="fetch('/parar').then(tick)">parar</button></div>
 <div id=lista></div>
 <script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#555a70',angry:'#f21410',alert:'#1ae640',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
@@ -160,7 +179,7 @@ let h='';for(const [grupo,subs] of Object.entries(g)){const n=Object.values(subs
   h+='<details class=s><summary>'+sub+' <span>'+v.length+'</span></summary><div class=grupo>'+v.map(boton).join('')+'</div></details>'}
  h+='</details>'}document.getElementById('lista').innerHTML=h}
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
-document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');const it=s.actual!=null?items[s.actual]:null;
+document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');document.getElementById('musica').classList.toggle('on',!!s.musica);const it=s.actual!=null?items[s.actual]:null;
 document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')+(s.ojos?'  ·  ojos de '+s.ojos:'')):'nada suena';
 const w=s.ballena;document.getElementById('ella').innerHTML=w&&w.viva?('ella siente <i class=c style="background:'+(C[w.animo]||'#777')+'"></i><b>'+(w.animo_es||'—')+'</b> · pulso <b>'+Math.round(w.pulso||0)+'</b> lpm · tempo ×'+w.tempo+' · energía '+w.energia+' · tensión '+w.tension+' · latido '+w.latido+(w.cara?' · con cara':'')+' · '+w.fps+' fps'):'Blender no responde';
 const e=s.emotibit;document.getElementById('emo').innerHTML=e?('EmotiBit de la toma: pulso <b>'+e.hr+'</b> lpm → tempo <b>×'+e.tempo+'</b>, energía <b>'+e.energia+'</b> · piel <b>'+e.eda+'</b> µS → tensión <b>'+e.tension+'</b> · temperatura '+e.temp+' °C · '+e.t+' / '+e.dur+' s'):(it&&it.grupo!='performers'?'sin EmotiBit (el pulso lo pone la energía del cuerpo)':'');}
@@ -173,7 +192,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         if u.path == "/": b = HTML.encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         elif u.path == "/items": self._json([{k: v for k, v in it.items() if k not in ("ruta",)} for it in ITEMS])
-        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
+        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "musica": _base["on"], "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
         elif u.path == "/tocar": estado["auto"] = False; tocar(int(q["i"][0])); self._json({"ok": 1})
         elif u.path == "/auto":
             estado["auto"] = q.get("on", ["1"])[0] == "1"; estado["grupo"] = q.get("grupo", [estado.get("grupo", "animos")])[0]
@@ -181,6 +200,8 @@ class H(BaseHTTPRequestHandler):
             self._json({"ok": 1})
         elif u.path == "/seg": estado["seg"] = max(5, int(float(q["s"][0]))); self._json({"ok": 1})
         elif u.path == "/parar": estado["auto"] = False; parar(); self._json({"ok": 1})
+        elif u.path == "/musica": _base["on"] = q.get("on", ["1"])[0] == "1"; self._json({"ok": 1, "archivo": os.path.basename(base_archivo() or "")})
+        elif u.path == "/poema": self._json({"poema": leer_poema()})
         else: self.send_response(404); self.end_headers()
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--auto", type=float, default=0); ap.add_argument("--puerto", type=int, default=8766); ap.add_argument("--sin-navegador", action="store_true"); a = ap.parse_args()
