@@ -281,3 +281,23 @@ her live) and the ten scripted behaviours do not depend on any of this.
 "repeat the last frame" for the first time (0.192 vs 0.198) and ties at 32 s (0.196 vs 0.194); at 2–4 s it still loses.
 The mood still changes the plan by only 0.034 and the planner's choice of action is still unstable. Same conclusion: the
 next step is a loss that separates the latent by mood, not more hours.
+
+## 9. 17 October, 11:40 — the seventh cycle, with the performers' bodies and the mood probe
+
+Violeta and Dan recorded all ten moods head to toe (23 takes, ~27 min, face + body + EmotiBit together: the first bridge
+between a face and a body). Every frame now also stores the full 26-point skeleton. `hjepa_entrenar.py` gained a mood
+**probe** at both levels (a linear read of the mood from the latent, trained only on labelled windows) that pulls the
+latent apart by mood. Results on tracks never seen:
+
+- **The body alone, four seconds of it, tells the mood 58 % of the time** (chance 10 %): singing 87 %, playful 68 %,
+  sad 67 %, diving 62 %, calm 61 %, angry 55 %, alert 54 %, feeding 45 %, curious 43 %, surfacing 0 % (only 12 min of it).
+  This is the answer to "can she discover what sadness looks like": she can, from these sources, two times out of three.
+- **The planner chooses diving for a diving goal 64 times out of 64** (it was 2 two nights ago). Surfacing and playful
+  still fall to "free": too few labelled hours (0.2 h and 3 h).
+- The whale's depth 32 s ahead correlates 0.45 with the real tag (it was ≈ 0 before the probe); at 16 s she beats
+  "repeat the last frame" (0.189 vs 0.198); at 2–4 s she still loses.
+- Face mood recogniser retrained: 66 % within a session, 34 % on an unseen person (was 37 %: the new takes are harder,
+  full-body distance). Resemblance 97 % for Violeta.
+
+Next, in order: more surfacing (the one mood with almost no body), Sanam and Suri head to toe, and a probe-guided plan in
+the receiver so her own initiative uses it.
