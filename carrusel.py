@@ -95,9 +95,9 @@ SONIDOS = os.path.expanduser("~/Desktop/Huk/whale sound"); _afplay = {"p": None}
 def sonar(animo):
     """el sonido del animo, fuera de Blender (afplay), al arrancar un cuerpo; se corta al cambiar."""
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
-    if not animo or animo == "singing": return   # canto: sin sonido, solo el movimiento (Violeta, 17 oct)
-    w = os.path.join(SONIDOS, f"{animo}.wav")
-    if os.path.exists(w): _afplay["p"] = subprocess.Popen(["afplay", "-v", "0.5", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if not animo: return
+    w = os.path.join(SONIDOS, f"{animo}.wav"); vol = "1.0" if animo == "singing" else "0.5"   # el canto, fuerte, para oirlo (Violeta, 17 oct)
+    if os.path.exists(w): _afplay["p"] = subprocess.Popen(["afplay", "-v", vol, w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 def ballena_ahora():
     """lo que la ballena siente ahora mismo, del heartbeat del receptor (/tmp/ballena_receptor.json)."""
     try:
