@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17n diez colores sin repetir: alerta verde"
+VERSION = "2026-10-17o dientes de oro y lengua azul, fijos"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -851,6 +851,35 @@ def read_controls():
                 p.music_volume, p.sound_volume)
     except: return 1.0, 0.0, 0.3, 0.0, 0.0, 0.0, False, 0.0, 0.0, 0.25, 0.7
 
+ORO = (0.85, 0.65, 0.18, 1.0); AZUL = (0.08, 0.22, 0.95, 1.0)
+def _fijar_color(obj, rgba, nombre_mat):
+    """un objeto (dientes, lengua) con su propio material y un color fijo, que el tinte del animo no toca."""
+    try: obj.color = rgba
+    except Exception: pass
+    for slot in obj.material_slots:
+        mat = slot.material
+        if not mat: continue
+        if whale_mesh and any(sl.material == mat for sl in whale_mesh.material_slots):   # comparte material con el cuerpo: copia propia
+            mat = mat.copy(); mat.name = nombre_mat; slot.material = mat
+        try: mat.diffuse_color = rgba
+        except Exception: pass
+        if mat.use_nodes:
+            for node in mat.node_tree.nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    bc = node.inputs.get("Base Color")
+                    if bc is not None: bc.default_value = rgba
+                    m = node.inputs.get("Metallic")
+                    if m is not None and nombre_mat == "dientes_oro": m.default_value = 1.0
+                    break
+def fijar_dientes_y_lengua():
+    """dientes siempre de oro, lengua siempre azul (Violeta, 17 oct)."""
+    for o in bpy.data.objects:
+        n = o.name.lower()
+        if o.type != 'MESH': continue
+        if n.startswith("dientes"): _fijar_color(o, ORO, "dientes_oro")
+        elif n.startswith("lengua"): _fijar_color(o, AZUL, "lengua_azul")
+try: fijar_dientes_y_lengua(); print("  dientes de oro, lengua azul (colores fijos)")
+except Exception as e: print("  (dientes/lengua:", e, ")")
 def tint_body(target_rgb, lerp_amount):
     if not whale_mesh: return
     try:   # color de objeto (sombreado Solido en modo Objeto) tambien, para que se vea en cualquier vista

@@ -41,6 +41,7 @@ print(f"   {nombre}: {dur:.1f} s | fuerza media {fz.mean():.2f} | altura ±{np.a
 if a.seco: sys.exit(0)
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); espejos = [(h, int(p)) for h, p in (e.rsplit(":", 1) for e in a.espejo)]
 jaw = 0.0; head = 0.0; yaw = 0.0; en = 0.0
+import random; proximo_parpadeo = 2.0 + random.random() * 3.0; parpadeo_hasta = -1.0   # parpadea cada 2-5 s, 0.15 s cerrado
 try:
     while True:
         rep = subprocess.Popen(["afplay", "-v", str(a.volumen), a.wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); t0 = time.time()
@@ -48,7 +49,9 @@ try:
             jaw = 0.75 * jaw + 0.25 * float(fz[i]); en = 0.9 * en + 0.1 * float(fz[i])
             head = 0.85 * head + 0.15 * float(np.clip(semi[i] / 8.0, -1, 1)) * 0.6                  # una octava arriba = cabeza 0.6 arriba
             yaw = 0.95 * yaw + 0.05 * float(np.clip((semi[min(n - 1, i + 3)] - semi[max(0, i - 3)]) / 4.0, -1, 1))   # hacia donde va la melodia
-            pkt = {"actor_animo": "singing", "anclada": 1, "red": 1, "water": 0.8, "jaw_open": round(min(1.0, 1.2 * jaw), 3), "blink": 0.0, "head_pitch": round(head, 3), "head_yaw": round(0.3 * yaw, 3),
+            tt = time.time() - t0
+            if tt >= proximo_parpadeo: parpadeo_hasta = tt + 0.15; proximo_parpadeo = tt + 2.0 + random.random() * 3.0
+            pkt = {"actor_animo": "singing", "anclada": 1, "red": 1, "water": 0.8, "jaw_open": round(min(1.0, 1.2 * jaw), 3), "blink": 1.0 if tt < parpadeo_hasta else 0.0, "head_pitch": round(head, 3), "head_yaw": round(0.3 * yaw, 3),
                    "cuerpo_pitch": -0.4, "cuerpo_yaw": round(0.5 * yaw, 3), "cuerpo_energia": round(0.2 + 0.6 * en, 3), "cuerpo_suavidad": 0.9, "emotibit_hr": round(60 + 50 * en, 1), "bailarin": "voz:" + nombre, "soltar_manual": 1 if i < 30 else 0}
             d = json.dumps(pkt).encode(); s.sendto(d, ("127.0.0.1", a.puerto))
             for h, p in espejos: s.sendto(d, (h, p))
