@@ -91,6 +91,13 @@ def sonar(animo):
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
     w = os.path.join(SONIDOS, f"{animo}.wav")
     if os.path.exists(w): _afplay["p"] = subprocess.Popen(["afplay", "-v", "0.5", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def ballena_ahora():
+    """lo que la ballena siente ahora mismo, del heartbeat del receptor (/tmp/ballena_receptor.json)."""
+    try:
+        d = json.load(open("/tmp/ballena_receptor.json"))
+        if time.time() - d.get("t", 0) > 5: return {"viva": False}
+        return {"viva": True, "animo": d.get("dominante"), "animo_es": ES.get(d.get("dominante"), d.get("dominante")), "pulso": d.get("pulso"), "tempo": d.get("tempo"), "energia": d.get("energia"), "tension": d.get("tension"), "latido": d.get("latido"), "color": d.get("color"), "fps": d.get("fps"), "cara": d.get("cara")}
+    except Exception: return {"viva": False}
 def matar_todo():
     for pat in ("bailar.py", "generar_animo.py", "reproducir.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
@@ -113,17 +120,17 @@ def hilo_auto():
             tocar(orden[(orden.index(i) + 1) % len(orden)] if i in orden else orden[0])
 HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Yakumama · carrusel</title>
 <style>body{margin:0;background:#0b0b0e;color:#e8e2d6;font:15px/1.4 -apple-system,Helvetica,sans-serif;padding:18px 20px;max-width:1100px}h1{font:300 26px Georgia,serif;margin:0 0 6px}
-#ahora{font:italic 20px Georgia,serif;margin:6px 0 10px;min-height:1.4em}#emo{font:14px -apple-system;opacity:.85;min-height:1.4em;margin-bottom:14px}#emo b{font-weight:600}
+#ahora{font:italic 20px Georgia,serif;margin:6px 0 10px;min-height:1.4em}#ella{font:16px Georgia,serif;margin:4px 0 6px;min-height:1.4em}#ella i.c{width:1em;height:1em}#ella b{font-weight:600}#emo{font:14px -apple-system;opacity:.85;min-height:1.4em;margin-bottom:14px}#emo b{font-weight:600}
 .barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}button{background:#1b1b22;color:#e8e2d6;border:1px solid #333;border-radius:8px;padding:8px 12px;font:14px -apple-system;cursor:pointer}
 button:hover{border-color:#777}button.on{background:#e8e2d6;color:#0b0b0e}input,select{background:#1b1b22;color:#e8e2d6;border:1px solid #333;border-radius:6px;padding:7px;font:14px -apple-system}input{width:60px}select{min-width:220px}
 h2{font:400 12px -apple-system;letter-spacing:.12em;text-transform:uppercase;opacity:.5;margin:18px 0 8px}.grupo{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px 0;padding:4px 12px}details.g>summary{font:400 13px -apple-system;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;padding:8px 0;opacity:.85}details.s{margin:6px 0 6px 10px;padding:2px 10px;border-left:2px solid #2a2a33}details.s>summary{cursor:pointer;padding:6px 0;opacity:.8}summary span{opacity:.45;font-size:12px;margin-left:.5em}.grupo{padding:6px 0 10px}
 .c{display:inline-block;width:.8em;height:.8em;border-radius:50%;vertical-align:middle;margin-right:.4em}</style></head><body>
-<h1>Yakumama · un cuerpo a la vez</h1><div id=ahora>—</div><div id=emo></div>
+<h1>Yakumama · un cuerpo a la vez</h1><div id=ahora>—</div><div id=ella></div><div id=emo></div>
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
 <label>segundos <input id=seg type=number value=40 min=5 onchange="fetch('/seg?s='+this.value)"></label><button onclick="fetch('/parar').then(tick)">parar</button></div>
 <div id=lista></div>
-<script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff7300',curious:'#ffd900',feeding:'#33c04d',sad:'#555a70',angry:'#f21410',alert:'#ff4da6',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
+<script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff4d00',curious:'#ffd900',feeding:'#33c04d',sad:'#555a70',angry:'#f21410',alert:'#ff4da6',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
 let items=[];function toca(i){fetch('/tocar?i='+i).then(tick)}
 function boton(i){return '<button id=b'+i.id+' onclick="toca('+i.id+')"><i class=c style="background:'+(C[i.animo]||'#777')+'"></i>'+i.nombre+'</button>'}
 async function carga(){items=await (await fetch('/items')).json();const g={};items.forEach(i=>{(g[i.grupo]=g[i.grupo]||{});(g[i.grupo][i.sub]=g[i.grupo][i.sub]||[]).push(i)});
@@ -134,6 +141,7 @@ let h='';for(const [grupo,subs] of Object.entries(g)){const n=Object.values(subs
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
 document.getElementById('auto').classList.toggle('on',s.auto);const it=s.actual!=null?items[s.actual]:null;
 document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')):'nada suena';
+const w=s.ballena;document.getElementById('ella').innerHTML=w&&w.viva?('ella siente <i class=c style="background:'+(C[w.animo]||'#777')+'"></i><b>'+(w.animo_es||'—')+'</b> · pulso <b>'+Math.round(w.pulso||0)+'</b> lpm · tempo ×'+w.tempo+' · energía '+w.energia+' · tensión '+w.tension+' · latido '+w.latido+(w.cara?' · con cara':'')+' · '+w.fps+' fps'):'Blender no responde';
 const e=s.emotibit;document.getElementById('emo').innerHTML=e?('EmotiBit de la toma: pulso <b>'+e.hr+'</b> lpm → tempo <b>×'+e.tempo+'</b>, energía <b>'+e.energia+'</b> · piel <b>'+e.eda+'</b> µS → tensión <b>'+e.tension+'</b> · temperatura '+e.temp+' °C · '+e.t+' / '+e.dur+' s'):(it&&it.grupo!='performers'?'sin EmotiBit (el pulso lo pone la energía del cuerpo)':'');}
 carga().then(tick);setInterval(tick,1000)</script></body></html>"""
 class H(BaseHTTPRequestHandler):
@@ -144,7 +152,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         if u.path == "/": b = HTML.encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         elif u.path == "/items": self._json([{k: v for k, v in it.items() if k != "ruta"} for it in ITEMS])
-        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora()})
+        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
         elif u.path == "/tocar": estado["auto"] = False; tocar(int(q["i"][0])); self._json({"ok": 1})
         elif u.path == "/auto": estado["auto"] = q.get("on", ["1"])[0] == "1"; self._json({"ok": 1})
         elif u.path == "/seg": estado["seg"] = max(5, int(float(q["s"][0]))); self._json({"ok": 1})

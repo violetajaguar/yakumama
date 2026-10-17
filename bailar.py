@@ -82,6 +82,7 @@ _torso = [J[k] for k in ("pelvis", "neck", "shoulder_l", "shoulder_r", "hip_l", 
 _v = np.nan_to_num(np.diff(B[:, _torso, :], axis=0) * fps); _F = np.abs(np.fft.rfft(_v - _v.mean(0), axis=0)) ** 2; _f = np.fft.rfftfreq(len(_v), 1 / fps)
 hf = float(_F[_f > 3].sum() / max(1e-9, _F[1:].sum())); suavidad = float(np.clip(1 - (hf - 0.08) / 0.3, 0, 1))
 alpha = 0.3 - 0.2 * suavidad   # cuanto mas suave la bailarina, mas redondas las transiciones de la ballena
+if "origen" in z.files: alpha = 0.08   # cuerpos sacados de video o reconstruidos (apneistas, ballet, jazz, nado, emociones): tiemblan, se alisan mas
 def animo_de(en): return "calm" if en < 0.15 else ("curious" if en < 0.45 else "playful")
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); espejos = []
 for esp in a.espejo:
