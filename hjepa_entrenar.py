@@ -63,6 +63,7 @@ for i, p in enumerate(pistas):
 for k, idxs in vistos.items():
     if k[0] in ("yakumama", "beat", "llama") and len(idxs) > 1: fuera.add(idxs[-1])
 bail = [i for i, p in enumerate(pistas) if p["fuente"] == "bailarin"]; fuera.update(bail[::8])
+vid = [i for i, p in enumerate(pistas) if p["fuente"] == "video"]; fuera.update(vid[::8])   # tambien 1 de cada 8 pistas de video (danzas, nados, emociones): si no, sus numeros no se miden
 Xn = [np.where(p["M"], (p["X"] - media) / desvio, 0.0).astype(np.float32) for p in pistas]; Mf = [p["M"].astype(np.float32) for p in pistas]
 ACC = np.array([p["accion"] for p in pistas]); horas = sum(len(x) for x in Xn) / FPS / 3600
 print("horas con animo: " + ", ".join(f"{ACCIONES[k]} {sum(len(p['X']) for p in pistas if p['accion'] == k) / FPS / 3600:.2f}" for k in range(NA) if any(p['accion'] == k for p in pistas)))
