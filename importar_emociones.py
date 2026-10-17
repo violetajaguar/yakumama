@@ -40,4 +40,26 @@ def importar(carpeta):
         np.savez_compressed(os.path.join(sal, f"{pref}_{int(per):02d}_{blo}_{int(ens):02d}.npz"), body=B.astype(np.float32), joint_names=np.array(NOMBRES), fps=30.0, origen="emotional_body_motion", archivo=os.path.basename(f))
         n += 1; por[pref] = por.get(pref, 0) + 1
     print(f"importados {n} ensayos de 5 s ({n * 5 / 60:.0f} min): " + ", ".join(f"{k} {v}" for k, v in sorted(por.items())))
-if __name__ == "__main__": importar(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/Desktop/emociones_cuerpo/ebm"))
+# --- BERD (Zenodo 15232882, CC BY 4.0, Cho, Jung, Bae & Kim 2024): el mismo tipo de dato, 23 personas (actores y no actores),
+# 7 emociones, ~30 ensayos de 5 s a 30 cuadros/s, capturado a la vez con cuatro aparatos. Se usa solo device/mocap (OptiTrack,
+# el mejor): 16 puntos sin nombre, orden deducido de las posiciones medias (pelvis en el origen, y arriba, lado en z):
+# 0 pelvis, 1 columna, 2 cuello, 3 cabeza, 4-5-6 hombro/codo/mano A, 7-8-9 hombro/codo/mano B, 10-11-12 cadera/rodilla/pie A, 13-14-15 B.
+BERD_MAPA = {"pelvis": 0, "neck": 2, "head": 3, "nose": 3, "shoulder_l": 4, "elbow_l": 5, "wrist_l": 6, "shoulder_r": 7, "elbow_r": 8, "wrist_r": 9, "hip_l": 10, "knee_l": 11, "ankle_l": 12, "heel_l": 12, "hip_r": 13, "knee_r": 14, "ankle_r": 15, "heel_r": 15}
+def importar_berd(carpeta):
+    sal = os.path.join(AQUI, "datasets", "cuerpo_video"); os.makedirs(sal, exist_ok=True); n = 0; por = {}
+    for f in sorted(glob.glob(os.path.join(carpeta, "device", "mocap", "*.csv"))):
+        per, emo, ens = os.path.basename(f)[:-4].split("_"); pref = EMO.get(int(emo))
+        if not pref: continue
+        with open(f) as fh:
+            r = csv.reader(fh); next(r); A = np.array([[float(x) for x in row[1:]] for row in r if row])
+        if A.shape[1] != 48 or len(A) < 30: continue
+        P = A.reshape(len(A), 16, 3)[:, :, [0, 2, 1]] * np.array([1, -1, 1])   # y arriba -> z arriba
+        B = np.full((len(P), len(NOMBRES), 3), np.nan)
+        for k, nombre in enumerate(NOMBRES):
+            if nombre in BERD_MAPA: B[:, k] = P[:, BERD_MAPA[nombre]]
+        np.savez_compressed(os.path.join(sal, f"{pref}_b{int(per):02d}_1_{int(ens):02d}.npz"), body=B.astype(np.float32), joint_names=np.array(NOMBRES), fps=30.0, origen="berd", archivo=os.path.basename(f))
+        n += 1; por[pref] = por.get(pref, 0) + 1
+    print(f"BERD: importados {n} ensayos de 5 s ({n * 5 / 60:.0f} min): " + ", ".join(f"{k} {v}" for k, v in sorted(por.items())))
+if __name__ == "__main__":
+    if len(sys.argv) > 2 and sys.argv[1] == "--berd": importar_berd(sys.argv[2])
+    else: importar(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/Desktop/emociones_cuerpo/ebm"))
