@@ -72,6 +72,21 @@ class HJepa:
         k = self.ACCIONES.index(meta); cand = torch.stack([self.pred2(self._z2, torch.tensor([a])) for a in range(self.NA)], 1)[0]   # (NA, Z2)
         dist = ((cand - self.protos[k][None]) ** 2).sum(-1); mejor = int(dist.argmin())
         return {"meta": meta, "accion": self.ACCIONES[mejor], "distancias": {self.ACCIONES[a]: round(float(dist[a]), 2) for a in range(self.NA)}}
+    @torch.no_grad()
+    def generar(self, animo, accion=None):
+        """no camera, no body: 32 s of body from a mood alone. Context = the mood's prototype in level-2 latent (the average
+        of everything she saw of that mood); action = the same mood unless given. Returns (T2*PASO, 6) at 12 frames/s
+        in body-quality units, plus the mood each 2-s sub-goal reads as."""
+        k = self.ACCIONES.index(animo); acc = self.ACCIONES.index(accion or animo); z2 = self.protos[k][None]
+        sub = self.dec2(self.pred2(z2, torch.tensor([acc]))); cuerpo = self.desn(self.dec1(sub.reshape(-1, self.Z1)).view(self.T2 * self.PASO, self.NC).numpy())
+        animos = [self.ACCIONES[int(self.sonda1(sub[0, i:i + 1]).argmax())] for i in range(self.T2)] if self.sonda1 is not None else None
+        return cuerpo, animos
+def a_ballena(cuerpo6, canales=("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")):
+    """the six body qualities -> what they do to the whale, exactly as cerebro_ballena.py / receptor_ballena.py apply them on top of
+    the mood's behaviour: pitch -= 0.45*cuerpo_pitch (leaning forward = nose down), roll += 0.35*cuerpo_roll, turn += 0.5*cuerpo_yaw,
+    depth += 0.6*cuerpo_profundidad (crouch = sink, jump = rise), and fins/spine amplitude x (0.4 + 1.3*cuerpo_energia)."""
+    c = dict(zip(canales, [float(v) for v in cuerpo6])); cl = lambda v, lo=-1.0, hi=1.0: max(lo, min(hi, v))
+    return {"d_pitch": -0.45 * cl(c["cuerpo_pitch"]), "d_roll": 0.35 * cl(c["cuerpo_roll"]), "d_giro": 0.5 * cl(c["cuerpo_yaw"]), "d_depth": 0.6 * cl(c["cuerpo_profundidad"]), "escala_aletas_columna": 0.4 + 1.3 * cl(c["cuerpo_energia"], 0.0, 1.0), "suavidad": cl(c["cuerpo_suavidad"], 0.0, 1.0)}
 if __name__ == "__main__":
     h = HJepa(sys.argv[1] if len(sys.argv) > 1 else "modelos/hjepa.pt"); print("H-JEPA:", h.CUERPO, "| actions:", h.ACCIONES)
     if len(sys.argv) > 2:
@@ -81,7 +96,11 @@ if __name__ == "__main__":
             h.empujar({c: q[c][i] for c in h.CUERPO})
             if h.n % (4 * int(h.fps)) == 0 and h.n >= h.largo:
                 r = h.leer(); print(f"  t={i / fps:5.1f}s  body reads {r.get('animo_cuerpo')} ({r.get('p_cuerpo')}) | at 16 s it will look {r['prevision'].get('animo_16s')} | plan to surfacing: {h.plan('surfacing')['accion']}")
+    elif len(sys.argv) > 1 and sys.argv[1].endswith("--generar"):
+        pass
     else:
+        for an in ("diving", "singing", "playful"):
+            cu, ams = h.generar(an); print(f"  generated from mood alone '{an}': 32 s, mean body {np.round(cu.mean(0), 2).tolist()} | sub-goals read as {ams[:8]}... | on the whale: {a_ballena(cu.mean(0))}")
         rng = np.random.default_rng(0)
         for i in range(h.largo): h.empujar({c: float(v) for c, v in zip(h.CUERPO, rng.normal(0, 0.3, h.NC))})
         print(h.leer()); print(h.plan("diving"))
