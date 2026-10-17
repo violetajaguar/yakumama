@@ -15,7 +15,7 @@ con animo singing (cabeza abajo, colgada, como la yubarta que canta) y anclada. 
 """
 import os, sys, json, time, wave, socket, argparse, subprocess, numpy as np
 ap = argparse.ArgumentParser(); ap.add_argument("wav"); ap.add_argument("--loop", action="store_true"); ap.add_argument("--seco", action="store_true"); ap.add_argument("--puerto", type=int, default=9998)
-ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--muda", action="store_true", help="no suena la voz humana: solo mueve a la ballena con ella (el sonido lo pone otro, p. ej. su propio canto)"); ap.add_argument("--sin-ojos", action="store_true", help="no manda parpadeo: los ojos los pone la toma de un performer (carrusel)"); ap.add_argument("--ballena", action="store_true", help="suena la mezcla ballena+humana (por defecto suena la voz humana tal cual: la mezcla no gusto)")
+ap.add_argument("--volumen", type=float, default=0.8); ap.add_argument("--espejo", action="append", default=[]); ap.add_argument("--canta", action="store_true", help="ella canta la melodia humana con SU voz: su canto (singing.wav) resampleado al tono y la fuerza de la voz humana, tramo a tramo"); ap.add_argument("--muda", action="store_true", help="no suena la voz humana: solo mueve a la ballena con ella (el sonido lo pone otro, p. ej. su propio canto)"); ap.add_argument("--sin-ojos", action="store_true", help="no manda parpadeo: los ojos los pone la toma de un performer (carrusel)"); ap.add_argument("--ballena", action="store_true", help="suena la mezcla ballena+humana (por defecto suena la voz humana tal cual: la mezcla no gusto)")
 a = ap.parse_args()
 CACHE = os.path.expanduser("~/Desktop/vocalset/ballena")
 def voz_de_ballena(wav):
@@ -48,6 +48,29 @@ def analizar(x, sr):
     semi = np.where(np.isfinite(semi), semi, 0.0)
     return fz, semi
 x, sr = leer(a.wav); fz, semi = analizar(x, sr); n = len(fz); dur = n / FPS; nombre = os.path.basename(a.wav)[:-4]
+CANTO_PROPIO = os.path.expanduser("~/Desktop/vocalset/ballena/_canto_propio.wav")   # su canto en PCM de 16 bits (el original es float de 32)
+if not os.path.exists(CANTO_PROPIO): subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", os.path.expanduser("~/Desktop/Huk/whale sound/singing.wav"), "-ac", "1", "-ar", "44100", "-c:a", "pcm_s16le", CANTO_PROPIO], check=False)
+def ella_canta(fz, semi, sal, hop_s=0.2):
+    """su voz (singing.wav) cantando la melodia de la voz humana: por cada tramo de 0.2 s, un trozo de su canto resampleado
+    por 2^(semitonos/12) (sube o baja de tono con la cantante) y con la fuerza de la cantante; cruces de 20 ms."""
+    y, sr2 = leer(CANTO_PROPIO); hop = int(hop_s * sr2); cruce = int(0.02 * sr2); pos = 0; out = np.zeros(int(len(fz) / FPS * sr2) + hop, np.float64); escrito = 0
+    por_tramo = int(hop_s * FPS)
+    for k in range(0, len(fz), por_tramo):
+        s_ = float(np.mean(semi[k:k + por_tramo])); f_ = float(np.mean(fz[k:k + por_tramo])); fac = 2 ** (np.clip(s_, -14, 14) / 12)
+        largo_fuente = int(hop * fac); seg = y[pos:pos + largo_fuente]
+        if len(seg) < largo_fuente: pos = 0; seg = y[pos:pos + largo_fuente]
+        pos += largo_fuente // 2   # avanza por su canto a medio paso: cada tramo humano suena un trozo distinto de su voz
+        t_out = np.linspace(0, len(seg) - 1, hop); seg = np.interp(t_out, np.arange(len(seg)), seg) * (0.15 + 0.85 * f_)
+        ini = escrito - cruce if escrito > cruce else 0; w = np.linspace(0, 1, min(cruce, len(seg)))
+        if escrito > cruce: out[ini:ini + len(w)] = out[ini:ini + len(w)] * (1 - w) + seg[:len(w)] * w; out[ini + len(w): ini + len(seg)] = seg[len(w):]
+        else: out[:len(seg)] = seg
+        escrito = ini + len(seg)
+    out = out[:escrito]; out = out / max(1e-6, np.abs(out).max()) * 0.9
+    import struct
+    wv = wave.open(sal, "wb"); wv.setnchannels(1); wv.setsampwidth(2); wv.setframerate(sr2); wv.writeframes((out * 32767).astype(np.int16).tobytes()); wv.close(); return sal
+if a.canta:
+    os.makedirs(CACHE, exist_ok=True); canto_wav = os.path.join(CACHE, "canta_" + os.path.basename(a.wav))
+    if not os.path.exists(canto_wav): ella_canta(fz, semi, canto_wav)
 print(f"   {nombre}: {dur:.1f} s | fuerza media {fz.mean():.2f} | altura ±{np.abs(semi).max():.0f} semitonos | notas {100 * (np.abs(semi) > 0.5).mean():.0f}% del tiempo")
 if a.seco: sys.exit(0)
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); espejos = [(h, int(p)) for h, p in (e.rsplit(":", 1) for e in a.espejo)]
@@ -55,7 +78,8 @@ jaw = 0.0; head = 0.0; yaw = 0.0; en = 0.0
 import random; proximo_parpadeo = 2.0 + random.random() * 3.0; parpadeo_hasta = -1.0   # parpadea cada 2-5 s, 0.15 s cerrado
 try:
     while True:
-        rep = subprocess.Popen(["afplay", "-v", str(a.volumen), voz_de_ballena(a.wav) if a.ballena else a.wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) if not a.muda else subprocess.Popen(["sleep", str(dur)]); t0 = time.time()
+        fuente = canto_wav if a.canta else (voz_de_ballena(a.wav) if a.ballena else a.wav)
+        rep = subprocess.Popen(["afplay", "-v", str(a.volumen), fuente], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) if not a.muda else subprocess.Popen(["sleep", str(dur)]); t0 = time.time()
         for i in range(n):
             jaw = 0.75 * jaw + 0.25 * float(fz[i]); en = 0.9 * en + 0.1 * float(fz[i])
             head = 0.85 * head + 0.15 * float(np.clip(semi[i] / 8.0, -1, 1)) * 0.6                  # una octava arriba = cabeza 0.6 arriba
