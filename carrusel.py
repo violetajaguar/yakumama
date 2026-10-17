@@ -65,6 +65,7 @@ SEMILLAS = {"angry": "BF-JuanDavidNatalia_tinku_limpio.npz", "playful": "BF-Luci
 if os.path.exists(os.path.join(AQUI, "modelos", "hjepa_ballena.pt")):
     for m in MOODS:
         sem = SEMILLAS[m] if SEMILLAS[m].startswith("/") else os.path.expanduser("~/Desktop/h26_limpio/" + SEMILLAS[m])
+        if os.path.exists(os.path.join(AQUI, "modelos", "difusion_ballena.pt")): ITEMS.append(dict(id=len(ITEMS), grupo="ella inventa", sub="difusion en su cuerpo", nombre=f"{ES.get(m, m)} · inventa", animo=m, ruta=sem, toma=None, seg=64, jepa=True, inventa=True))
         if sem and os.path.exists(sem): ITEMS.append(dict(id=len(ITEMS), grupo="ella sola", sub="JEPA en su cuerpo", nombre=f"{ES.get(m, m)} · ella sigue a {os.path.basename(sem).replace('_limpio', '').replace('.npz', '').split('-')[-1][:22]}", animo=m, ruta=sem, toma=None, seg=64, jepa=True))
 for g, an, sub in (("ballet_experta_ch0", "sad", "ballet"), ("ballet_experta_ch3", "sad", "ballet"), ("ballet_principiante_ch1", "sad", "ballet"), ("jazz_experta_ch0", "singing", "jazz"), ("jazz_experta_ch2", "singing", "jazz"), ("jazz_intermedia_ch1", "singing", "jazz"),
                   ("swim_breaststroke_001", "feeding", "nado"), ("swim_butterfly_006", "feeding", "nado"), ("swim_freestyle_001", "feeding", "nado"), ("swim_backstroke_001", "feeding", "nado")):
@@ -226,7 +227,7 @@ def tocar(i):
     with estado["lock"]:
         it = ITEMS[i]; matar_todo(); time.sleep(0.2)
         rt = estado.get("retarget") and not it.get("voz")
-        if it.get("jepa"): cmd = [PY, os.path.join(AQUI, "jepa_mueve.py"), it["animo"], "--semilla", (it["ruta"] if it["ruta"].endswith(".npz") else os.path.basename(it["ruta"])[:-6]), "--ruido", "0.3"]; rt = False   # TRADUCIDA (17 oct): el cuerpo entero del bailarin o performer sobre el cuerpo de ella (retarget_ballena.py, mapa de Violeta)
+        if it.get("jepa"): cmd = [PY, os.path.join(AQUI, "jepa_mueve.py"), it["animo"], "--semilla", (it["ruta"] if it["ruta"].endswith(".npz") else os.path.basename(it["ruta"])[:-6]), "--ruido", "0.3", "--modo", ("inventa" if it.get("inventa") else "frases")]; rt = False   # TRADUCIDA (17 oct): el cuerpo entero del bailarin o performer sobre el cuerpo de ella (retarget_ballena.py, mapa de Violeta)
         if it.get("jepa"): pass
         elif it.get("voz"): cmd = [PY, os.path.join(AQUI, "voz_ballena.py"), it["ruta"], "--loop", "--canta", "--volumen", "1.0"]   # ella canta la melodia humana con su propia voz
         elif rt and isinstance(it["toma"], str) and toma_con_cuerpo(it["toma"], it["animo"]): cmd = [PY, os.path.join(AQUI, "retarget_ballena.py"), toma_con_cuerpo(it["toma"], it["animo"]), "--tocar", "--loop"]

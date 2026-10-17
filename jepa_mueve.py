@@ -13,10 +13,14 @@ body qualities that conduct her, as a dancer would.
 import sys, os, json, time, math, socket, argparse, numpy as np
 AQUI = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, AQUI); from hjepa_predecir import HJepa
 ap = argparse.ArgumentParser(); ap.add_argument("animos", nargs="*"); ap.add_argument("--modelo", default=None); ap.add_argument("--ruido", type=float, default=0.0); ap.add_argument("--semilla", default=None, help="a skeleton .npz or a performer take: its last 32 s become her context"); ap.add_argument("--animo", default=None)
-ap.add_argument("--quieta", action="store_true"); ap.add_argument("--ancla", type=float, default=0.5, help="weight of the mood's designed behaviour under the generated body (0 = pure model, 1 = pure behaviour)"); ap.add_argument("--puerto", type=int, default=9998); a = ap.parse_args()
+ap.add_argument("--quieta", action="store_true"); ap.add_argument("--modo", default="auto", choices=["auto", "inventa", "frases", "continuar"], help="inventa = diffusion (she invents, Paqarina's method); frases = real phrases along her plan; continuar = decoder; auto = inventa if the diffusion model exists, else frases"); ap.add_argument("--ancla", type=float, default=0.5, help="weight of the mood's designed behaviour under the generated body (0 = pure model, 1 = pure behaviour)"); ap.add_argument("--puerto", type=int, default=9998); a = ap.parse_args()
 ruta = a.modelo or (os.path.join(AQUI, "modelos", "hjepa_ballena.pt") if os.path.exists(os.path.join(AQUI, "modelos", "hjepa_ballena.pt")) else os.path.join(AQUI, "modelos", "hjepa.pt"))
-h = HJepa(ruta); ESPACIO_BALLENA = "pitch" in h.CUERPO; BANCO = ESPACIO_BALLENA and h.cargar_banco(); moods = [m for m in a.animos if m in h.ACCIONES] or ([a.animo] if a.animo else h.ACCIONES[:10])
-print(f"   model {os.path.basename(ruta)}: {len(h.CUERPO)} channels, {'HER BODY SPACE' if ESPACIO_BALLENA else 'six body qualities'}" + (f" | phrase bank: {len(h.banco['Z'])} real phrases (sampling head)" if BANCO else ""))
+h = HJepa(ruta); ESPACIO_BALLENA = "pitch" in h.CUERPO; BANCO = ESPACIO_BALLENA and h.cargar_banco(); INV = None
+if ESPACIO_BALLENA and a.modo in ("auto", "inventa") and os.path.exists(os.path.join(AQUI, "modelos", "difusion_ballena.pt")):
+    try: from difusion_ballena import Inventora; INV = Inventora(); assert INV.CAN == h.CUERPO
+    except Exception as e: INV = None; print(f"   (diffusion off: {e})")
+MODO = "inventa" if INV is not None else ("frases" if (BANCO and a.modo != "continuar") else "continuar"); ultimo_cuerpo = None; moods = [m for m in a.animos if m in h.ACCIONES] or ([a.animo] if a.animo else h.ACCIONES[:10])
+print(f"   model {os.path.basename(ruta)}: {len(h.CUERPO)} channels, {'HER BODY SPACE' if ESPACIO_BALLENA else 'six body qualities'}" + (f" | phrase bank: {len(h.banco['Z'])} real phrases" if BANCO else "") + (" | DIFFUSION: she invents" if INV is not None else "") + f" | mode {MODO}")
 if a.semilla:   # a real body as context
     from retarget_ballena import esqueleto_a_ballena, CANALES_BALLENA, cargar_toma; from cuerpo_cualidades import cargar_npz, cualidades_toma
     if a.semilla.endswith(".npz"): B, J, fps = cargar_npz(a.semilla)
@@ -48,7 +52,8 @@ def anclar(can, m, t, w):
 px = py_ = 0.0; rumbo = math.pi; ESCALA_PISO = 0.8; RADIO_MAX = 2.0
 while True:
     for m in moods:
-        if BANCO: cuerpo, ams = h.muestrear(m, ruido=a.ruido, desde_contexto=bool(a.semilla))
+        if MODO == "inventa": cuerpo = INV.inventar(m, segundos=32.0, prefijo=ultimo_cuerpo, temp=1.0 + 0.3 * a.ruido); ams = [m] * 4; ultimo_cuerpo = cuerpo[-12:]   # a new dance from noise, continuing her own last second
+        elif MODO == "frases": cuerpo, ams = h.muestrear(m, ruido=a.ruido, desde_contexto=bool(a.semilla))
         elif a.semilla and h.n >= h.largo: cuerpo, ams = h.continuar(m, ruido=a.ruido)
         else:
             cuerpo, ams = h.generar(m)
