@@ -220,7 +220,7 @@ def toma_con_cuerpo(toma, animo):
             if con_cuerpo(n): return n
     return None
 def matar_todo():
-    for pat in ("bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py", "retarget_ballena.py", "jepa_mueve.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
+    for pat in ("coreografia.py", "bailar.py", "generar_animo.py", "reproducir.py", "voz_ballena.py", "retarget_ballena.py", "jepa_mueve.py"): subprocess.run(["pkill", "-f", pat], capture_output=True)
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
     if _afplay["p"]: _afplay["p"].terminate(); _afplay["p"] = None
 def tocar(i):
@@ -265,6 +265,16 @@ details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
 <button id=autov onclick="fetch('/auto?on='+(document.getElementById('autov').classList.contains('on')?0:1)+'&grupo=canto').then(tick)">carrusel de voces humanas</button>
 <button id=musica onclick="fetch('/musica?on='+(document.getElementById('musica').classList.contains('on')?0:1)).then(tick)">música de base</button><button id=retarget onclick="fetch('/retarget?on='+(document.getElementById('retarget').classList.contains('on')?0:1)).then(tick)" title="el cuerpo entero del bailarin o performer traducido al cuerpo de ella: manos a aletas, cabeza, columna, cola con los pies, desplazamiento">traducida</button><button onclick="fetch('/poema_nuevo')">poema nuevo</button><button id=escribe onclick="fetch('/escribe?on='+(document.getElementById('escribe').classList.contains('on')?0:1)).then(tick)">escribe sola</button><button onclick="fetch('/poema')">leer el último poema</button>
+<details id=coreo style="margin-top:10px"><summary><b>coreografía</b> · una línea por frase: ánimo segundos [inventa|frases|cuerpo:X] [hacia:publico|fondo|izquierda|derecha|casa|alrededor] [sin-acro] [poema] · "repetir" al final</summary>
+<div style="display:flex;gap:6px;align-items:center;margin:6px 0"><select id=coreo_lista onchange="coreoLeer(this.value)"></select><input id=coreo_nombre value="ejemplo_salar" style="width:160px"><button onclick="coreoGuardar()">guardar</button><button onclick="coreoBailar()" style="font-weight:bold">bailar coreografía</button></div>
+<textarea id=coreo_texto rows=12 style="width:100%;font-family:monospace;font-size:12px"></textarea></details>
+<script>
+function coreoLista(){fetch('/coreos').then(r=>r.json()).then(d=>{const s=document.getElementById('coreo_lista');s.innerHTML=d.coreos.map(n=>'<option>'+n+'</option>').join('');if(d.coreos.length)coreoLeer(s.value)})}
+function coreoLeer(n){fetch('/coreo_leer?nombre='+encodeURIComponent(n)).then(r=>r.json()).then(d=>{document.getElementById('coreo_texto').value=d.texto;document.getElementById('coreo_nombre').value=d.nombre})}
+function coreoGuardar(){const n=document.getElementById('coreo_nombre').value;fetch('/coreo_guardar?nombre='+encodeURIComponent(n),{method:'POST',body:document.getElementById('coreo_texto').value}).then(()=>coreoLista())}
+function coreoBailar(){const n=document.getElementById('coreo_nombre').value;fetch('/coreo_guardar?nombre='+encodeURIComponent(n),{method:'POST',body:document.getElementById('coreo_texto').value}).then(()=>fetch('/coreo_bailar?nombre='+encodeURIComponent(n)))}
+coreoLista();
+</script>
 <label>segundos <input id=seg type=number value=40 min=5 onchange="fetch('/seg?s='+this.value)"></label><button onclick="fetch('/parar').then(tick)">parar</button></div>
 <div id=lista></div>
 <script>const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#555a70',angry:'#f21410',alert:'#1ae640',diving:'#2a4fb0',surfacing:'#19d6e8',auto:'#777'};
@@ -284,6 +294,12 @@ carga().then(tick);setInterval(tick,1000)</script></body></html>"""
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def _json(self, obj): b = json.dumps(obj).encode(); self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+    def do_POST(self):
+        if self.path.startswith("/coreo_guardar"):
+            from urllib.parse import urlparse as _up, parse_qs as _pq; qq = _pq(_up(self.path).query); n = "".join(ch for ch in qq.get("nombre", ["nueva"])[0] if ch.isalnum() or ch in "_-") or "nueva"
+            cuerpo = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8"); os.makedirs(os.path.join(AQUI, "coreografias"), exist_ok=True)
+            open(os.path.join(AQUI, "coreografias", n + ".txt"), "w", encoding="utf-8").write(cuerpo); self._json({"ok": 1, "nombre": n}); return
+        self.send_response(404); self.end_headers()
     def do_GET(self):
         from urllib.parse import urlparse, parse_qs
         u = urlparse(self.path); q = parse_qs(u.query)
@@ -301,6 +317,16 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/poema": self._json({"poema": leer_poema()})
         elif u.path == "/poema_nuevo": threading.Thread(target=poema_nuevo, daemon=True).start(); self._json({"ok": 1})
         elif u.path == "/escribe": estado["escribe"] = q.get("on", ["1"])[0] == "1"; estado["escribio"] = time.time(); self._json({"ok": 1})
+        elif u.path == "/coreos":
+            import glob as _g; self._json({"coreos": [os.path.basename(f)[:-4] for f in sorted(_g.glob(os.path.join(AQUI, "coreografias", "*.txt")))]})
+        elif u.path == "/coreo_leer":
+            n = q.get("nombre", ["ejemplo_salar"])[0]; f = os.path.join(AQUI, "coreografias", n + ".txt"); self._json({"nombre": n, "texto": open(f, encoding="utf-8").read() if os.path.exists(f) else ""})
+        elif u.path == "/coreo_bailar":
+            n = q.get("nombre", ["ejemplo_salar"])[0]; f = os.path.join(AQUI, "coreografias", n + ".txt")
+            with estado["lock"]:
+                matar_todo(); time.sleep(0.2); estado["auto"] = False; estado["actual"] = None
+                estado["proc"] = subprocess.Popen([PY, os.path.join(AQUI, "coreografia.py"), f], cwd=AQUI, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); estado["coreo"] = n; estado["desde"] = time.time()
+            print(f"  -> COREOGRAFIA {n}", flush=True); self._json({"ok": 1})
         elif u.path == "/retarget":
             estado["retarget"] = q.get("on", ["1"])[0] == "1"; i = estado["actual"]
             if i is not None: threading.Thread(target=tocar, args=(i,), daemon=True).start()   # lo que suena, vuelve a sonar traducido (o sin traducir)

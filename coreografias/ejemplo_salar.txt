@@ -1,0 +1,13 @@
+# Yakumama · una coreografía · una línea por frase:  <ánimo> <segundos>s [inventa | frases | cuerpo:<toma o bailarín>] [hacia:publico|fondo|izquierda|derecha|casa|alrededor] [sin-acro] [poema]
+# ánimos: calm singing playful curious feeding sad angry alert diving surfacing · "#" = comentario · se repite al terminar si la última línea dice "repetir"
+calm 20s inventa hacia:casa
+curious 25s inventa hacia:publico
+playful 40s inventa hacia:alrededor
+singing 30s inventa hacia:publico poema
+sad 35s inventa hacia:fondo
+diving 25s inventa
+surfacing 20s inventa hacia:publico
+angry 20s cuerpo:BF-JuanDavidNatalia_tinku_limpio hacia:izquierda
+alert 15s frases hacia:derecha
+calm 20s inventa hacia:casa
+repetir
