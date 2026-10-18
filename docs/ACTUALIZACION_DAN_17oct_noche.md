@@ -35,7 +35,7 @@ an average; two draws differ; 32 s take 0.1 s on CPU. The brain uses it automati
 recipe: bidirectional-GRU denoiser predicting the clean window, cosine schedule, 200 steps, velocity and smoothness losses, inpainting
 one sixth of the window for long generation), trained directly on her 32 channels in 6-s windows. Every sample starts from a different
 noise, so every dance is new: measured against a real kullawada, the tail beat has the same amplitude (0.20 vs 0.22) and two inventions
-differ clearly. This first model trained 50 epochs in 30 min; a long run (cloud GPU) is planned. The brain uses it automatically when
+differ clearly. The model trained 3,000 epochs on a cloud GPU (RTX 5090, 56 min), the same count as m3f. The brain uses it automatically when
 the file is present (`cuerpo_jepa` = 1 in the packet while she invents); without it, it falls back to the phrase bank.
 `difusion_ballena.py` trains it (`--minutos`) and `--generar <mood>` checks it.
 
