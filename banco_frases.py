@@ -10,7 +10,8 @@ So what she generates is made of real phrases, never an average.
 import os, sys, numpy as np, torch
 AQUI = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, AQUI)
 from hjepa_predecir import HJepa
-h = HJepa(os.path.join(AQUI, "modelos", "hjepa_ballena.pt")); d = np.load(os.path.join(AQUI, "modelos", "ballena_datos.npz"), allow_pickle=True)
+MOD = sys.argv[1] if len(sys.argv) > 1 else os.path.join(AQUI, "modelos", "hjepa_ballena.pt"); DAT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(AQUI, "modelos", "ballena_datos.npz"); SAL = sys.argv[3] if len(sys.argv) > 3 else os.path.join(AQUI, "modelos", "banco_frases.npz")
+h = HJepa(MOD); d = np.load(DAT, allow_pickle=True)
 CAN = [str(c) for c in d["CANALES"]]; assert CAN == h.CUERPO, "channels differ"
 X, M, SEQ, FU, AN = d["X"], d["M"], d["SEQ"], d["FUENTE"], d["ANIMO"]
 L = h.PASO; paso = L // 2; zs = []; ini = []; pista = []; animo = []; ventanas = []; mascaras = []
@@ -24,5 +25,5 @@ with torch.no_grad():
             zs.append(h.enc1(torch.tensor(np.concatenate([x, m.astype(np.float32)], -1))[None])[0].numpy()); ini.append(t0); pista.append(k); animo.append(int(AN[k]))
             ventanas.append(np.where(m, X[t0:t0 + L], np.nan).astype(np.float16)); mascaras.append(m)
 Z = np.stack(zs).astype(np.float32); V = np.stack(ventanas); MM = np.stack(mascaras)
-np.savez_compressed(os.path.join(AQUI, "modelos", "banco_frases.npz"), Z=Z, V=V, M=MM, pista=np.array(pista), animo=np.array(animo), canales=np.array(CAN), fps=h.fps, L=L)
+np.savez_compressed(SAL, Z=Z, V=V, M=MM, pista=np.array(pista), animo=np.array(animo), canales=np.array(CAN), fps=h.fps, L=L)
 print(f"phrase bank: {len(Z)} phrases of {L / h.fps:.0f} s from {len(set(pista))} tracks | {V.nbytes / 1e6:.0f} MB | per mood: " + ", ".join(f"{m} {int((np.array(animo) == i).sum())}" for i, m in enumerate(h.ACCIONES[:10])) + f", libre {int((np.array(animo) < 0).sum())}")

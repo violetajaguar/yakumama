@@ -53,7 +53,7 @@ Xn = [np.where(p["M"], (p["X"] - media) / desvio, 0.0).astype(np.float32) for p 
 ACC = np.array([p["accion"] for p in pistas]); horas = sum(len(x) for x in Xn) / FPS / 3600
 print("horas con animo: " + ", ".join(f"{ACCIONES[k]} {sum(len(p['X']) for p in pistas if p['accion'] == k) / FPS / 3600:.2f}" for k in range(NA) if any(p['accion'] == k for p in pistas)))
 print(f"pistas {len(pistas)} ({len(fuera)} fuera) | {horas:.1f} h | por fuente: " + ", ".join(f"{f} {sum(1 for p in pistas if p['fuente'] == f)}" for f in sorted(set(p["fuente"] for p in pistas))))
-dev = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+dev = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 Xcat = torch.tensor(np.concatenate(Xn), device=dev); Mcat = torch.tensor(np.concatenate(Mf), device=dev)
 OFF = np.cumsum([0] + [len(x) for x in Xn]); ACCt = torch.tensor(ACC, device=dev)
 def ventanas1(idxs, paso=12):
