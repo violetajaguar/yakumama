@@ -22,26 +22,22 @@ In the stream (UDP 9994) you see it as: `bailarin` = `coreo:<piece>:<phrase>`, `
 
 ## 2. Her world: the salar
 
-She lives in the Salar de Uyuni: a white salt flat with crust lines, a ring of mountains, Tunupa to the north. In Blender it is
-`Huk/salar.blend` (also merged into `whale.blend`); for TouchDesigner, `salar.glb` and `salar_spec.json` in this folder give the same
-geometry. Everything in Blender units (her body is ~8 units long).
+Her world is Violeta's own generative Salar de Uyuni (sala.red/laboratorio/salar-de-uyuni, embed sala.red/embeds/salar.html; a copy of the
+page is `salar/salar_sala_red_embed.html`): zero models, zero textures, math and real data. Its exact functions are ported into Blender
+(`whale.blend`, collection `Salar`; also `salar/salar.blend`) and `salar/salar_glb` + `salar/salar_spec.json` carry the same world for TouchDesigner.
+All in metres; she is ~8 m long; +X east, +Y north; the viewer stands south.
 
-| element | geometry |
+| element | geometry (from her script) |
 |---|---|
-| salt | plane 400 × 400 at z = 0 (in whale.blend at z = −2.6: she floats 1.3 above it); colour (0.93, 0.94, 0.95), roughness 0.18, a little metallic (wet mirror) |
-| crust lines | a 120 × 120 grid wireframe, thickness 0.06, 0.01 above the salt, colour (0.82, 0.84, 0.86) |
-| mountains | 28 cones on a ring, radius 140-175, heights 18-45, base radius 30-60, random x-scale 0.8-1.5; colour (0.42, 0.33, 0.28) |
-| Tunupa | the volcano: cone at (0, 190), height 70, base radius 90 |
-| sky | flat colour (0.55, 0.72, 0.95); mist from 30 to 160 units so the mountains sit far |
-| sun | energy 3.5-4, elevation 50°, azimuth 30° |
-| her home | (0, 0, 1.5): where she returns; the viewer stands at −Y, she faces +Y at rest |
-| camera | (0, −14, 4.5), tilted 78° (looking slightly down), lens 35 mm |
-| her travel | inside a circle of radius 2.0 units around home (the mountains are the edge); 1 m of a dancer's floor = 0.8 units |
+| salt | plane 12,000 m; crust = Voronoi distance-to-edge on p×0.55 (polygons ~2 m), ridge bump and dark lines; puddles are mirror where fbm > 0.72; wet apron around the island; seasonal water 0..1 (0.08 now) |
+| island (Incahuasi) | centre (35, −20) salar coords, radius 78, height 15; heightfield `islandH` in the spec; cacti, paja brava, yareta, boulders live on it |
+| mountains | a ring at R = 5,200 m, 220 segments, foot at −8, crest `mtnH(az)` 70-230 m with an open gap WNW (where the sun sets) and **Tunupa** rising to +820 at north; rock colours (0.33,0.21,0.30) to (0.48,0.30,0.33) |
+| sky | a 7,000 m sphere; haze fog `1 − exp(−d·0.0011)`; the sun follows its real arc at Uyuni (lat −20.13) at live local time; wind from the hourly Uyuni record |
+| her home | Blender origin = salar point (−60, 0): on the salt 40 m west of the island; the salt is at z = −2.6 under her; she travels inside 2 m of home |
+| camera | (0, −14, 4.5), tilted 78°, lens 35 mm, clip 20 km |
 
-Mood colours, turbine speeds and heartbeat strengths are unchanged (`COMPORTAMIENTOS.md`). New since the evening: in sadness her
-skin shifts through shades on a 16-s cycle and only the **fins** fade to transparent at the lightest point (the body never does);
-the mouth never opens past 0.5; when she invents, the spine also sways sideways, the head rolls and yaws, the fins sweep forward and back
-with her speed and the flukes steer: stream fields `spine_lado[6]`, `head_roll`, `barrido_l/r`, `fluke_lado` ride inside `canales` when present.
+In Blender today: salt with Voronoi crust and puddles, the island mesh, the mountain ring with Tunupa, sky, mist, a fixed afternoon sun.
+Not yet: the cacti and plants, the live sun and wind. `salar/salar_vista.png` is a frame from her camera.
 
 ## 3. Files in this part
 ```
