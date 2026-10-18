@@ -13,7 +13,7 @@ body qualities that conduct her, as a dancer would.
 import sys, os, json, time, math, socket, argparse, numpy as np
 AQUI = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, AQUI); from hjepa_predecir import HJepa
 ap = argparse.ArgumentParser(); ap.add_argument("animos", nargs="*"); ap.add_argument("--modelo", default=None); ap.add_argument("--ruido", type=float, default=0.0); ap.add_argument("--semilla", default=None, help="a skeleton .npz or a performer take: its last 32 s become her context"); ap.add_argument("--animo", default=None)
-ap.add_argument("--quieta", action="store_true"); ap.add_argument("--modo", default="auto", choices=["auto", "inventa", "frases", "continuar"], help="inventa = diffusion (she invents, Paqarina's method); frases = real phrases along her plan; continuar = decoder; auto = inventa if the diffusion model exists, else frases"); ap.add_argument("--ancla", type=float, default=0.5, help="weight of the mood's designed behaviour under the generated body (0 = pure model, 1 = pure behaviour)"); ap.add_argument("--puerto", type=int, default=9998); a = ap.parse_args()
+ap.add_argument("--quieta", action="store_true"); ap.add_argument("--hacia", default="libre", choices=["libre", "publico", "fondo", "izquierda", "derecha", "casa", "alrededor"], help="where she goes in the salar during this phrase"); ap.add_argument("--acro", type=int, default=1); ap.add_argument("--segundos", type=float, default=0.0, help="stop after this many seconds (0 = loop forever)"); ap.add_argument("--etiqueta", default=""); ap.add_argument("--modo", default="auto", choices=["auto", "inventa", "frases", "continuar"], help="inventa = diffusion (she invents, Paqarina's method); frases = real phrases along her plan; continuar = decoder; auto = inventa if the diffusion model exists, else frases"); ap.add_argument("--ancla", type=float, default=0.5, help="weight of the mood's designed behaviour under the generated body (0 = pure model, 1 = pure behaviour)"); ap.add_argument("--puerto", type=int, default=9998); a = ap.parse_args()
 ruta = a.modelo or (os.path.join(AQUI, "modelos", "hjepa_ballena.pt") if os.path.exists(os.path.join(AQUI, "modelos", "hjepa_ballena.pt")) else os.path.join(AQUI, "modelos", "hjepa.pt"))
 h = HJepa(ruta); ESPACIO_BALLENA = "pitch" in h.CUERPO; BANCO = ESPACIO_BALLENA and h.cargar_banco(); INV = None
 if ESPACIO_BALLENA and a.modo in ("auto", "inventa") and os.path.exists(os.path.join(AQUI, "modelos", "difusion_ballena.pt")):
@@ -30,7 +30,8 @@ if a.semilla:   # a real body as context
     paso = max(1, int(round(fps / h.fps)))
     for fr in filas[-h.largo * paso::paso]: h.empujar(fr)
     print(f"   context: last 32 s of {os.path.basename(a.semilla)} | body reads {h.leer().get('animo_cuerpo')}")
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); FPS = 30.0; C = {c: i for i, c in enumerate(h.CUERPO)}
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); FPS = 30.0; C = {c: i for i, c in enumerate(h.CUERPO)}; T_INICIO = time.time()
+DESTINOS = {"publico": (0.0, -1.8), "fondo": (0.0, 1.8), "izquierda": (-1.8, -0.4), "derecha": (1.8, -0.4), "casa": (0.0, 0.0)}   # the salar: the viewer is at -Y
 try: import comportamientos_animos as CA
 except Exception: CA = None
 def anclar(can, m, t, w):
@@ -55,7 +56,7 @@ acro = {"proximo": 4.0 + random.random() * 4.0, "tipo": None, "t0": 0.0}
 def acrobacia(m, tt, energia):
     """PLAYFUL (Violeta): she turns to the side, goes upside down, barrel-rolls, when she invents. Every 5-9 s one of: lado (side, 1.3 rad held),
     panza (upside down, pi held), vuelta (a full barrel roll, 2 pi in 1.6 s), doble (two). Returns the absolute roll (spin channel) or 0."""
-    if m != "playful": return 0.0
+    if m != "playful" or not a.acro: return 0.0
     if acro["tipo"] is None and tt >= acro["proximo"]:
         acro["tipo"] = random.choices(["lado", "panza", "vuelta", "doble"], weights=[3, 2, 3, 1])[0]; acro["t0"] = tt; acro["lado"] = random.choice([-1, 1])
     if acro["tipo"] is None: return 0.0
@@ -94,6 +95,11 @@ while True:
                     if r_ > RADIO_MAX: px, py_ = px * RADIO_MAX / r_, py_ * RADIO_MAX / r_
                     can["x"], can["y"], can["z"], can["rumbo"] = round(px, 3), round(py_, 3), 0.0, round((rumbo + math.pi) % (2 * math.pi) - math.pi, 3)
                 if "_rumbo" in can: can["rumbo"] = round(can.pop("_rumbo"), 3); can["x"], can["y"], can["z"] = round(px, 3), round(py_ + can.pop("_y"), 3), 0.0; rumbo = can["rumbo"]
+                if a.hacia in DESTINOS and not a.quieta:   # the score says where: she drifts toward that place, keeping her invented sway around it
+                    dx_, dy_ = DESTINOS[a.hacia]; px += (dx_ - px) * 0.012; py_ += (dy_ - py_) * 0.012; can["x"], can["y"] = round(px, 3), round(py_, 3)
+                    if a.hacia == "publico": rumbo += ((math.pi - rumbo + math.pi) % (2 * math.pi) - math.pi) * 0.02; can["rumbo"] = round((rumbo + math.pi) % (2 * math.pi) - math.pi, 3)
+                elif a.hacia == "alrededor" and not a.quieta:   # a slow round of the salar
+                    ang = 2 * math.pi * (time.time() - T_INICIO) / 60.0; px += (1.6 * math.sin(ang) - px) * 0.02; py_ += (1.0 * math.cos(ang) - 0.4 - py_) * 0.02; can["x"], can["y"] = round(px, 3), round(py_, 3)
                 w_ancla = {"calm": 0.85, "surfacing": 0.8, "diving": 0.7}.get(m, a.ancla)
                 if MODO == "inventa": w_ancla = {"calm": 0.6, "surfacing": 0.6, "diving": 0.6}.get(m, 0.15)   # inventing: the script is only a light touch (Violeta: "let it be more free")
                 can = anclar(can, m, i / FPS, w_ancla)
@@ -110,7 +116,9 @@ while True:
                 if "pulso" in C and np.isfinite(cuerpo[f, C["pulso"]]) and cuerpo[f, C["pulso"]] > 0.3: pk["emotibit_hr"] = round(100.0 * g(f, "pulso"), 1)
             else:
                 pk.update({c: round(g(f, c), 4) for c in h.CUERPO})
+            if a.etiqueta: pk["bailarin"] = a.etiqueta
             s.sendto(json.dumps(pk).encode(), ("127.0.0.1", a.puerto))
+            if a.segundos and time.time() - T_INICIO >= a.segundos: sys.exit(0)
             if i % 30 == 0: json.dump({"tramo": "jepa:" + m, "modo": "cuerpo", "t": int(i / FPS), "dur": 32, "loop": True, "hora": time.time()}, open("/tmp/ballena_reproduciendo.json", "w"))
             esp = t0 + (i + 1) / FPS - time.time()
             if esp > 0: time.sleep(esp)
