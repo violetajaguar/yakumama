@@ -161,10 +161,33 @@ def completar_con_red(d, t):
     if not d.get("emotibit_hr"): out["emotibit_hr"] = pk.get("emotibit_hr")
     if not d.get("emotibit_eda"): out["emotibit_eda"] = pk.get("emotibit_eda")
     return out
+def canales_local(d): return isinstance(d.get("canales"), dict)
 def q(d, k, lo=-1.0, hi=1.0):
     try: return max(lo, min(hi, float(d.get(k, 0) or 0)))
     except Exception: return 0.0
 
+try: from decisiones import Decisora; DEC = Decisora()
+except Exception as e: DEC = None; print(f"   (decisions off: {e})")
+enc = {"t0": None, "ultima": 0.0, "dec": {}, "prob": {}, "bailo": 0, "toco": 0, "abierta_t": 0.0}
+def decidir(d, t, hay_persona, dom, energia_cuerpo):
+    """every 4 s (and when the person leaves) she decides how to interact; the previous decision is closed with its outcome and logged."""
+    if DEC is None: return {}, {}
+    if hay_persona and enc["t0"] is None: enc["t0"] = t; enc["bailo"] = 0; enc["toco"] = 0
+    if hay_persona and baile["activo"]: enc["bailo"] = 1
+    if (d.get("tacto") or 0) > 0.3: enc["toco"] = 1
+    if not hay_persona and enc["t0"] is not None:   # the person left: close with the outcome
+        DEC.cerrar({"quedo_s": round(t - enc["abierta_t"], 1), "bailo": enc["bailo"], "toco": enc["toco"], "se_fue": 1}); enc["t0"] = None
+    if t - enc["ultima"] >= 4.0:
+        if DEC.abierta: DEC.cerrar({"quedo_s": round(t - enc["abierta_t"], 1), "bailo": enc["bailo"], "toco": enc["toco"], "se_fue": 0})
+        s_ = {"persona": int(bool(hay_persona)), "conocida": int(bool(d.get("conocida"))), "animo": dom, "energia": energia_cuerpo, "segundos": (t - enc["t0"]) if enc["t0"] else (t - st["vistos"]), "tacto": d.get("tacto") or 0, "tacto_zona": d.get("tacto_zona"), "ropa_gusta": bool(d.get("color_ropa")), "pide_olvido": bool(d.get("olvidar"))}
+        enc["dec"], enc["prob"] = DEC.decidir(s_); enc["ultima"] = t; enc["abierta_t"] = t
+    return enc["dec"], enc["prob"]
+def reaccion_tacto(d, t, comp, m):
+    """the sister is touched: head -> curious, she looks to that side; back -> calm; tail -> playful; fin -> alert; very hard -> angry startle. Returns the mood it pushes (or None)."""
+    tacto = q(d, "tacto", 0, 1); zona = str(d.get("tacto_zona") or "")
+    if tacto < 0.3: return None
+    if tacto > 0.85: return "angry"
+    return {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert"}.get(zona)
 def paso():
     t = time.time(); d = dict(latest); hay_persona = (t - recibido["t"] < 2.0) and (("blink" in d and "jaw_open" in d) or d.get("actor_animo") or "esqueleto" in d)
     if hay_persona: st["vistos"] = t
@@ -198,9 +221,13 @@ def paso():
                 for c, v in zip(jepa.CUERPO, fila): d[c] = float(v)
             d["cuerpo_jepa"] = 1
     else: st["ella"] = None
+    toque = reaccion_tacto(d, t, None, m)
+    if toque and (t - st.get("tacto_t", 0) > 0.0):   # TOUCH on the sister rules for 6 s after the last touch
+        if q(d, "tacto", 0, 1) > 0.3: st["tacto_t"] = t; st["tacto_animo"] = toque
+        if t - st["tacto_t"] < 6.0: actor = st["tacto_animo"]; fuente = "tacto"
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
-        whale_mood.update(m); fuente = "actor" if fuente != "ella" else fuente
+        whale_mood.update(m); fuente = "actor" if fuente not in ("ella", "tacto") else fuente
     orden = sorted(m.items(), key=lambda x: -x[1]); dom, sec = orden[0][0], (orden[1][0] if len(orden) > 1 else orden[0][0])
     st["historia"][dom] += 1.0 / a.fps
     # --- heartbeat
@@ -231,6 +258,11 @@ def paso():
         for kk in ("flap", "ladeo", "fluke"): comp[kk] *= ke
         comp["spine"] = [v * ke for v in comp["spine"]]
     comp["head"] += 0.03 * beat + 0.06 * tension * _onda(t, 0.9); comp["flap"] += 0.06 * beat + 0.1 * energia; comp["fluke"] -= 0.05 * beat
+    if fuente == "tacto":   # she turns her head toward the touch and the touched fin lifts
+        lado_t = {"aleta": 0.5}.get(str(d.get("tacto_zona") or ""), 0.0); comp["ladeo"] += lado_t * q(d, "tacto", 0, 1); comp["head"] += 0.15 * q(d, "tacto", 0, 1) * (1 if str(d.get("tacto_zona")) == "cabeza" else 0)
+    dec, prob = decidir(d, t, hay_persona, dom, q(d, "cuerpo_energia", 0, 1))
+    if dec.get("distancia") == "acercarse" and hay_persona and not canales_local(d): st["ay"] += (-1.4 - st["ay"]) * 0.01
+    elif dec.get("distancia") == "alejarse" and hay_persona and not canales_local(d): st["ay"] += (1.2 - st["ay"]) * 0.01
     cara_actor = "blink" in d and "jaw_open" in d
     if dom == "singing" and cara_actor:
         canto = q(d, "jaw_open", 0.0, 1.0); comp["head"] += 0.35 * canto; comp["flap"] += 0.3 * canto; comp["fluke"] -= 0.1 * canto
@@ -263,7 +295,7 @@ def paso():
     pk = {"animo": dom, "secundario": sec, "fuente": fuente, "x": r3(x), "y": r3(y), "z": r3(z), "yaw": r3((st["wy"] + math.pi) % (2 * math.pi) - math.pi),
           "pitch": r3(comp["pitch"]), "roll": r3(comp["roll"]), "giro": r3(comp["yaw"]), "head": r3(comp["head"]), "spine": [r3(v) for v in comp["spine"]], "fluke": r3(comp["fluke"]), "flap": r3(comp["flap"]), "ladeo": r3(comp["ladeo"]),
           "jaw": r3(min(BOCA_MAX, comp["jaw"])), "jaw_actor": r3(q(d, "jaw_open", 0, 1)) if cara_actor else None, "boca": r3(min(BOCA_MAX, max(comp["jaw"], q(d, "jaw_open", 0, 1) if cara_actor else 0.0))),
-          "aleta_l": [r3(v) for v in canales["aleta_l"]] if canales and "aleta_l" in canales else None, "aleta_r": [r3(v) for v in canales["aleta_r"]] if canales and "aleta_r" in canales else None, "baila_de_vuelta": int(bool(baile["activo"])), "turbina_viva": r3(canales["turbina"]) if canales and "turbina" in canales else None,
+          "aleta_l": [r3(v) for v in canales["aleta_l"]] if canales and "aleta_l" in canales else None, "aleta_r": [r3(v) for v in canales["aleta_r"]] if canales and "aleta_r" in canales else None, "baila_de_vuelta": int(bool(baile["activo"])), "decision": dec or None, "decision_prob": prob or None, "turbina_viva": r3(canales["turbina"]) if canales and "turbina" in canales else None,
           "cara": [r3(v) for v in comp["cara"]], "mirada": [r3(v) for v in comp["mirada"]], "spin": r3(comp["spin"]), "depth": r3(comp["depth"]),
           "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dom, 1.0), "latido": round(float(LATIDO_ANIMO.get(dom, 0.5)), 2), "beat": r3(beat), "tempo": r3(tempo), "energia": r3(energia), "tension": r3(tension),
           "blink": round(q(d, "blink", 0, 1), 2), "eye_yaw": r3(q(d, "eye_yaw")), "eye_pitch": r3(q(d, "eye_pitch")), "head_yaw": r3(q(d, "head_yaw")), "head_pitch": r3(q(d, "head_pitch")), "brow_up": r3(q(d, "brow_up", 0, 1)), "mouth_smile": r3(q(d, "mouth_smile", 0, 1)),

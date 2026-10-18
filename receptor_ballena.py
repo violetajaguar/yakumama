@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17z tristeza: sombras en la piel, transparencia solo en las aletas"
+VERSION = "2026-10-18a reacciona al tacto de la hermana (cabeza/lomo/cola/aleta/fuerte)"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -1212,6 +1212,11 @@ def breathe():
             bpy.context.scene.ballena.comportamiento = "auto"; print("  menu Comportamiento -> Automatico (llego una toma)")
         manual = bpy.context.scene.ballena.comportamiento   # el panel manda sobre todo lo demas
         if manual != "auto": actor = manual
+    except Exception: pass
+    try:   # TACTO en la hermana fisica (9995 -> grabador -> aqui): cabeza -> curiosa, lomo -> calma, cola -> juguetona, aleta -> alerta, muy fuerte -> rabia; manda 6 s
+        _tc = float(d.get('tacto', 0) or 0); _tz = str(d.get('tacto_zona') or '')
+        if _tc > 0.3: breathe._tacto_t = t; breathe._tacto_animo = "angry" if _tc > 0.85 else {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert"}.get(_tz)
+        if getattr(breathe, "_tacto_animo", None) and t - getattr(breathe, "_tacto_t", 0) < 6.0: actor = breathe._tacto_animo
     except Exception: pass
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
