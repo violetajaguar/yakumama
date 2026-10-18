@@ -27,7 +27,7 @@ N-panel (press N in 3D viewport, tab "Ballena"):
 """
 
 UDP_PORT = 9998
-VERSION = "2026-10-17y tristeza: sombras claras/oscuras hasta transparente"
+VERSION = "2026-10-17z tristeza: sombras en la piel, transparencia solo en las aletas"
 MIRADA_AMP = 0.35   # radianes de giro del ojo con la mirada al maximo (eye_yaw/eye_pitch = ±1)
 MIRADA_ESPEJO = False   # True: el actor mira a su derecha y la ballena mira a SU izquierda (como un espejo)
 # Ojos: en whale.blend el hueso "eye.R" deforma la malla del ojo IZQUIERDO (x<0) y "eye.L" la del DERECHO (x>0).
@@ -724,6 +724,14 @@ for obj in bpy.data.objects:
         if any(k.name in ["parpadeo", "angry", "sad", "asombrado"] for k in obj.data.shape_keys.key_blocks):
             whale_mesh = obj
             break
+fin_mesh = bpy.data.objects.get("aleta low")
+if fin_mesh is not None and whale_mesh is not None:   # las aletas con material PROPIO (copia del de la piel): solo ellas se vuelven translucidas en la tristeza
+    try:
+        for _sl in fin_mesh.material_slots:
+            if _sl.material and any(_sl.material == _b.material for _b in whale_mesh.material_slots):
+                _m = _sl.material.copy(); _m.name = _sl.material.name + "_aleta"; _sl.material = _m
+        print(f"  Aletas: {fin_mesh.name} con material propio")
+    except Exception as _e: print(f"  (aletas: {_e})")
 if whale_mesh:
     print(f"  Mesh: {whale_mesh.name}")
     try:   # que la vista 3D muestre el color del material (en Solido con color Aleatorio/Unico/Textura el tinte no se ve)
@@ -886,8 +894,8 @@ except Exception as e: print("  (dientes/lengua:", e, ")")
 def tint_body(target_rgb, lerp_amount, alpha=1.0):
     """tine la piel hacia target_rgb; alpha < 1 la vuelve transparente (tristeza: sombras mas claras, mas oscuras, hasta desaparecer)."""
     if not whale_mesh: return
-    try:
-        for slot in whale_mesh.material_slots:
+    try:   # la transparencia solo en las ALETAS (Violeta): el cuerpo nunca se vuelve translucido
+        for slot in (fin_mesh.material_slots if fin_mesh is not None else []):
             mat = slot.material
             if not mat: continue
             if alpha < 0.999 or getattr(tint_body, "_alpha", 1.0) < 0.999:
@@ -904,7 +912,7 @@ def tint_body(target_rgb, lerp_amount, alpha=1.0):
     try:   # color de objeto (sombreado Solido en modo Objeto) tambien, para que se vea en cualquier vista
         c = whale_mesh.color; whale_mesh.color = (c[0] + (target_rgb[0] - c[0]) * lerp_amount, c[1] + (target_rgb[1] - c[1]) * lerp_amount, c[2] + (target_rgb[2] - c[2]) * lerp_amount, 1.0)
     except Exception: pass
-    for slot in whale_mesh.material_slots:
+    for slot in list(whale_mesh.material_slots) + (list(fin_mesh.material_slots) if fin_mesh is not None else []):
         mat = slot.material
         if not mat: continue
         try:
