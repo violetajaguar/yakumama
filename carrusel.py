@@ -196,9 +196,10 @@ def leer_poema():
                 if _poema["gen"] != mi_gen: return
                 _poema["p"] = subprocess.Popen(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             _poema["p"].wait(); time.sleep(0.6)
+        estado["poema"] = {"ella": ella, "es": es, "en": en or ""}   # la traduccion se ESCRIBE en la pagina; ella solo HABLA en su lengua (Violeta, 17 oct noche)
         def _leer():
             d = os.path.join(HUK, "poemas_voz"); os.makedirs(d, exist_ok=True)
-            for texto, nombre, lengua in ((ella, "poema_ella.wav", "ella"), (en, "poema_en.wav", "en"), (es, "poema_es.wav", "es")):
+            for texto, nombre, lengua in ((ella, "poema_ella.wav", "ella"),):
                 if not texto or _poema["gen"] != mi_gen: continue
                 _sonar(voz_ella(texto.replace("\n", ". "), os.path.join(d, nombre), lengua))
             if _poema["gen"] == mi_gen and estado["actual"] is not None and not ITEMS[estado["actual"]].get("voz"): sonar(ITEMS[estado["actual"]]["animo"])   # vuelve el sonido del animo
@@ -265,6 +266,8 @@ details.g{border:1px solid #222;border-radius:10px;background:#121218;margin:8px
 <div class=barra><button id=auto onclick="fetch('/auto?on='+(document.getElementById('auto').classList.contains('on')?0:1)).then(tick)">carrusel de ánimos</button>
 <button id=autov onclick="fetch('/auto?on='+(document.getElementById('autov').classList.contains('on')?0:1)+'&grupo=canto').then(tick)">carrusel de voces humanas</button>
 <button id=musica onclick="fetch('/musica?on='+(document.getElementById('musica').classList.contains('on')?0:1)).then(tick)">música de base</button><button id=retarget onclick="fetch('/retarget?on='+(document.getElementById('retarget').classList.contains('on')?0:1)).then(tick)" title="el cuerpo entero del bailarin o performer traducido al cuerpo de ella: manos a aletas, cabeza, columna, cola con los pies, desplazamiento">traducida</button><button onclick="fetch('/poema_nuevo')">poema nuevo</button><button id=escribe onclick="fetch('/escribe?on='+(document.getElementById('escribe').classList.contains('on')?0:1)).then(tick)">escribe sola</button><button onclick="fetch('/poema')">leer el último poema</button>
+<div id=poema_caja style="display:none;margin:10px 0;padding:10px;border:1px solid #444;border-radius:8px;background:#111"><div style="font-size:11px;opacity:.6;margin-bottom:6px">ella habla en su lengua · la traducción se escribe</div>
+<div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:14px"><pre id=poema_ella style="font-size:16px;line-height:1.4;white-space:pre-wrap;margin:0;color:#ffd27a"></pre><pre id=poema_es style="font-size:12px;white-space:pre-wrap;margin:0;opacity:.85"></pre><pre id=poema_en style="font-size:12px;white-space:pre-wrap;margin:0;opacity:.85"></pre></div></div>
 <details id=coreo style="margin-top:10px"><summary><b>coreografía</b> · una línea por frase: ánimo segundos [inventa|frases|cuerpo:X] [hacia:publico|fondo|izquierda|derecha|casa|alrededor] [sin-acro] [poema] · "repetir" al final</summary>
 <div style="display:flex;gap:6px;align-items:center;margin:6px 0"><select id=coreo_lista onchange="coreoLeer(this.value)"></select><input id=coreo_nombre value="ejemplo_salar" style="width:160px"><button onclick="coreoGuardar()">guardar</button><button onclick="coreoBailar()" style="font-weight:bold">bailar coreografía</button></div>
 <textarea id=coreo_texto rows=12 style="width:100%;font-family:monospace;font-size:12px"></textarea></details>
@@ -286,7 +289,7 @@ let h='';for(const [grupo,subs] of Object.entries(g)){const n=Object.values(subs
   h+='<details class=s><summary>'+sub+' <span>'+v.length+'</span></summary><div class=grupo>'+v.map(boton).join('')+'</div></details>'}
  h+='</details>'}document.getElementById('lista').innerHTML=h}
 async function tick(){const s=await (await fetch('/estado')).json();document.querySelectorAll('button[id^=b]').forEach(b=>b.classList.remove('on'));if(s.actual!=null){const b=document.getElementById('b'+s.actual);if(b)b.classList.add('on')}
-document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');document.getElementById('musica').classList.toggle('on',!!s.musica);document.getElementById('escribe').classList.toggle('on',!!s.escribe);document.getElementById('retarget').classList.toggle('on',!!s.retarget);const it=s.actual!=null?items[s.actual]:null;
+document.getElementById('auto').classList.toggle('on',s.auto&&s.grupo!='canto');document.getElementById('autov').classList.toggle('on',s.auto&&s.grupo=='canto');document.getElementById('musica').classList.toggle('on',!!s.musica);document.getElementById('escribe').classList.toggle('on',!!s.escribe);document.getElementById('retarget').classList.toggle('on',!!s.retarget);if(s.poema){document.getElementById('poema_caja').style.display='block';document.getElementById('poema_ella').textContent=s.poema.ella;document.getElementById('poema_es').textContent=s.poema.es;document.getElementById('poema_en').textContent=s.poema.en;}const it=s.actual!=null?items[s.actual]:null;
 document.getElementById('ahora').textContent=it?(it.grupo+(it.sub?' · '+it.sub:'')+' · '+it.nombre+'  ·  '+Math.round(s.t)+' s'+(s.auto?'  ·  gira':'')+(s.ojos?'  ·  ojos de '+s.ojos:'')):'nada suena';
 const w=s.ballena;document.getElementById('ella').innerHTML=w&&w.viva?('ella siente <i class=c style="background:'+(C[w.animo]||'#777')+'"></i><b>'+(w.animo_es||'—')+'</b> · pulso <b>'+Math.round(w.pulso||0)+'</b> lpm · tempo ×'+w.tempo+' · energía '+w.energia+' · tensión '+w.tension+' · latido '+w.latido+(w.cara?' · con cara':'')+' · '+w.fps+' fps'):'Blender no responde';
 const e=s.emotibit;document.getElementById('emo').innerHTML=e?('EmotiBit de la toma: pulso <b>'+e.hr+'</b> lpm → tempo <b>×'+e.tempo+'</b>, energía <b>'+e.energia+'</b> · piel <b>'+e.eda+'</b> µS → tensión <b>'+e.tension+'</b> · temperatura '+e.temp+' °C · '+e.t+' / '+e.dur+' s'):(it&&it.grupo!='performers'?'sin EmotiBit (el pulso lo pone la energía del cuerpo)':'');}
@@ -305,7 +308,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); q = parse_qs(u.query)
         if u.path == "/": b = HTML.encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
         elif u.path == "/items": self._json([{k: v for k, v in it.items() if k not in ("ruta",)} for it in ITEMS])
-        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "musica": _base["on"], "escribe": bool(estado.get("escribe")), "retarget": bool(estado.get("retarget")), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
+        elif u.path == "/estado": self._json({"actual": estado["actual"], "auto": estado["auto"], "grupo": estado.get("grupo", "animos"), "ojos": estado.get("ojos"), "musica": _base["on"], "escribe": bool(estado.get("escribe")), "retarget": bool(estado.get("retarget")), "poema": estado.get("poema"), "seg": estado["seg"], "t": time.time() - estado["desde"] if estado["actual"] is not None else 0, "emotibit": emotibit_ahora(), "ballena": ballena_ahora()})
         elif u.path == "/tocar": estado["auto"] = False; tocar(int(q["i"][0])); self._json({"ok": 1})
         elif u.path == "/auto":
             estado["auto"] = q.get("on", ["1"])[0] == "1"; estado["grupo"] = q.get("grupo", [estado.get("grupo", "animos")])[0]
