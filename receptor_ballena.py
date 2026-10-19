@@ -1188,6 +1188,7 @@ def breathe():
     d = suavizar(latest_data)
     t = time.time()
     d = completar_con_red(d, t)
+    bpy.app.driver_namespace["_ballena_d"] = d; bpy.app.driver_namespace["_ballena_t"] = t   # the golden sister (hermana_blender.py) reads the same packet
     m = compute_mood(d)
     solo_cara = bool(d.get('solo_cara', 0))
     cabeza_fija = int(d.get('solo_cara', 0) or 0) == 2   # 2 = ni la cabeza se mueve: solo boca, parpadeo y cejas
@@ -1215,7 +1216,11 @@ def breathe():
     except Exception: pass
     try:   # TACTO en la hermana fisica (9995 -> grabador -> aqui): cabeza -> curiosa, lomo -> calma, cola -> juguetona, aleta -> alerta, muy fuerte -> rabia; manda 6 s
         _tc = float(d.get('tacto', 0) or 0); _tz = str(d.get('tacto_zona') or '')
-        if _tc > 0.3: breathe._tacto_t = t; breathe._tacto_animo = "angry" if _tc > 0.85 else {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert"}.get(_tz)
+        _bc = str(d.get('ofrenda') or '')
+        if _bc in ("pez", "no_pez"): breathe._tacto_t = t; breathe._tacto_animo = "feeding" if _bc == "pez" else "alert"   # the mouth: a fish is eaten, anything else is refused
+        elif d.get('ve_telefono'): breathe._tacto_t = t; breathe._tacto_animo = "sad"   # a lens raised at her: dark, still, hanging, face away (she gives her face to eyes, not lenses)
+        elif d.get('ve_hermana'): breathe._tacto_t = t; breathe._tacto_animo = "curious"   # her golden sister held up in front of her eye
+        elif _tc > 0.3: breathe._tacto_t = t; breathe._tacto_animo = ("sad" if _tz == "flores" else "angry") if _tc > 0.85 else {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert", "flores": "calm", "joya": "calm"}.get(_tz)
         if getattr(breathe, "_tacto_animo", None) and t - getattr(breathe, "_tacto_t", 0) < 6.0: actor = breathe._tacto_animo
     except Exception: pass
     if actor in m:
@@ -1590,6 +1595,8 @@ def breathe():
         (tx, ty, tz), yaw_obj, rap = coreo(dominant, t - breathe._coreo_t0, cerca); k = 0.004 + 0.03 * rap
         if canales and canales.get("x") is not None:   # DESPLAZAMIENTO del cuerpo traducido (retarget_ballena.py): la bailarina se mueve por el piso, ella por el espacio
             tx, ty, tz = float(canales["x"]), float(canales["y"]), float(canales.get("z", 0.0)); yaw_obj = float(canales["rumbo"]) if canales.get("rumbo") is not None else None; rap = 1.0; k = 0.08
+        _dib = bpy.app.driver_namespace.get("_ballena_destino")   # dibujo_salar.py: while she draws, the waypoint is her target (straight runs, sharp turns)
+        if _dib and t - _dib.get("t", 0) < 1.0: tx, ty, tz = float(_dib["x"]), float(_dib["y"]), float(_dib.get("z", tz)); yaw_obj = None; rap = float(_dib.get("rap", 0.4)); k = 0.004 + 0.03 * rap
         breathe._auto_x += (tx - breathe._auto_x) * k; breathe._auto_y += (ty - breathe._auto_y) * k
         breathe._coreo_z = getattr(breathe, "_coreo_z", 0.0) + (tz - getattr(breathe, "_coreo_z", 0.0)) * k
         if yaw_obj is None:
@@ -1601,7 +1608,7 @@ def breathe():
     final_x = hx + breathe._auto_x
     final_y = hy + depth_y + breathe._auto_y
     final_z = hz + breathe._wz + (auto_z if water > 0.5 else 0) + comp["depth"] + final_z_extra   # diving baja, surfacing y curious suben
-    loc('root', sm('bfx',final_x,0.03), sm('bfy',final_y,0.03), sm('bfz',final_z,0.03))
+    loc('root', sm('bfx',final_x,0.03), sm('bfy',final_y,0.03), sm('bfz',final_z,0.03)); bpy.app.driver_namespace["_ballena_pos"] = (final_x, final_y, final_z)
     salida(d, dominant, comp, final_x, final_y, final_z, breathe._wy, "actor" if d.get('actor_animo') else "escena")
 
     # TURBINE
@@ -1615,7 +1622,7 @@ def breathe():
         if canales and canales.get("turbina") is not None: vel = float(canales["turbina"])   # la cola a la velocidad de los pies del bailarin
         if vel == "pulso": turbine_angle = breathe._latido if (30 < hr < 220) else turbine_angle + 1.2 * 0.033   # una vuelta por latido
         else: turbine_angle += (vel * tempo + (15.0 if (turbine_active or manual_turbine) else 0.0)) * 0.033
-        rot('turbine', turbine_angle, 2, 1.0)
+        rot('turbine', turbine_angle, 2, 1.0); bpy.app.driver_namespace["_ballena_turbina_vel"] = (1.0 if vel == "pulso" else float(vel)) * tempo
 
     # LATIDO: el cuerpo late al ritmo del corazon del actor (emotibit_hr, EmotiBit via grabar_ballena.py)
     try:   # el latido recorre la columna: spine (pecho) primero, luego .001 y .002 con un poco de retraso
@@ -1751,3 +1758,10 @@ def _recargar():
 _ns["_ballena_recarga"] = _recargar
 bpy.app.timers.register(_recargar, first_interval=2.0)
 print("  Auto-recarga: cada 2 s mira si receptor_ballena.py cambio.")
+try:   # la hermana dorada (el robot de yakumama_nazca.blend) al lado de ella, movida por los mismos paquetes
+    import sys as _sys, importlib as _il; _sys.path.insert(0, YAKUMAMA) if YAKUMAMA not in _sys.path else None
+    import hermana_blender; _il.reload(hermana_blender); hermana_blender.instalar()
+except Exception as _e: print(f"  (hermana dorada: {_e})")
+try:   # ella dibuja lineas de nazca en el salar (y la cara de quien recuerda)
+    import dibujo_salar; _il.reload(dibujo_salar); dibujo_salar.instalar()
+except Exception as _e: print(f"  (dibujo salar: {_e})")

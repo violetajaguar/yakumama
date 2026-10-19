@@ -93,3 +93,13 @@ gaze). Known visitors are approached closer than strangers.
 {"tacto": 0.8, "zona": "lomo", "presencia": 1}     touch 0..1, where (cabeza | lomo | cola | aleta), someone near 0..1
 ```
 `tacto` and `tacto_zona` then travel inside every packet, and the first touch makes her write about it in the window.
+
+**Barcelona sister (18 October 2026)**: the same port also takes the real sister's senses, flower by flower:
+```
+{"flores": [0..1, ...], "joya": 0..1, "joya_tiron": 0/1, "presencia": 0..1}          from the touch ESP32
+{"camara": {"cerca": 0..1, "mira": 0/1}, "palanca": 0/1}                              from TouchDesigner (joystick camera)
+{"ofrenda": "pez" | "no_pez" | "nada", "ofrenda_p": 0..1}                                    temporary, by hand, until her eye recognises the fish
+```
+They travel in every packet as `flores flores_n joya joya_tiron camara_cerca camara_mira palanca_s ofrenda ofrenda_p ve_objeto
+ve_hermana ve_telefono personas_n foco_razon distancia_m`, and her decisions come back on 9994 as `decision` / `decision_prob` with
+`come rehusa lente ve_hermana dibujo`. Everything is in `HERMANA_ESP32_PAQUETES.md` and `ACTUALIZACION_DAN_18oct.md`.
