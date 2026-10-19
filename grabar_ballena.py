@@ -63,6 +63,11 @@ ap.add_argument("--pose", type=int, default=1, help="1 = tambien el cuerpo (Medi
 ap.add_argument("--visitas", type=int, default=1, help="1 = guardar cada encuentro con una visita (datasets/visitas/) y recordarla en datasets/memoria.json; 0 = no")
 ap.add_argument("--actor", default="", help="nombre de quien actua; va en el nombre del tramo: <animo>_<actor>_NNN (tambien se cambia en el panel)")
 ap.add_argument("--video", type=int, default=0, help="1 = grabar la ventana de Blender de g a f (apagado por defecto)")
+ap.add_argument("--voz", type=int, default=1, help="1 = lee cada poema nuevo en voz alta, solo en su lengua (voz_ella via venv_datos); la traduccion se escribe en la ventana")
+ap.add_argument("--sonido", type=int, default=1, help="1 = el sonido de cada animo (Huk/whale sound) al cambiar el animo dominante de Blender (afplay)")
+ap.add_argument("--musica", type=int, default=0, help="1 = musica de base en bucle, bajito (Huk/whale sound/base); apagada por defecto (Violeta, 18 oct: la de prueba cansa)")
+ap.add_argument("--panel-red", type=int, default=1, help="1 = el panel y la ventana (/ventana) se ven desde otras maquinas de la red (http://<esta ip>:8765); 0 = solo esta maquina")
+ap.add_argument("--ojo-objeto", type=int, default=1, help="1 = cada 3 s mira que tiene en la mano quien esta enfrente (moondream local via ollama): pez -> ofrenda")
 a = ap.parse_args()
 HUK = os.path.dirname(os.path.abspath(a.script))   # la carpeta de ballena3.py (whale.blend, yakumama_alma): --script la fija en otra maquina
 
@@ -277,6 +282,7 @@ if not a.prueba and a.emotibit_directo:
 # --- lengua y 52 blendshapes: Face Landmarker sobre el cuadro RGB que ballena3 le pasa a FaceMesh.process
 MODELO = os.path.join(AQUI, "modelos", "face_landmarker.task")
 extra = {}                       # ultimos blendshapes, se mezclan en cada paquete
+sentidos = {}                    # 18 oct: lo que siente la hermana y lo que ve el ojo (tacto, flores, joya, ofrenda, ve_hermana, personas...): NO se borra con la cara
 _lm = {"lm": None, "t0": time.time(), "n": 0, "lento": False, "error": None}
 def parpadeo_curva(b):
     """eyeBlink de MediaPipe: 0.3-0.5 es entrecerrar (sonrisa, camara baja); un parpadeo real pasa de 0.85."""
@@ -465,7 +471,13 @@ def parecido(x):
 # llega, lo reconoce, decide a quien se parece, cambia de animo, le gusta una ropa) es un gatillo: una linea corta en su
 # voz, enseguida, y si ollama esta, un poema de su alma (yakumama_alma, Qwen) unos segundos despues. Abajo, en chico,
 # lo que esta haciendo: animo, comportamiento, color, estilo, energia.
-ventana = {"lineas": [], "poema": "", "poema_t": 0.0, "ocupado": False, "ultimo_gatillo": 0.0}
+ventana = {"lineas": [], "poema": "", "poema_t": 0.0, "ocupado": False, "ultimo_gatillo": 0.0, "poema_ella": "", "poema_en": "", "objeto": "", "objeto_t": 0.0, "leyendo": False}
+try:   # the last poem survives a restart of the recorder (18 oct)
+    _v = json.load(open("/tmp/ballena_ventana.json")); ventana.update({k: _v[k] for k in ("lineas", "poema", "poema_ella", "poema_en") if k in _v})
+except Exception: pass
+def ventana_guardar():
+    try: json.dump({k: ventana[k] for k in ("lineas", "poema", "poema_ella", "poema_en")}, open("/tmp/ballena_ventana.json", "w"), ensure_ascii=False)
+    except Exception: pass
 FRASES = {"llega": ["alguien se acerca. todavia no se quien.", "una cara nueva en la costra.", "te veo llegar. me quedo quieta."],
           "conocida": ["ya viniste. te recuerdo por los huesos de la cara.", "volviste. la sal no olvida.", "te conozco. la otra vez te conteste como {estilo_previo}."],
           "nombre": ["{nombre}. te conozco por tu nombre.", "volviste, {nombre}.", "{nombre}, otra vez frente a mi."],
@@ -473,21 +485,73 @@ FRASES = {"llega": ["alguien se acerca. todavia no se quien.", "una cara nueva e
           "animo": ["te leo {animo}.", "ahora te veo {animo}. cambio.", "hay {animo} en tu cara. lo tomo."],
           "ropa": ["me gusta tu color. me lo quedo un rato.", "tu ropa tiene agua adentro. me tino.", "ese color lo quiero. lo llevo puesto."],
           "sevа": ["te fuiste. me quedo con lo que trajiste.", "la cara se fue. el peso queda."],
-          "tacto": ["me tocan. la costra siente la mano.", "una mano en el lomo. me quedo.", "el cuerpo de mi hermana siente tu mano. yo también."]}
+          "tacto": ["me tocan. la costra siente la mano.", "una mano en el lomo. me quedo.", "el cuerpo de mi hermana siente tu mano. yo también."],
+          "hermana": ["veo a mi hermana dorada en tus manos.", "la llevas en las manos. es mi hermana. la miro.", "mi hermana de oro. la sostienes como un pez."],
+          "telefono": ["me apuntas con un telefono. te doy la espalda hasta que lo bajes.", "un lente. no le doy la cara a los lentes. se la doy a los ojos.", "bajalo y vuelvo."]}
 ANIMO_ES = {"calm": "calma", "singing": "canto", "playful": "juego", "curious": "curiosidad", "feeding": "hambre", "sad": "tristeza", "angry": "rabia", "alert": "alerta", "diving": "hondo", "surfacing": "aire"}
 # --- RETORNO DE LA HERMANA FISICA (17 oct): Dan manda por UDP 9995 lo que la ballena de verdad siente: {"tacto": 0..1,
 # "zona": "cabeza"|"lomo"|"cola"|"aleta", "presencia": 0..1}. Entra en cada paquete (tacto, tacto_zona) y, al primer toque,
 # dispara en la ventana el gatillo "tacto" (la linea y el poema de "alguien te esta tocando").
-retorno = {"tacto": 0.0, "zona": "", "presencia": 0.0, "t": 0.0, "ultimo_gatillo": 0.0}
+retorno = {"tacto": 0.0, "zona": "", "presencia": 0.0, "t": 0.0, "ultimo_gatillo": 0.0, "palanca_t": 0.0, "palanca_s": 0.0, "tacto_t": 0.0}
+multitud = {"foco": None, "razon": "", "t": 0.0}
+def _leer_multitud(personas, ahora):
+    """the crowd eye's people -> her chosen one (decisiones.elegir_foco: feeding or the jewel crown first, then a known face, ...).
+    The sister's touch and the mouth are given to whoever has a hand on the table; the known face is the one the face memory recognised."""
+    try: from decisiones import elegir_foco
+    except Exception: elegir_foco = None
+    for p in personas:
+        en_mesa = bool(p.get("mano_mesa")); p["alimenta"] = int(en_mesa and str(sentidos.get("ofrenda") or "nada") in ("pez", "no_pez"))
+        p["joya"] = int(en_mesa and float(sentidos.get("joya") or 0) > 0.3); p["flores"] = int(en_mesa and float(sentidos.get("flores") or 0) > 0.3)
+        p["palanca"] = int(en_mesa and bool(retorno.get("palanca_t"))); p["conocida"] = int(bool(visita.get("conocida")) and p.get("id") == multitud["foco"])
+    foco, razon = elegir_foco(personas, multitud["foco"]) if (elegir_foco and personas) else (None, "")
+    multitud.update(foco=(foco or {}).get("id"), razon=razon, t=ahora)
+    sentidos["personas_n"] = len(personas); sentidos["foco_razon"] = razon or None
+    if foco: sentidos["distancia_m"] = foco.get("distancia_m"); sentidos["quieto_foco"] = foco.get("quieto"); sentidos["foco_x"] = foco.get("x"); sentidos["foco_mano_mesa"] = foco.get("mano_mesa")
+    else: sentidos["distancia_m"] = None; sentidos["quieto_foco"] = None; sentidos["foco_x"] = None; sentidos["foco_mano_mesa"] = 0
+def _envejecer_retorno(ahora):
+    """the touch ESP went quiet for a second: nothing is being touched (so a stale reading can never fire a refusal)."""
+    if retorno["tacto_t"] and ahora - retorno["tacto_t"] > 1.0:
+        retorno["tacto"] = 0.0; retorno["zona"] = ""; retorno["tacto_t"] = 0.0
+        for k, v in (("tacto", 0.0), ("tacto_zona", ""), ("flores", 0.0), ("flores_n", 0), ("joya", 0.0), ("joya_tiron", 0)):
+            if k in sentidos: sentidos[k] = v
+def _leer_retorno(d, ahora):
+    """v2 (18 oct): the sister of Barcelona. Touch ESP: {"flores": [stem 0..1, ...], "joya": 0..1, "joya_tiron": 0/1, "presencia": 0..1}.
+    TouchDesigner: {"camara": {"cerca": 0..1, "mira": 0/1}, "palanca": 0/1}. Legacy {"tacto","zona"} still accepted.
+    Temporary, until her eye recognises the fish: {"ofrenda": "pez"|"no_pez"|"nada", "ofrenda_p": 0..1} may be sent by hand for tests."""
+    if isinstance(d.get("personas"), list):   # the crowd eye (ojo_multitud.py): whom she attends, and how many are there
+        _leer_multitud(d["personas"], ahora); return
+    tacto = float(d.get("tacto", 0) or 0); zona = str(d.get("zona", "") or "")
+    fl = d.get("flores"); con_tacto = isinstance(fl, list) or "joya" in d or "tacto" in d
+    if not con_tacto:   # a packet from TouchDesigner (camera, joystick) or a hand test of the mouth: the touch it carries is whatever the ESP last said
+        tacto, zona = retorno["tacto"], retorno["zona"]
+    else: retorno["tacto_t"] = ahora; sentidos["flores"] = 0.0; sentidos["flores_n"] = 0; sentidos["joya"] = 0.0; sentidos["joya_tiron"] = 0
+    if isinstance(fl, list) and fl:
+        vals = [max(0.0, min(1.0, float(v or 0))) for v in fl]; sentidos["flores"] = round(max(vals), 3); sentidos["flores_n"] = sum(1 for v in vals if v > 0.3)
+        if sentidos["flores"] > 0.3: tacto, zona = sentidos["flores"], "flores"
+    if "joya" in d:
+        sentidos["joya"] = round(max(0.0, min(1.0, float(d.get("joya") or 0))), 3); sentidos["joya_tiron"] = int(bool(d.get("joya_tiron")))
+        if sentidos["joya"] > 0.3 or sentidos["joya_tiron"]: tacto, zona = max(sentidos["joya"], 0.9 if sentidos["joya_tiron"] else 0.0), "joya"
+    if "ofrenda" in d: sentidos["ofrenda"] = str(d.get("ofrenda") or "nada"); sentidos["ofrenda_p"] = float(d.get("ofrenda_p", 1.0) or 0); retorno["ofrenda_t"] = ahora   # what is offered to the mouth: pez | no_pez | nada
+    cam = d.get("camara")
+    if isinstance(cam, dict): sentidos["camara_cerca"] = round(float(cam.get("cerca", 0) or 0), 3); sentidos["camara_mira"] = int(bool(cam.get("mira")))
+    if "palanca" in d:
+        if d.get("palanca"):
+            if retorno["palanca_t"]: retorno["palanca_s"] += min(1.0, ahora - retorno["palanca_t"])
+            retorno["palanca_t"] = ahora
+        else: retorno["palanca_t"] = 0.0
+        sentidos["palanca_s"] = round(retorno["palanca_s"], 1)
+    retorno["tacto"] = tacto; retorno["zona"] = zona; retorno["presencia"] = float(d.get("presencia", 0) or 0); retorno["t"] = ahora
+    sentidos["tacto"] = round(tacto, 3); sentidos["tacto_zona"] = zona
 def _hilo_retorno(puerto=9995):
     import socket as _s
     try: sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM); sk.bind(("0.0.0.0", puerto))
     except Exception as e: print(f"   (retorno 9995: {e})"); return
+    sk.settimeout(0.5)
     while True:
         try: b, _ = sk.recvfrom(2048); d = json.loads(b.decode()); ahora = time.time()
-        except Exception: continue
-        retorno["tacto"] = float(d.get("tacto", 0) or 0); retorno["zona"] = str(d.get("zona", "")); retorno["presencia"] = float(d.get("presencia", 0) or 0); retorno["t"] = ahora
-        extra["tacto"] = round(retorno["tacto"], 3); extra["tacto_zona"] = retorno["zona"]
+        except Exception: _envejecer_retorno(time.time()); continue
+        _envejecer_retorno(ahora)
+        _leer_retorno(d, ahora)
         if retorno["tacto"] > 0.3 and ahora - retorno["ultimo_gatillo"] > 45:
             retorno["ultimo_gatillo"] = ahora
             try: ventana_evento("tacto")
@@ -499,7 +563,7 @@ def ventana_evento(gatillo):
     if gatillo == "conocida" and visita.get("nombre"): gatillo = "nombre"
     frase = random.choice(FRASES.get(gatillo, ["..."])).format(**datos)
     ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": frase, "gatillo": gatillo}])[-6:]
-    if gatillo in ("llega", "conocida", "ropa", "tacto") or (gatillo == "animo" and time.time() - ventana["poema_t"] > 45):
+    if gatillo in ("llega", "conocida", "ropa", "tacto", "hermana") or (gatillo == "animo" and time.time() - ventana["poema_t"] > 45):
         threading.Thread(target=ventana_poema, args=(gatillo, dict(datos)), daemon=True).start()
 def ventana_poema(gatillo, datos):
     """pide un poema al alma (ollama) con lo que le pasa; si no hay ollama, no escribe mas que la frase"""
@@ -509,7 +573,8 @@ def ventana_poema(gatillo, datos):
         sys.path.insert(0, HUK); import yakumama_alma as A
         que = {"llega": "una persona nueva se paro frente a vos y te mira", "conocida": f"volvio alguien que ya vino; la otra vez le contestaste como {datos['estilo_previo']}", "nombre": f"volvio {datos['nombre']}, que ya vino {mem.personas.get(visita.get('id') or '', {}).get('visitas', 0)} veces; la conoces por su nombre",
                "ropa": "te gusta el color de la ropa de quien tienes enfrente y te tines de ese color", "animo": f"en la cara de quien te mira lees {datos['animo']}",
-               "tacto": f"alguien esta tocando el cuerpo de tu hermana de metal{(' en ' + retorno['zona']) if retorno.get('zona') else ''}; lo sientes como si fuera el tuyo"}[gatillo]
+               "tacto": f"alguien esta tocando el cuerpo de tu hermana de metal{(' en ' + retorno['zona']) if retorno.get('zona') else ''}; lo sientes como si fuera el tuyo",
+               "hermana": "alguien sostiene a tu hermana dorada, la ballena de oro, en sus manos frente a tu ojo; la ves de cerca, la miras con curiosidad"}[gatillo]
         r = _pose.get("ropa") or {}; cuerpo = _pose.get("ultimo") or {}
         snap = {"water": 0.7, "scene_color": "the colour of their clothes" if gatillo == "ropa" else "gray", "scene_bright": r.get("brillo", 0.5), "humidity": 40, "l_palm_x": 0.5}
         usuario = (f"TU CUERPO Y EL SALAR AHORA\n{A._estado_en_cuerpo(snap)}\n\nLO QUE ACABA DE PASAR\n{que}. Se mueve como {datos['estilo']}. "
@@ -521,21 +586,27 @@ def ventana_poema(gatillo, datos):
             if poema:
                 ventana["poema"] = poema; ventana["poema_t"] = time.time(); p = A._cargar(A.ARCH_POEMAS, []); p.append(poema); A._guardar(A.ARCH_POEMAS, p[-200:])
                 print("   ┌─ VENTANA\n   │  " + poema.replace("\n", "\n   │  ") + "\n   └─")
+                threading.Thread(target=ventana_voz, args=(poema,), daemon=True).start()
     except Exception as e: print(f"   (ventana sin poema: {str(e)[:80]})")
     finally: ventana["ocupado"] = False
 VENTANA_HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Yakumama</title>
 <style>body{margin:0;background:#000;color:#e8e2d6;font:300 clamp(22px,3.4vw,46px)/1.35 Georgia,'Times New Roman',serif;height:100vh;display:flex;flex-direction:column;justify-content:space-between;padding:5vh 7vw;box-sizing:border-box}
 #poema{white-space:pre-line;max-width:28ch;opacity:0;transition:opacity 2.5s}#poema.on{opacity:1}#linea{font-style:italic;opacity:.85;min-height:1.4em}
+#trad{white-space:pre-line;font:300 clamp(13px,1.3vw,18px)/1.45 Georgia,serif;opacity:.55;max-width:60ch;display:flex;gap:3em}#trad div{flex:1}#decide{opacity:.7}
 #hace{font:400 clamp(12px,1.2vw,16px)/1.5 -apple-system,Helvetica,sans-serif;letter-spacing:.08em;text-transform:uppercase;opacity:.45;display:flex;gap:2.5em;flex-wrap:wrap}
 #color{width:.9em;height:.9em;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:.4em;background:#777}</style></head><body>
-<div id=poema></div><div id=linea></div>
-<div id=hace><span><i id=color></i><span id=animo></span></span><span id=comp></span><span id=estilo></span><span id=memo></span><span id=cuerpo></span></div>
+<div id=poema></div><div id=trad><div id=es></div><div id=en></div></div><div id=linea></div>
+<div id=hace><span><i id=color></i><span id=animo></span></span><span id=comp></span><span id=estilo></span><span id=memo></span><span id=cuerpo></span><span id=veo></span><span id=decide></span><span id=dibuja></span></div>
 <script>
 const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#1e1e1e',angry:'#f21410',alert:'#1ae640',diving:'#102a6b',surfacing:'#19d6e8'};
 const B={calm:'logging',singing:'canto',playful:'breach',curious:'spyhop',feeding:'lunge',sad:'hundida',angry:'lobtail',alert:'escaneo',diving:'buceo',surfacing:'soplo'};
 let ultimaLinea='';
 async function tick(){try{const s=await (await fetch('/ventana_estado')).json();
- const p=document.getElementById('poema');if(s.poema&&p.textContent!==s.poema){p.classList.remove('on');setTimeout(()=>{p.textContent=s.poema;p.classList.add('on')},800)}
+ const txt=s.poema_ella||s.poema||'';const p=document.getElementById('poema');if(txt&&p.textContent!==txt){p.classList.remove('on');setTimeout(()=>{p.textContent=txt;p.classList.add('on')},800)}
+ document.getElementById('es').textContent=s.poema_ella?(s.poema||''):'';document.getElementById('en').textContent=s.poema_en||'';
+ document.getElementById('veo').textContent=s.objeto?('veo: '+s.objeto):'';const D={acercarse:'me acerco',quedarse:'me quedo',alejarse:'me alejo',bailar_de_vuelta:'bailo',invitar:'invito',observar:'observo',poema:'poema',canto:'canto',silencio:'silencio',recordar:'te recuerdo',olvidar:'te olvido',propio:'mi color',ropa:'tu color',comer:'como',rehusar:'no',esperar:'',dibujar:'dibujo'};
+ const db=s.dibujo;document.getElementById('dibuja').textContent=db?('dibujo '+(db.persona?'la cara de '+db.persona:db.figura)+' '+Math.round((db.progreso||0)*100)+'%'):'';
+ const cb=s.cerebro;document.getElementById('decide').textContent=cb&&cb.decision?('decido: '+Object.values(cb.decision).map(v=>(v in D)?D[v]:v).filter(v=>v).join(' · ')+(cb.fijo?' ['+cb.fijo+']':'')+(cb.personas_n?' · '+cb.personas_n+' personas':'')+(cb.foco_razon?' · atiendo: '+cb.foco_razon:'')):'';
  const l=s.lineas&&s.lineas.length?s.lineas[s.lineas.length-1].texto:'';if(l!==ultimaLinea){document.getElementById('linea').textContent=l;ultimaLinea=l}
  const a=s.animo||'';document.getElementById('animo').textContent=a||'sin nadie';document.getElementById('comp').textContent=B[a]||'';
  document.getElementById('color').style.background=s.color_ropa?('rgb('+s.color_ropa.map(v=>Math.round(v*255)).join(',')+')'):(C[a]||'#777');
@@ -546,8 +617,105 @@ async function tick(){try{const s=await (await fetch('/ventana_estado')).json();
 def ventana_estado():
     m = {"activa": visita["activa"], "id": visita["id"], "conocida": visita["conocida"], "visitas": (mem.personas.get(visita["id"], {}).get("visitas", 0) + 1) if visita["conocida"] else None}
     ropa = visita.get("ropa") if visita["activa"] else None
-    return {"lineas": ventana["lineas"], "poema": ventana["poema"], "animo": reconocedor["animo"] if visita["activa"] else None, "estilo": reconocedor["estilo"], "memoria": m,
-            "cuerpo": _pose.get("ultimo"), "color_ropa": (ropa or {}).get("rgb") if (ropa or {}).get("le_gusta") else None}
+    try: cerebro = json.load(open("/tmp/ballena_cerebro.json")); cerebro = cerebro if time.time() - cerebro.get("t", 0) < 15 else None
+    except Exception: cerebro = None
+    try: dibujo = json.load(open("/tmp/ballena_dibujo.json")); dibujo = dibujo if dibujo.get("activo") and time.time() - dibujo.get("t", 0) < 10 else None
+    except Exception: dibujo = None
+    return {"lineas": ventana["lineas"], "poema": ventana["poema"], "poema_ella": ventana["poema_ella"], "poema_en": ventana["poema_en"], "leyendo": ventana["leyendo"], "objeto": ventana["objeto"],
+            "animo": reconocedor["animo"] if visita["activa"] else None, "estilo": reconocedor["estilo"], "memoria": m, "cerebro": cerebro, "dibujo": dibujo,
+            "cuerpo": _pose.get("ultimo"), "color_ropa": (ropa or {}).get("rgb") if (ropa or {}).get("le_gusta") else None, "ve_hermana": int(sentidos.get("ve_hermana") or 0), "oro": sentidos.get("oro"), "ve_telefono": int(sentidos.get("ve_telefono") or 0)}
+# --- su voz, su lengua, su sonido, y lo que ve en la mano (18 oct): antes vivian en carrusel.py; ahora en modo visita tambien
+VOZ_DIR = os.path.join(HUK, "poemas_voz"); SONIDOS_DIR = os.path.join(HUK, "whale sound"); PY_DATOS = os.path.join(AQUI, "venv_datos", "bin", "python")
+_son = {"animo": None, "p": None, "base": None, "t": 0.0}
+def traducir_en(poema):
+    """el poema en ingles, con Qwen local: mismas lineas, minusculas, sin comentario (de carrusel.py)."""
+    try:
+        import urllib.request as _u
+        cuerpo = json.dumps({"model": "qwen3.6", "stream": False, "think": False, "options": {"temperature": 0.2, "num_predict": 200},
+                             "messages": [{"role": "system", "content": "Translate the poem to English. Keep the same number of lines and line breaks. Lowercase. No title, no comment, no quotes: only the translated lines."}, {"role": "user", "content": poema}]}).encode()
+        r = _u.urlopen(_u.Request("http://localhost:11434/api/chat", data=cuerpo, headers={"Content-Type": "application/json"}), timeout=90); t = json.loads(r.read())["message"]["content"].strip()
+        return t.split("</think>")[-1].strip() if "</think>" in t else t
+    except Exception: return ""
+def ventana_voz(poema):
+    """ella solo HABLA en su lengua (lengua.py, misma voz Kokoro via venv_datos); castellano e ingles se ESCRIBEN (Violeta, 17 oct)."""
+    try:
+        sys.path.insert(0, HUK); import lengua as _L; ella = _L.traducir(poema)
+    except Exception as e: ella = ""; print(f"   (lengua: {str(e)[:60]})")
+    ventana["poema_ella"] = ella; ventana["poema_en"] = traducir_en(poema) if ella else ""; ventana_guardar()
+    if not a.voz or not ella: return
+    try:
+        os.makedirs(VOZ_DIR, exist_ok=True); w = os.path.join(VOZ_DIR, "poema_ella_vivo.wav")
+        subprocess.run([PY_DATOS, "-I", os.path.join(HUK, "voz_ella.py"), ella.replace("\n", ". "), w, "--lengua", "ella"], check=False, capture_output=True, timeout=180)
+        if os.path.exists(w):
+            ventana["leyendo"] = True
+            if _son["p"]: _son["p"].terminate(); _son["p"] = None   # el sonido del animo calla mientras ella lee
+            subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); ventana["leyendo"] = False; _son["animo"] = None
+    except Exception as e: ventana["leyendo"] = False; print(f"   (voz: {str(e)[:60]})")
+def hilo_sonido():
+    """el sonido del animo dominante de Blender (del latido /tmp/ballena_receptor.json) y la musica de base, bajito, en bucle."""
+    import glob as _g
+    while True:
+        time.sleep(0.5)
+        try:
+            if a.musica and (_son["base"] is None or _son["base"].poll() is not None):
+                fs = sorted(_g.glob(os.path.join(SONIDOS_DIR, "base", "*.wav")) + _g.glob(os.path.join(SONIDOS_DIR, "base", "*.mp3")))
+                if fs: _son["base"] = subprocess.Popen(["afplay", "-v", "0.3", fs[0]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if not a.sonido or ventana["leyendo"]: continue
+            hb = json.load(open("/tmp/ballena_receptor.json")); dom = hb.get("dominante")
+            if dom and dom != _son["animo"] and time.time() - _son["t"] > 4.0:
+                w = os.path.join(SONIDOS_DIR, f"{dom}.wav")
+                if os.path.exists(w):
+                    if _son["p"]: _son["p"].terminate()
+                    _son["p"] = subprocess.Popen(["afplay", "-v", "1.0" if dom == "singing" else "0.5", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); _son["animo"] = dom; _son["t"] = time.time()
+        except Exception: pass
+threading.Thread(target=hilo_sonido, daemon=True).start()
+OBJETOS_NO_PEZ = ("phone", "iphone", "scorpion", "lizard", "chameleon", "ladybug", "bug", "insect", "beetle", "spider", "cup", "bottle", "remote", "camera", "pen", "key")
+def hilo_ojo_objeto():
+    """cada 3 s, si hay alguien enfrente, le pregunta a moondream (local, ollama) que tiene en la mano. pez -> ofrenda pez; un objeto de la lista -> no_pez;
+    nada -> nada. La prueba a mano por 9995 manda durante 10 s. La etiqueta va al paquete (ve_objeto) y a la ventana ('veo ...')."""
+    import urllib.request as _u, base64 as _b, numpy as _np
+    ORO_LO, ORO_HI = (15, 120, 150), (35, 255, 255); ORO_MIN = 0.012   # HSV band of the golden prototype (calibrated 18 oct on real frames: 19% of her pixels vs ~1% of wood and skin; phone frame's largest blob 0.005)
+    vez = 0; hermana_t = 0.0; telefono_t = 0.0; LENTE = ("phone", "iphone", "cellphone", "smartphone", "camera", "camcorder")
+    while True:
+        time.sleep(1.0); vez += 1
+        try:
+            alguien = visita["activa"] or (time.time() - visita.get("ultima_cara", 0) < 15)   # the face may be covered by what the hands hold
+            if not a.ojo_objeto or not alguien or _lm.get("cuadro") is None:   # nobody in view: the eye's offering and label expire (the hand test by 9995 keeps its own 10 s)
+                if time.time() - retorno.get("ofrenda_t", 0) > 10 and sentidos.get("ofrenda") not in (None, "nada"): sentidos["ofrenda"] = "nada"; sentidos["ofrenda_p"] = 0.0
+                sentidos["ve_objeto"] = ""; sentidos["ve_hermana"] = 0; sentidos["ve_telefono"] = 0; ventana["objeto"] = ""; continue
+            import cv2; fr = _lm["cuadro"]; h, w0 = fr.shape[:2]; esc = 640.0 / max(w0, 1); fr = cv2.resize(fr, (640, int(h * esc))) if esc < 1 else fr
+            m = cv2.inRange(cv2.cvtColor(fr, cv2.COLOR_RGB2HSV), ORO_LO, ORO_HI); n_, _l, stats, _c = cv2.connectedComponentsWithStats((m > 0).astype(_np.uint8), 8)
+            if n_ > 1:
+                k_ = 1 + int(_np.argmax(stats[1:, cv2.CC_STAT_AREA])); mayor = stats[k_, cv2.CC_STAT_AREA] / float(m.shape[0] * m.shape[1]); alto = _c[k_][1] / float(m.shape[0])
+            else: mayor, alto = 0.0, 1.0
+            ve = int(mayor > ORO_MIN and alto < 0.8); sentidos["ve_hermana"] = ve; sentidos["oro"] = round(mayor, 3)   # a gold blob above the floor line: her sister in the hands
+            if ve:
+                ventana["objeto"] = "mi hermana dorada"
+                if time.time() - hermana_t > 60: hermana_t = time.time(); ventana_evento("hermana")
+            if vez % 3: continue
+            ok, buf = cv2.imencode(".jpg", cv2.cvtColor(fr, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 80])
+            if not ok: continue
+            cuerpo = json.dumps({"model": "moondream", "stream": False, "options": {"num_predict": 12, "temperature": 0.0}, "images": [_b.b64encode(buf.tobytes()).decode()],
+                                 "prompt": "What object is the person holding in their hands? Answer with one or two words, or 'nothing'."}).encode()
+            r = _u.urlopen(_u.Request("http://localhost:11434/api/generate", data=cuerpo, headers={"Content-Type": "application/json"}), timeout=60)
+            et = json.loads(r.read()).get("response", "").strip().lower().strip(".").strip()
+            sentidos["ve_objeto"] = et[:40]
+            lente = int(any(k in et for k in LENTE) and not sentidos.get("ve_hermana")); sentidos["ve_telefono"] = lente   # a lens raised at her: the digital whale turns away (decisiones: lente)
+            if lente:
+                ventana["objeto"] = "un lente apuntando"
+                if time.time() - telefono_t > 30: telefono_t = time.time(); ventana_evento("telefono")
+            if time.time() - retorno.get("ofrenda_t", 0) > 10:   # the hand test by 9995 wins for 10 s
+                # only a fish feeds her from here: a phone in the hand is not a phone in the sister's mouth. no_pez comes from the hand test
+                # (or, later, from the eye that sees the table) and never from an object merely held.
+                sentidos["ofrenda"] = "pez" if ("fish" in et) else "nada"; sentidos["ofrenda_p"] = 0.7
+            if et and et != "nothing" and not sentidos.get("ve_hermana") and not lente:
+                if et != ventana["objeto"] and time.time() - ventana["objeto_t"] > 20:
+                    ventana["objeto_t"] = time.time(); ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": f"veo algo en tu mano: {et}.", "gatillo": "objeto"}])[-6:]
+                ventana["objeto"] = et
+            elif not sentidos.get("ve_hermana") and not lente: ventana["objeto"] = ""
+        except Exception as e:
+            if vez % 30 == 0: print(f"   (ojo objeto: {str(e)[:100]})")
+threading.Thread(target=hilo_ojo_objeto, daemon=True).start()
 # --- VISITAS Y MEMORIA (memoria.py): cada persona que se pone frente a la camara es un encuentro. Se guarda entero en
 # datasets/visitas/ (cara, manos, pulso, animo y estilo que la ballena le vio; sin imagenes) y la persona queda en
 # datasets/memoria.json como una firma de 210 distancias de su cara. Si vuelve, la ballena la reconoce a los pocos
@@ -649,7 +817,7 @@ def sendto_tee(self, data, *args):
         dest = args[-1]
         if isinstance(dest, tuple) and dest[1] == PUERTO_BLENDER:
             try:
-                crudo = json.loads(data.decode()); pkt = parpadeo(calibrar({**crudo, **extra})); reconocer(pkt, crudo)
+                crudo = json.loads(data.decode()); pkt = parpadeo(calibrar({**crudo, **extra, **sentidos})); reconocer(pkt, crudo)
                 if reconocedor["animo"] and reconocedor["prob"]: pkt = {**pkt, "actor_animo": reconocedor["animo"], **{"actor_" + m: q for m, q in reconocedor["prob"].items()}}
                 if reconocedor["estilo"]: pkt = {**pkt, "estilo": reconocedor["estilo"], **{"parecido_" + a: q for a, q in reconocedor["estilo_prob"].items()}}
                 if visita["activa"] and visita["id"]: pkt = {**pkt, "visita": visita["id"], "conocida": 1 if visita["conocida"] else 0}
@@ -861,9 +1029,10 @@ async function est(){try{const s=await (await fetch('/estado')).json();
 est();setInterval(est,1000);
 </script></body></html>"""
 def panel_web(puerto):
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as HTTPServer   # threaded (18 oct): one slow request can no longer freeze the panel and the window
     from urllib.parse import urlparse, parse_qs
     class H(BaseHTTPRequestHandler):
+        timeout = 10
         def log_message(self, *a): pass
         def _send(self, code, body, ctype="application/json"):
             b = body.encode(); self.send_response(code); self.send_header("Content-Type", ctype + "; charset=utf-8"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
@@ -900,7 +1069,7 @@ def panel_web(puerto):
                 print(f"   ACTOR: {nombre or '(sin nombre)'} - tomar NEUTRAL con esta persona antes de grabar"); self._send(200, "{}")
             else: self._send(400, "{}")
     try:
-        srv = HTTPServer(("127.0.0.1", puerto), H); print(f"   PANEL: http://localhost:{puerto}"); srv.serve_forever()
+        srv = HTTPServer(("0.0.0.0" if a.panel_red else "127.0.0.1", puerto), H); srv.daemon_threads = True; print(f"   PANEL: http://localhost:{puerto}" + (" (y en la red, en la ip de esta maquina)" if a.panel_red else "")); srv.serve_forever()
     except OSError as e: print(f"   (panel web no disponible en {puerto}: {e})")
 if not a.prueba and ap_panel: threading.Thread(target=panel_web, args=(ap_panel,), daemon=True).start()
 

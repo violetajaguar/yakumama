@@ -168,26 +168,69 @@ def q(d, k, lo=-1.0, hi=1.0):
 
 try: from decisiones import Decisora; DEC = Decisora()
 except Exception as e: DEC = None; print(f"   (decisions off: {e})")
-enc = {"t0": None, "ultima": 0.0, "dec": {}, "prob": {}, "bailo": 0, "toco": 0, "abierta_t": 0.0}
+try: import figuras_nazca as FIG
+except Exception as e: FIG = None; print(f"   (figures off: {e})")
+dib = {"activo": False, "figura": "", "persona": None, "puntos": [], "i": 0, "fin_t": 0.0, "R": 2.0, "llega": 0.18, "enfriar": 480.0}
+def dibujo_empezar(figura, id_persona=None):
+    firma = None
+    if figura == "cara" and id_persona:
+        try: firma = json.load(open(os.path.join(AQUI, "datasets", "memoria.json"))).get(id_persona, {}).get("firma")
+        except Exception: firma = None
+    pts = FIG.puntos(figura if (figura != "cara" or firma) else None, firma, dib["R"]); dib.update(activo=True, figura=("cara" if firma else FIG.elegir(figura if figura != "cara" else None)), persona=(id_persona if firma else None), puntos=pts, i=0)
+def dibujo_paso(dec, fijo, t, s_):
+    """when her body decides 'dibujar': she flies the figure's waypoints (straight runs, sharp turns) and the packet carries the pen."""
+    if FIG is None: return None
+    if dib["activo"] and fijo in ("tiron", "palma", "no_pez", "lente"): dib["activo"] = False; dib["fin_t"] = t   # a refusal interrupts
+    if not dib["activo"] and dec.get("con_cuerpo") == "dibujar" and t - dib["fin_t"] > dib["enfriar"]:
+        dibujo_empezar("cara" if (s_.get("conocida") and s_.get("id_persona")) else None, s_.get("id_persona"))
+    if not dib["activo"]: return None
+    x, y, pluma = dib["puntos"][dib["i"]]
+    if math.hypot(st["ax"] - x, st["ay"] - y) < dib["llega"]:
+        dib["i"] += 1
+        if dib["i"] >= len(dib["puntos"]): dib["activo"] = False; dib["fin_t"] = t; return {"figura": dib["figura"], "persona": dib["persona"], "fin": 1}
+        x, y, pluma = dib["puntos"][dib["i"]]
+    k = 0.004 + 0.03 * 0.35; st["ax"] += (x - st["ax"]) * k; st["ay"] += (y - st["ay"]) * k; st["az"] += (-1.4 - st["az"]) * 0.01   # low over the salar
+    dx, dy = x - st["ax"], y - st["ay"]
+    if dx * dx + dy * dy > 0.01: yaw_obj = math.atan2(dx, dy); dyaw = (yaw_obj - st["wy"] + math.pi) % (2 * math.pi) - math.pi; st["wy"] += max(-0.03, min(0.03, dyaw * 0.02))
+    return {"figura": dib["figura"], "persona": dib["persona"], "i": dib["i"], "n": len(dib["puntos"]), "x": round(x, 3), "y": round(y, 3), "pluma": int(pluma), "progreso": round(dib["i"] / len(dib["puntos"]), 2), "fin": 0}
+enc = {"t0": None, "ultima": 0.0, "dec": {}, "prob": {}, "bailo": 0, "toco": 0, "abierta_t": 0.0, "palabras": set(), "dist0": None, "quieto": 0.0, "palanca0": 0.0}
+def _resultado(d, t, se_fue):
+    """the outcome of the open decision, for the engagement reward: time, distance that shrank, her words used, stillness, joystick, return."""
+    dm = d.get("distancia_m"); acerco = int(dm is not None and enc["dist0"] is not None and float(dm) < float(enc["dist0"]) - 0.3)
+    return {"quedo_s": round(t - enc["abierta_t"], 1), "bailo": enc["bailo"], "toco": enc["toco"], "se_fue": int(se_fue), "acerco": acerco, "palabras": len(enc["palabras"]),
+            "quieto": int(enc["quieto"] > 0.6), "palanca_s": round(float(d.get("palanca_s") or 0) - enc["palanca0"], 1), "vuelve": int(bool(d.get("vuelve")))}
 def decidir(d, t, hay_persona, dom, energia_cuerpo):
     """every 4 s (and when the person leaves) she decides how to interact; the previous decision is closed with its outcome and logged."""
     if DEC is None: return {}, {}
-    if hay_persona and enc["t0"] is None: enc["t0"] = t; enc["bailo"] = 0; enc["toco"] = 0
+    if hay_persona and enc["t0"] is None: enc["t0"] = t; enc["bailo"] = 0; enc["toco"] = 0; enc["palabras"] = set(); enc["dist0"] = d.get("distancia_m"); enc["quieto"] = 0.0; enc["palanca0"] = float(d.get("palanca_s") or 0)
     if hay_persona and baile["activo"]: enc["bailo"] = 1
-    if (d.get("tacto") or 0) > 0.3: enc["toco"] = 1
+    if (d.get("tacto") or 0) > 0.3: enc["toco"] = 1; enc["palabras"].add(str(d.get("tacto_zona") or "tacto"))
+    if d.get("ofrenda") in ("pez", "no_pez"): enc["palabras"].add("boca")
+    if hay_persona: enc["quieto"] = 0.95 * enc["quieto"] + 0.05 * (1.0 if energia_cuerpo < 0.15 else 0.0)
     if not hay_persona and enc["t0"] is not None:   # the person left: close with the outcome
-        DEC.cerrar({"quedo_s": round(t - enc["abierta_t"], 1), "bailo": enc["bailo"], "toco": enc["toco"], "se_fue": 1}); enc["t0"] = None
-    if t - enc["ultima"] >= 4.0:
-        if DEC.abierta: DEC.cerrar({"quedo_s": round(t - enc["abierta_t"], 1), "bailo": enc["bailo"], "toco": enc["toco"], "se_fue": 0})
-        s_ = {"persona": int(bool(hay_persona)), "conocida": int(bool(d.get("conocida"))), "animo": dom, "energia": energia_cuerpo, "segundos": (t - enc["t0"]) if enc["t0"] else (t - st["vistos"]), "tacto": d.get("tacto") or 0, "tacto_zona": d.get("tacto_zona"), "ropa_gusta": bool(d.get("color_ropa")), "pide_olvido": bool(d.get("olvidar"))}
+        DEC.cerrar(_resultado(d, t, 1)); enc["t0"] = None
+    palabra = (str(d.get("tacto_zona") or "") if (d.get("tacto") or 0) > 0.3 else "") + "|" + str(d.get("ofrenda") or "nada")   # a new touch or offering decides NOW, not at the next tick
+    if t - enc["ultima"] >= 4.0 or (palabra != enc.get("palabra") and t - enc["ultima"] > 0.5):
+        enc["palabra"] = palabra
+        if DEC.abierta: DEC.cerrar(_resultado(d, t, 0))
+        s_ = {"persona": int(bool(hay_persona)), "conocida": int(bool(d.get("conocida"))), "animo": dom, "energia": energia_cuerpo, "segundos": (t - enc["t0"]) if enc["t0"] else (t - st["vistos"]), "tacto": d.get("tacto") or 0, "tacto_zona": d.get("tacto_zona"), "ropa_gusta": bool(d.get("color_ropa")), "pide_olvido": bool(d.get("olvidar")),
+              "id_persona": d.get("visita") or None, "quieto": enc["quieto"], "vuelve": d.get("vuelve"), "distancia_m": d.get("distancia_m"), "flores": d.get("flores"), "flores_n": d.get("flores_n"), "joya": d.get("joya"), "joya_tiron": d.get("joya_tiron"),
+              "boca": d.get("ofrenda"), "boca_p": d.get("ofrenda_p"), "palanca_s": d.get("palanca_s"), "camara_cerca": d.get("camara_cerca"), "camara_mira": d.get("camara_mira"),
+              "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "quieto_foco": d.get("quieto_foco"), "telefono": int(bool(d.get("ve_telefono")))}
         enc["dec"], enc["prob"] = DEC.decidir(s_); enc["ultima"] = t; enc["abierta_t"] = t
+        try: json.dump({"t": t, "decision": enc["dec"], "prob": enc["prob"], "fijo": (DEC.abierta or {}).get("fijo", ""), "animo": dom, "persona": int(bool(hay_persona)), "conocida": s_["conocida"], "segundos": round(s_["segundos"], 1),
+                        "personas_n": s_.get("personas_n"), "foco_razon": s_.get("foco_razon"), "tacto": s_["tacto"], "tacto_zona": s_["tacto_zona"], "ofrenda": s_.get("boca"), "ve_hermana": int(bool(d.get("ve_hermana"))), "ve_telefono": int(bool(d.get("ve_telefono"))), "id_persona": s_.get("id_persona"), "fuente": fuente if 'fuente' in dir() else None}, open("/tmp/ballena_cerebro.json", "w"))   # para la ventana: que decide y por que
+        except Exception: pass
     return enc["dec"], enc["prob"]
 def reaccion_tacto(d, t, comp, m):
     """the sister is touched: head -> curious, she looks to that side; back -> calm; tail -> playful; fin -> alert; very hard -> angry startle. Returns the mood it pushes (or None)."""
-    tacto = q(d, "tacto", 0, 1); zona = str(d.get("tacto_zona") or "")
+    tacto = q(d, "tacto", 0, 1); zona = str(d.get("tacto_zona") or ""); boca = str(d.get("ofrenda") or "")
+    if boca == "no_pez": return "alert"      # not a fish: closed jaw, she turns away
+    if d.get("ve_hermana"): return "curious"  # her golden sister held up in front of her eye
+    if boca == "pez": return "feeding"
     if tacto < 0.3: return None
-    if tacto > 0.85: return "angry"
-    return {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert"}.get(zona)
+    if tacto > 0.85: return "sad" if zona == "flores" else "angry"   # trampled flowers are a loss; a pull on the jewel is rage
+    return {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert", "flores": "calm", "joya": "calm"}.get(zona)
 def paso():
     t = time.time(); d = dict(latest); hay_persona = (t - recibido["t"] < 2.0) and (("blink" in d and "jaw_open" in d) or d.get("actor_animo") or "esqueleto" in d)
     if hay_persona: st["vistos"] = t
@@ -223,8 +266,8 @@ def paso():
     else: st["ella"] = None
     toque = reaccion_tacto(d, t, None, m)
     if toque and (t - st.get("tacto_t", 0) > 0.0):   # TOUCH on the sister rules for 6 s after the last touch
-        if q(d, "tacto", 0, 1) > 0.3: st["tacto_t"] = t; st["tacto_animo"] = toque
-        if t - st["tacto_t"] < 6.0: actor = st["tacto_animo"]; fuente = "tacto"
+        if q(d, "tacto", 0, 1) > 0.3 or str(d.get("ofrenda") or "") in ("pez", "no_pez") or d.get("ve_hermana"): st["tacto_t"] = t; st["tacto_animo"] = toque   # a touch, an offering, or her sister in someone's hands
+        if t - st.get("tacto_t", 0) < 6.0 and st.get("tacto_animo"): actor = st["tacto_animo"]; fuente = "tacto"
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
         whale_mood.update(m); fuente = "actor" if fuente not in ("ella", "tacto") else fuente
@@ -263,12 +306,13 @@ def paso():
     dec, prob = decidir(d, t, hay_persona, dom, q(d, "cuerpo_energia", 0, 1))
     if dec.get("distancia") == "acercarse" and hay_persona and not canales_local(d): st["ay"] += (-1.4 - st["ay"]) * 0.01
     elif dec.get("distancia") == "alejarse" and hay_persona and not canales_local(d): st["ay"] += (1.2 - st["ay"]) * 0.01
+    dibujo = dibujo_paso(dec, (DEC.abierta or {}).get("fijo", "") if DEC else "", t, {"conocida": int(bool(d.get("conocida"))), "id_persona": d.get("visita") or None})
     cara_actor = "blink" in d and "jaw_open" in d
     if dom == "singing" and cara_actor:
         canto = q(d, "jaw_open", 0.0, 1.0); comp["head"] += 0.35 * canto; comp["flap"] += 0.3 * canto; comp["fluke"] -= 0.1 * canto
         comp["spine"] = [v - 0.04 * canto * (i / 5.0) for i, v in enumerate(comp["spine"])]; comp["roll"] += 0.08 * canto * _onda(t, 2.5)
     # --- where she goes
-    if a.coreo and int(d.get("espacio", 1)) == 1 and not d.get("solo_cara"):
+    if a.coreo and int(d.get("espacio", 1)) == 1 and not d.get("solo_cara") and not dib["activo"]:
         if st["coreo_dom"] != dom: st["coreo_dom"] = dom; st["coreo_t0"] = t; CA.breathe._coreo_t0 = t
         cerca = CERCA["conocida" if d.get("conocida") else ("nueva" if d.get("visita") else "nadie")]
         (tx, ty, tz), yaw_obj, rap = CA.coreo(dom, t - st["coreo_t0"], cerca); k = 0.004 + 0.03 * rap
@@ -299,8 +343,16 @@ def paso():
           "cara": [r3(v) for v in comp["cara"]], "mirada": [r3(v) for v in comp["mirada"]], "spin": r3(comp["spin"]), "depth": r3(comp["depth"]),
           "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dom, 1.0), "latido": round(float(LATIDO_ANIMO.get(dom, 0.5)), 2), "beat": r3(beat), "tempo": r3(tempo), "energia": r3(energia), "tension": r3(tension),
           "blink": round(q(d, "blink", 0, 1), 2), "eye_yaw": r3(q(d, "eye_yaw")), "eye_pitch": r3(q(d, "eye_pitch")), "head_yaw": r3(q(d, "head_yaw")), "head_pitch": r3(q(d, "head_pitch")), "brow_up": r3(q(d, "brow_up", 0, 1)), "mouth_smile": r3(q(d, "mouth_smile", 0, 1)),
-          "pulso": round(st["hr"], 1), "estilo": d.get("estilo"), "visita": d.get("visita"), "conocida": int(bool(d.get("conocida"))), "persona": int(bool(hay_persona)), "tacto": d.get("tacto"), "tacto_zona": d.get("tacto_zona"),
+          "pulso": round(st["hr"], 1), "estilo": d.get("estilo"), "visita": d.get("visita"), "conocida": int(bool(d.get("conocida"))), "persona": int(bool(hay_persona)), "tacto": d.get("tacto"), "tacto_zona": d.get("tacto_zona"), "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "distancia_m": d.get("distancia_m"), "ofrenda": d.get("ofrenda"), "ve_hermana": d.get("ve_hermana"), "dibujo": dibujo,
           "animo_cuerpo": lectura.get("animo_cuerpo"), "p_cuerpo": lectura.get("p_cuerpo"), "prevision": lectura.get("prevision"), "iniciativa": int(fuente == "ella"), "meta": st["meta"] if fuente == "ella" else None, "cuerpo_jepa": int(bool(d.get("cuerpo_jepa"))), "cuerpo": [round(float(d.get(c, 0) or 0), 3) for c in ("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")] if "cuerpo_pitch" in d else None, "t": round(t, 3)}
+    if dec.get("boca") == "comer": pk["jaw"] = pk["boca"] = r3(BOCA_MAX); pk["turbina"] = r3(float(pk["turbina"] or 0) * 1.5); pk["come"] = 1   # a fish: jaw open, tail spins up
+    else: pk["come"] = 0
+    if dec.get("boca") == "rehusar":   # a refusal (non-fish, jewel pulled, flowers trampled): jaw shut, tail stopped, fins folded, colour out
+        pk["jaw"] = pk["boca"] = 0.0; pk["turbina"] = 0.0; pk["flap"] = 0.0; pk["color"] = [0.03, 0.03, 0.05]; pk["latido"] = 0.1; pk["rehusa"] = 1
+    else: pk["rehusa"] = 0
+    if DEC is not None and (DEC.abierta or {}).get("fijo") == "lente":   # a lens raised at her: still, dim, back turned (the sister on the table does not refuse the lens)
+        pk["turbina"] = r3(float(pk["turbina"] or 0) * 0.15); pk["flap"] = 0.0; pk["color"] = [round(c * 0.25, 3) for c in pk["color"]]; pk["latido"] = 0.2; pk["lente"] = 1
+    else: pk["lente"] = 0
     return pk
 
 if __name__ == "__main__":
