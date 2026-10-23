@@ -98,8 +98,24 @@ gaze). Known visitors are approached closer than strangers.
 ```
 {"flores": [0..1, ...], "joya": 0..1, "joya_tiron": 0/1, "presencia": 0..1}          from the touch ESP32
 {"camara": {"cerca": 0..1, "mira": 0/1}, "palanca": 0/1}                              from TouchDesigner (joystick camera)
-{"ofrenda": "pez" | "no_pez" | "nada", "ofrenda_p": 0..1}                                    temporary, by hand, until her eye recognises the fish
+{"ofrenda": "pez" | "no_pez" | "nada", "ofrenda_p": 0..1, "ofrenda_id": 1..29}               hand test of the mouth (ofrenda_id alone names the creature)
 ```
 They travel in every packet as `flores flores_n joya joya_tiron camara_cerca camara_mira palanca_s ofrenda ofrenda_p ve_objeto
 ve_hermana ve_telefono personas_n foco_razon distancia_m`, and her decisions come back on 9994 as `decision` / `decision_prob` with
-`come rehusa lente ve_hermana dibujo`. Everything is in `HERMANA_ESP32_PAQUETES.md` and `ACTUALIZACION_DAN_18oct.md`.
+`come rehusa lente ve_hermana dibujo`.
+
+**The eye of the hands (20 October 2026)**: `ojo_ofrendas.py` (MediaPipe hand crop + DINOv2 + a small classifier trained on Sanam's
+2700 OAK-D photos, `entrenar_ofrendas.py`) replaces moondream for the offering. Every 3 s it votes (2 of the last 3 looks, or one look
+with p >= 0.7) and the recorder puts in every packet:
+```
+ofrenda        "pez" = one of the 29 painted creatures (she accepts it) | "no_pez" = something else in the hand | "nada"
+ofrenda_p      0..1          ofrenda_id 1..29          ofrenda_clase "03_saltamontes_verde"          ofrenda_nombre "saltamontes verde (...)"
+reaccion       1..29         the number of Violeta's reaction for that creature (docs/ofrendas/ofrendas.json, matched by hand on 20 Oct)
+ofrenda_color  [r, g, b]     the creature's painted colour (for reactions 9, 17, 20: she turns that colour)
+```
+The brain (`reacciones_ofrendas.py`) plays the reaction for its duration (6 to 20 s) and the 9994 packet carries
+`reaccion: {n, texto, ofrenda_id, nombre, fase 0..1, come 0/1, extra [...]}` on top of the usual `animo jaw depth spin color come`.
+`extra` names what this body cannot do yet and the receiver or the physical sister may: `lengua lengua_rosada panza rayas
+aletas_puntiagudas arcoiris salto volar susto escapa llora risa caras_locas`. `come` follows the reaction, not the decision: a
+creature that scares her (15), that she smells (6, 7) or that she follows (19) does not open her jaw. moondream, if ollama answers,
+only reports the lens now (`--ojo-lente 0` turns it off). Everything is in `HERMANA_ESP32_PAQUETES.md` and `ACTUALIZACION_DAN_18oct.md`.

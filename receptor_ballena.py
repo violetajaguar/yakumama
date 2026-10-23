@@ -86,7 +86,7 @@ MOOD_RGB = {   # saturados: se ven desde lejos y en cualquier luz
     "singing":   (0.62, 0.10, 0.95),
     "alert":     (0.10, 0.90, 0.25),   # verde (el rosa fue para hambre)
     "diving":    (0.02, 0.10, 0.55),
-    "sad":       (0.10, 0.12, 0.20),
+    "sad":       (0.15, 0.42, 0.92),   # grenouille bleue (22 oct, Violeta)
 }
 SCENE_COLORS_RGB = {
     "red":     (0.85, 0.15, 0.15),
@@ -1077,6 +1077,11 @@ def coreo_real(dom, t, cerca=1.0):
 def coreo(dom, t, cerca=1.0):
     r = coreo_real(dom, t, cerca)
     if r is not None: return r
+    return coreo_disenada(dom, t, cerca)
+def coreo_disenada(dom, t, cerca=1.0):
+    """el camino DISENADO de cada animo (el que habia antes de los caminos reales): la altura de estos es la firma del movimiento
+    en el espacio (bucear = alejarse y bajar; salir = subir desde abajo; cantar = colgada; triste = hundirse). cerebro_ballena.py
+    toma de aqui la z (21 oct, Violeta: 'she needs to move through space, surface, dive'): la z de un bailarin grabado es solo su cadera."""
     pi = math.pi
     if dom == "calm":      a = 2 * pi * t / 60; return (1.2 * math.sin(a), 0.6 * math.sin(2 * a), 0.0), None, 0.25                   # deriva lenta en elipse, 60 s
     if dom == "singing":   return (0.0, 0.0, -0.5), (2 * pi * t / 40) % (2 * pi), 0.4                                                 # colgada en casa, una vuelta cada 40 s
@@ -1093,6 +1098,7 @@ SALIDA = [("127.0.0.1", 9994)] + [(h, int(pt)) for e in os.environ.get("BALLENA_
 _sock_salida = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 def salida(d, dominant, comp, x, y, z, yaw, fuente):
     """lo que ELLA hace, cada cuadro, para la hermana fisica (TouchDesigner): UDP 9994 y BALLENA_SALIDA=host:puerto,..."""
+    if globals().get("latest_data", {}).get("cerebro_animo") is not None: return   # (21 oct) su cerebro ya manda por 9994 (puente_blender.py la mueve): este receptor no emite un segundo paquete
     try:
         col = MOOD_RGB.get(dominant, (0.5, 0.5, 0.5)); pk = {"animo": dominant, "fuente": fuente, "x": round(x, 3), "y": round(y, 3), "z": round(z, 3), "yaw": round((yaw + math.pi) % (2 * math.pi) - math.pi, 3), "pitch": round(float(comp["pitch"]), 3), "roll": round(float(comp["roll"]), 3),
               "jaw": round(float(comp["jaw"]), 3), "fluke": round(float(comp["fluke"]), 3), "flap": round(float(comp["flap"]), 3), "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dominant, 1.0), "latido": round(float(LATIDO_ANIMO.get(dominant, 0.5)), 2),
@@ -1100,6 +1106,8 @@ def salida(d, dominant, comp, x, y, z, yaw, fuente):
         b = json.dumps(pk).encode()
         for h, pt in SALIDA: _sock_salida.sendto(b, (h, pt))
     except Exception: pass
+ALTO_CEREBRO, PISO_SALAR = 0.8, -1.6          # cuando su cerebro la mueve: cuanto mas alta nada, y el piso (el Salar esta en z -2.6)
+LUGAR_HERMANA, RADIO_HERMANA = (2.6, -1.4), 1.4   # la hermana dorada (hermana_blender.LUGAR): ella no nada encima
 COMP_CERO = dict(pitch=0.0, roll=0.0, yaw=0.0, head=0.0, spine=[0.0] * 6, fluke=0.0, flap=0.0, ladeo=0.0, jaw=0.0, cara=(0.0, 0.0, 0.0, 0.0), mirada=(0.0, 0.0), spin=0.0, depth=0.0)
 _baile = {"buf": [], "ts": [], "activo": False, "t_cambio": 0.0, "err": None}
 def bailar_de_vuelta(d, t):
@@ -1212,6 +1220,10 @@ def breathe():
         if d.get('soltar_manual') and bpy.context.scene.ballena.comportamiento != "auto":
             bpy.context.scene.ballena.comportamiento = "auto"; print("  menu Comportamiento -> Automatico (llego una toma)")
         manual = bpy.context.scene.ballena.comportamiento   # el panel manda sobre todo lo demas
+        try:   # PRUEBA DE ANIMOS (20 oct): /tmp/ballena_animo_blender.json {"animo": "sad", "t": ...} fresco (< 3 s) manda como el menu; lo escribe carrusel_animos.py (el mismo que mueve al cerebro -> TD)
+            _pa = json.load(open("/tmp/ballena_animo_blender.json"))
+            if time.time() - float(_pa.get("t", 0)) < 3.0 and _pa.get("animo") in MOOD_RGB and manual == "auto": manual = _pa["animo"]
+        except Exception: pass
         if manual != "auto": actor = manual
     except Exception: pass
     try:   # TACTO en la hermana fisica (9995 -> grabador -> aqui): cabeza -> curiosa, lomo -> calma, cola -> juguetona, aleta -> alerta, muy fuerte -> rabia; manda 6 s
@@ -1222,6 +1234,12 @@ def breathe():
         elif d.get('ve_hermana'): breathe._tacto_t = t; breathe._tacto_animo = "curious"   # her golden sister held up in front of her eye
         elif _tc > 0.3: breathe._tacto_t = t; breathe._tacto_animo = ("sad" if _tz == "flores" else "angry") if _tc > 0.85 else {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert", "flores": "calm", "joya": "calm"}.get(_tz)
         if getattr(breathe, "_tacto_animo", None) and t - getattr(breathe, "_tacto_t", 0) < 6.0: actor = breathe._tacto_animo
+        try:   # (20 oct) con su cerebro mandando por puente_blender.py, el animo de ELLA manda tambien sobre el toque/ofrenda de este receptor: asi Blender y TD van iguales
+            _pa = json.load(open("/tmp/ballena_animo_blender.json"))
+            globals()["_dbg_pa"] = (_pa.get("animo"), round(time.time() - float(_pa.get("t", 0)), 1)); globals()["_dbg_manual"] = manual
+            if time.time() - float(_pa.get("t", 0)) < 3.0 and _pa.get("animo") in MOOD_RGB and bpy.context.scene.ballena.comportamiento == "auto": actor = _pa["animo"]   # the PANEL menu, not `manual` (the first hook already set that)
+            globals()["_dbg_actor"] = actor
+        except Exception as _e: globals()["_dbg_actor"] = f"error {str(_e)[:60]}"
     except Exception: pass
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
@@ -1446,6 +1464,7 @@ def breathe():
         breathe._blink_val = 1.0; breathe._blink_hold = 5   # cerrado 5 cuadros, como el parpadeo del actor
     if breathe._blink_hold > 0: breathe._blink_hold -= 1
     else: breathe._blink_val = max(0, breathe._blink_val - 0.033 / 0.12)
+    if latest_data.get('cerebro_animo') is not None: breathe._blink_val = 0.0   # 21 oct (Violeta): su cerebro manda la cara entera (la invencion parpadea): sin reloj de parpadeo encima
     if dom_name == "calm": sleep_val = 0.6 + calm * 0.3
     elif dom_name == "sad": sleep_val = 0.4 + w_sad * 0.3
     elif dom_name == "singing": sleep_val = 0.3
@@ -1607,7 +1626,12 @@ def breathe():
     else: final_z_extra = 0.0
     final_x = hx + breathe._auto_x
     final_y = hy + depth_y + breathe._auto_y
-    final_z = hz + breathe._wz + (auto_z if water > 0.5 else 0) + comp["depth"] + final_z_extra   # diving baja, surfacing y curious suben
+    _cerebro_z = bool(canales) and canales.get("z") is not None   # 21 oct: su cerebro ya sumo depth dentro de z (puente_blender.py): no sumarlo dos veces (bajaba a -5, bajo el salar)
+    final_z = hz + breathe._wz + (auto_z if water > 0.5 else 0) + (0.0 if _cerebro_z else comp["depth"]) + final_z_extra   # diving baja, surfacing y curious suben
+    if _cerebro_z:   # 21 oct (Violeta: "too low in the salt, over her sister, bring her up"): mas alta, nunca bajo el salar (Salar z -2.6; su cuerpo ~1), y fuera del lugar de la hermana dorada
+        final_z = max(final_z + ALTO_CEREBRO, PISO_SALAR)
+        _dxh, _dyh = final_x - LUGAR_HERMANA[0], final_y - LUGAR_HERMANA[1]; _rh = math.hypot(_dxh, _dyh)
+        if _rh < RADIO_HERMANA: _f = RADIO_HERMANA / max(_rh, 1e-6); final_x, final_y = LUGAR_HERMANA[0] + _dxh * _f, LUGAR_HERMANA[1] + _dyh * _f
     loc('root', sm('bfx',final_x,0.03), sm('bfy',final_y,0.03), sm('bfz',final_z,0.03)); bpy.app.driver_namespace["_ballena_pos"] = (final_x, final_y, final_z)
     salida(d, dominant, comp, final_x, final_y, final_z, breathe._wy, "actor" if d.get('actor_animo') else "escena")
 
@@ -1691,7 +1715,7 @@ def breathe():
                                 if _n.type == 'BSDF_PRINCIPLED': _col = [round(v, 2) for v in _n.inputs["Base Color"].default_value[:3]]; break
                         if _col: break
                 except Exception: pass
-                json.dump({"version": VERSION, "t": time.time(), "fps": round(getattr(breathe, "_fps", 0.0), 1), "reproduciendo_animacion": bool(getattr(bpy.context.screen, "is_animation_playing", False)) if bpy.context.screen else None, "cuadro": bpy.context.scene.frame_current, "accion": (armature.animation_data.action.name if armature.animation_data and armature.animation_data.action else None), "dominante": dominant, "manual": _manual, "pulso": round(float(getattr(breathe, "_hr", 75.0)), 1), "tempo": round(float(tempo), 2), "energia": round(float(energia), 2), "tension": round(float(tension), 2), "latido": round(float(fuerza_latido), 2), "objeto_rot": [round(float(v), 3) for v in armature.rotation_euler], "objeto_loc": [round(float(v), 2) for v in armature.location], "malla_rot": ([round(float(v), 3) for v in whale_mesh.rotation_euler] if whale_mesh else None), "actor": d.get('actor_animo'), "color": _col, "color_follow": round(color_follow, 2), "material": [sl.material.name for sl in whale_mesh.material_slots if sl.material] if whale_mesh else None, "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
+                json.dump({"version": VERSION, "codigo": "21oct-10:05 piso_salar", "debug_actor": str(globals().get("_dbg_actor")), "debug_pa": str(globals().get("_dbg_pa")), "debug_manual": str(globals().get("_dbg_manual")), "t": time.time(), "fps": round(getattr(breathe, "_fps", 0.0), 1), "reproduciendo_animacion": bool(getattr(bpy.context.screen, "is_animation_playing", False)) if bpy.context.screen else None, "cuadro": bpy.context.scene.frame_current, "accion": (armature.animation_data.action.name if armature.animation_data and armature.animation_data.action else None), "dominante": dominant, "manual": _manual, "pulso": round(float(getattr(breathe, "_hr", 75.0)), 1), "tempo": round(float(tempo), 2), "energia": round(float(energia), 2), "tension": round(float(tension), 2), "latido": round(float(fuerza_latido), 2), "objeto_rot": [round(float(v), 3) for v in armature.rotation_euler], "objeto_loc": [round(float(v), 2) for v in armature.location], "malla_rot": ([round(float(v), 3) for v in whale_mesh.rotation_euler] if whale_mesh else None), "actor": d.get('actor_animo'), "color": _col, "color_follow": round(color_follow, 2), "material": [sl.material.name for sl in whale_mesh.material_slots if sl.material] if whale_mesh else None, "solo_cara": int(d.get('solo_cara', 0) or 0), "anclada": int(bool(d.get('anclada', 0))),
                            "cara": bool(cara_actor), "fin_L": [round(v, 2) for v in armature.pose.bones['side_fine.L'].rotation_euler], "fin_R": [round(v, 2) for v in armature.pose.bones['side_fine.R'].rotation_euler],
                            "pose": {pb.name: [round(v, 3) for v in pb.rotation_euler] for pb in armature.pose.bones},
                            "root_loc": [round(v, 3) for v in armature.pose.bones['root'].location],

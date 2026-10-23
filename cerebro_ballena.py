@@ -25,7 +25,7 @@ What it decides, each frame:
     python3 cerebro_ballena.py --jepa 0                          without torch
     python3 cerebro_ballena.py --prueba                          no sockets: prints what she would do with an empty room
 """
-import os, sys, re, json, time, math, socket, argparse, threading
+import random, os, sys, re, json, time, math, socket, argparse, threading, subprocess
 AQUI = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, AQUI)
 ap = argparse.ArgumentParser()
 ap.add_argument("--entrada", type=int, default=9998, help="UDP port where the recorder's packets arrive")
@@ -77,6 +77,55 @@ try:
 except Exception as e: print(f"   (diffusion off: {e})")
 try: import retarget_ballena as RT; import numpy as np
 except Exception as e: RT = None; print(f"   (retarget off: {e})")
+import numpy as np
+
+# ---------------- SHE INVENTS ALL THE TIME (Dan's PC, 17 Oct night; decided with Violeta) ----------------
+# Built and tested in the studio with the carousel and no audience, the invention only ran when she was alone (nobody for
+# --iniciativa s), and inside this loop: 32 s took 7.5 s on Dan's CPU, so she froze. Now the diffusion moves her body ALL the
+# time, for the mood of the moment - read from the visitor's face, from the room, or chosen by her when alone - and it runs
+# in a thread: the next 32 s are made while the current ones play, each continuing her last second (the diffusion's own
+# inpainting prefix). A mood change starts a new invention from where she is; until it is ready she keeps the one she is
+# in, then crossfades over INV_FUNDIDO_S. Dance-back (a visitor dancing) and a choreography's channels still win.
+INV_FUNDIDO_S = 1.0
+INV_PRIMERO_S = 12.0   # on a change of mood, invent this much first: ~1 s on the 4080 (32 s take ~3 s), then 32 s at a time
+inv = {"cur": None, "cur_animo": None, "cur_t0": 0.0, "prev": None, "prev_i": 0, "hilo": None, "pedido": None,
+       "listo": None, "listo_animo": None}
+def _inventar_hilo(animo, prefijo, segundos):
+    try: X = INV.inventar(animo, segundos=segundos, prefijo=prefijo)
+    except Exception as e: print(f"   (invention failed: {e})", flush=True); X = None
+    inv["listo"], inv["listo_animo"] = X, animo
+def _pedir(animo, prefijo, segundos=32.0):
+    if inv["hilo"] is not None and inv["hilo"].is_alive(): return
+    inv["pedido"], inv["listo"], inv["listo_animo"], inv["pedido_t"] = animo, None, None, time.time()
+    inv["hilo"] = threading.Thread(target=_inventar_hilo, args=(animo, prefijo, segundos), daemon=True); inv["hilo"].start()
+def _canales_de_fila(fila):
+    C = {c: k for k, c in enumerate(INV.CAN)}; g = lambda c: float(fila[C[c]]) if c in C and np.isfinite(fila[C[c]]) else 0.0
+    return dict(pitch=g("pitch"), roll=g("roll"), yaw=g("yaw"), head=g("head"), spine=[g(f"spine{k}") for k in range(6)], fluke=g("fluke"), flap=0.0, ladeo=0.0, aleta_l=[g("flap_l"), g("codo_l"), g("muneca_l")], aleta_r=[g("flap_r"), g("codo_r"), g("muneca_r")], jaw=max(0.0, g("jaw")), cara=[max(0.0, g(c)) for c in ("cara_parpado", "cara_rabia", "cara_tristeza", "cara_asombro")], mirada=[g("mirada_yaw"), g("mirada_pitch")], spin=g("spin"), depth=g("depth"), turbina=max(0.3, g("turbina")), avance=g("avance"), deriva=g("deriva"), giro=g("giro"), pulso=g("pulso"))
+def invento(dom, t):
+    """her invented body this frame for mood `dom` (whale channels), or None until the first invention is ready."""
+    cur = inv["cur"]; fps = INV.fps
+    i = 0 if cur is None else min(len(cur) - 1, int((t - inv["cur_t0"]) * fps))
+    ocupado = inv["hilo"] is not None and inv["hilo"].is_alive()
+    # a finished invention: take it if it is for the mood she is in now (a change of mood, or the next 32 s)
+    if inv["listo"] is not None and not ocupado:
+        if inv["listo_animo"] == dom and (cur is None or inv["cur_animo"] != dom or i >= len(cur) - 1):
+            if inv["cur_animo"] != dom:
+                print(f"   she invents {dom}: her body follows {time.time() - inv.get('pedido_t', time.time()):.1f} s after the mood", flush=True)
+            inv["prev"], inv["prev_i"] = cur, i
+            inv["cur"], inv["cur_animo"], inv["cur_t0"] = inv["listo"], dom, t; inv["listo"] = None
+            cur, i = inv["cur"], 0
+        elif inv["listo_animo"] != dom: inv["listo"] = None          # made for a mood she has left
+    ocupado = inv["hilo"] is not None and inv["hilo"].is_alive()
+    if not ocupado and inv["listo"] is None:
+        if cur is None or inv["cur_animo"] != dom: _pedir(dom, None if cur is None else cur[max(0, i - 12):i + 1], INV_PRIMERO_S)   # from where she IS
+        elif i >= len(cur) // 2: _pedir(dom, cur[-12:])                 # the next 32 s, continuing the end of these
+    if cur is None: return None
+    fila = cur[i]
+    a_ = (t - inv["cur_t0"]) / INV_FUNDIDO_S
+    if inv["prev"] is not None and a_ < 1.0:                           # crossfade from the body she was in
+        p = inv["prev"][min(len(inv["prev"]) - 1, inv["prev_i"] + int((t - inv["cur_t0"]) * fps))]
+        fila = np.where(np.isfinite(p) & np.isfinite(fila), p + (fila - p) * a_, fila)
+    return _canales_de_fila(fila)
 J26 = {k: i for i, k in enumerate(["nose", "eye_l", "eye_r", "ear_l", "ear_r", "shoulder_l", "shoulder_r", "elbow_l", "elbow_r", "wrist_l", "wrist_r", "hip_l", "hip_r", "knee_l", "knee_r", "ankle_l", "ankle_r", "head", "neck", "pelvis", "bigtoe_l", "bigtoe_r", "smalltoe_l", "smalltoe_r", "heel_l", "heel_r"])}
 BOCA_MAX = 0.5   # her mouth never opens more than this (Violeta, 17 Oct)
 baile = {"buf": [], "ts": [], "activo": False, "sube": None, "baja": None}
@@ -101,14 +150,34 @@ def bailar_de_vuelta(d, t):
     return dict(pitch=g("pitch"), roll=g("roll"), yaw=g("yaw"), head=g("head"), spine=[g(f"spine{k}") for k in range(6)], fluke=g("fluke"), flap=0.0, ladeo=0.0, aleta_l=[g("flap_l"), g("codo_l"), g("muneca_l")], aleta_r=[g("flap_r"), g("codo_r"), g("muneca_r")], jaw=0.0, cara=[0, 0, 0, 0], mirada=[g("mirada_yaw"), g("mirada_pitch")], spin=0.0, depth=g("depth"), turbina=max(0.3, g("turbina")))
 
 # ---------------- input ----------------
-latest = {}; recibido = {"t": 0.0, "n": 0}
+# WHO IS HERE NOW (Dan's PC, 18 Oct; Dan: "what's the whale doing? something's messed up?"). `latest` keeps every field ever
+# received, and nothing said a visitor had LEFT: the recorder stops sending the body (cuerpo_*, esqueleto), the mood it reads
+# (actor_animo) and the visit, and ballena3 keeps sending the face at its last smoothed values ("valores congelados" - the
+# recorder's own word for a lost face). So after the first visitor she was never alone again: curious for minutes, mirroring
+# a frozen lean (pitch to -0.9 rad), never reaching her own initiative. Now a field the recorder stopped sending expires after
+# FRESCO_S, and a face whose head and jaw have not moved for FRESCO_S is a lost face: its fields go too. A live face always moves.
+FRESCO_S = 2.0
+CARA_FIRMA = ("head_yaw", "head_pitch", "jaw_open")                   # what the recorder itself checks for a frozen face
+CARA_PREFIJOS = ("head_", "eye_", "brow_", "mouth_", "cheek_", "face_", "jaw_", "blink", "lengua", "tongue")
+latest = {}; recibido = {"t": 0.0, "n": 0, "cara_t": 0.0, "firma": None}; llegada = {}
 def _escuchar():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("0.0.0.0", a.entrada))
     while True:
         try: b, _ = s.recvfrom(65536); d = json.loads(b.decode())
         except Exception: continue
-        if d.get("soltar_manual"): latest.clear()   # a new take/person: forget the old fields
-        latest.update(d); recibido["t"] = time.time(); recibido["n"] += 1
+        if d.get("soltar_manual"): latest.clear(); llegada.clear()   # a new take/person: forget the old fields
+        ahora = time.time()
+        latest.update(d); recibido["t"] = ahora; recibido["n"] += 1
+        for k in d: llegada[k] = ahora
+        firma = tuple(d.get(k) for k in CARA_FIRMA)
+        if any(v is not None for v in firma) and firma != recibido["firma"]: recibido["cara_t"] = ahora
+        recibido["firma"] = firma
+def vigente(t):
+    """what the recorder says NOW (WHO IS HERE NOW): fields it stopped sending are gone, and a frozen face is no face."""
+    d = {k: v for k, v in latest.items() if t - llegada.get(k, 0.0) < FRESCO_S}
+    if t - recibido["cara_t"] > FRESCO_S:
+        for k in [k for k in d if k.startswith(CARA_PREFIJOS)]: del d[k]
+    return d
 if not a.prueba: threading.Thread(target=_escuchar, daemon=True).start()
 SALIDAS = [(h, int(p)) for h, p in (e.rsplit(":", 1) for e in (a.salida or ["127.0.0.1:9994"]))]
 sock_out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -170,30 +239,79 @@ try: from decisiones import Decisora; DEC = Decisora()
 except Exception as e: DEC = None; print(f"   (decisions off: {e})")
 try: import figuras_nazca as FIG
 except Exception as e: FIG = None; print(f"   (figures off: {e})")
+try: from reacciones_ofrendas import Reacciones, _cosquillas as _RO_cosquillas; RO = Reacciones()
+except Exception as e:
+    RO = None; print(f"   (offering reactions off: {e})")
+    def _RO_cosquillas(f, t, comp, st): comp["flap"] += 0.3 * abs(_onda(t, 4)); comp["ladeo"] += 0.2 * _onda(t, 3.1)
 dib = {"activo": False, "figura": "", "persona": None, "puntos": [], "i": 0, "fin_t": 0.0, "R": 2.0, "llega": 0.18, "enfriar": 480.0}
-def dibujo_empezar(figura, id_persona=None):
+# DRAWING TEST (Dan's PC, 19 Oct, for the Nazca lines in TouchDesigner): YAKUMAMA_DIBUJO_PRUEBA="espiral" draws that figure
+# (zigzag, laberinto, ballena; "azar" = any) every 120 s, "espiral:300" every 300 s. Unset = only when she decides to.
+DIB_PRUEBA = os.environ.get("YAKUMAMA_DIBUJO_PRUEBA", "").strip()
+# WHAT SHE DRAWS (21 Oct, Violeta: "not the same over and over; the animals she likes, the cactus, people, her surroundings"): the face
+# she knows; the creature she ate or held in the last 10 minutes (its family: fish, bird, spider, butterfly, centipede, flower); the cactus
+# or the mountains she just visited; the person in front of her; otherwise one of her own figures, never one of the last six.
+_vivido = {"criatura": None, "criatura_t": 0.0, "comida": None, "comida_t": 0.0}
+def _figura_de_su_mundo(s_, t):
+    if s_.get("conocida") and s_.get("id_persona"): return "cara"
+    if _vivido["comida"] and t - _vivido["comida_t"] < 600: return _vivido["comida"]
+    if _vivido["criatura"] and t - _vivido["criatura_t"] < 600 and random.random() < 0.7: return _vivido["criatura"]
+    if _viaje.get("ultimo") == "cactus" and random.random() < 0.7: return "cactus"
+    if _viaje.get("ultimo") == "montanas" and random.random() < 0.7: return "montanas"
+    if s_.get("persona") and random.random() < 0.5: return "persona"
+    return None   # her own: FIG.elegir avoids the last six
+def dibujo_empezar(figura, id_persona=None, pluma=True):
     firma = None
+    dib["sin_pluma"] = not pluma; dib["de_reaccion"] = not pluma; dib["fin_t_antes"] = dib["fin_t"]   # a FLIGHT (reaction): pen up, fast, small, no cooldown spent
     if figura == "cara" and id_persona:
         try: firma = json.load(open(os.path.join(AQUI, "datasets", "memoria.json"))).get(id_persona, {}).get("firma")
         except Exception: firma = None
-    pts = FIG.puntos(figura if (figura != "cara" or firma) else None, firma, dib["R"]); dib.update(activo=True, figura=("cara" if firma else FIG.elegir(figura if figura != "cara" else None)), persona=(id_persona if firma else None), puntos=pts, i=0)
+    nombre = "cara" if (figura == "cara" and firma) else FIG.elegir(figura if figura != "cara" else None)   # resolved ONCE: the name shown and the points drawn are the same figure (21 Oct: 'montanas' announced, a centipede drawn)
+    pts = FIG.puntos(nombre, firma, dib["R"] * (0.6 if not pluma else 1.0)); dib.update(activo=True, figura=nombre, persona=(id_persona if firma else None), puntos=pts, i=0)
+DIBUJOS = os.path.join(AQUI, "datasets", "dibujos"); DIBUJO_PANTALLA = os.environ.get("YAKUMAMA_DIBUJO_PANTALLA", "3")   # the display that shows the salar (screencapture -D); "" = no photo
+def _dibujo_guardar(t):
+    """every drawing she finishes is kept: datasets/dibujos/<date>_<figure>.json (the waypoints, pen up/down, who it was for) and .svg (the strokes),
+    plus <same>.png, a photo of the projector display a few seconds later (the salar shows the lines as she flies them)."""
+    try:
+        os.makedirs(DIBUJOS, exist_ok=True); nombre = time.strftime("%Y-%m-%d_%H%M%S") + "_" + str(dib["figura"] or "figura"); base = os.path.join(DIBUJOS, nombre)
+        pts = dib["puntos"]; json.dump({"t": t, "figura": dib["figura"], "persona": dib["persona"], "R": dib["R"], "vuelo": bool(dib.get("sin_pluma")), "puntos": pts, "animo": st.get("dom_actual")}, open(base + ".json", "w"))
+        xs = [p[0] for p in pts] or [0]; ys = [p[1] for p in pts] or [0]; mn, mx = min(xs + ys), max(xs + ys); esc = 400.0 / max(1e-6, mx - mn)
+        tr = []; seg = []
+        for x, y, pluma in pts:
+            if pluma and seg or (pluma and not seg): seg.append((x, y))
+            if not pluma and seg: tr.append(seg); seg = []
+            if not pluma: seg = [(x, y)]   # the pen lands where it lifted to
+        if seg: tr.append(seg)
+        lines = "".join(f'<polyline fill="none" stroke="#c9a227" stroke-width="2" points="{" ".join(f"{(x - mn) * esc + 20:.1f},{(mx - y) * esc + 20:.1f}" for x, y in sg)}"/>' for sg in tr if len(sg) > 1)
+        open(base + ".svg", "w").write(f'<svg xmlns="http://www.w3.org/2000/svg" width="440" height="440" viewBox="0 0 440 440"><rect width="440" height="440" fill="#f3efe4"/>{lines}<text x="10" y="430" font-size="12" fill="#555">{nombre}</text></svg>')
+        if DIBUJO_PANTALLA and not dib.get("sin_pluma"): subprocess.Popen(["/bin/sh", "-c", f"sleep 4; /usr/sbin/screencapture -x -D {DIBUJO_PANTALLA} '{base}.png'"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"   [drawing] kept: datasets/dibujos/{nombre} (.json .svg{' .png' if DIBUJO_PANTALLA else ''})", flush=True)
+    except Exception as e: print(f"   [drawing] could not keep it: {e}", flush=True)
 def dibujo_paso(dec, fijo, t, s_):
     """when her body decides 'dibujar': she flies the figure's waypoints (straight runs, sharp turns) and the packet carries the pen."""
     if FIG is None: return None
     if dib["activo"] and fijo in ("tiron", "palma", "no_pez", "lente"): dib["activo"] = False; dib["fin_t"] = t   # a refusal interrupts
-    if not dib["activo"] and dec.get("con_cuerpo") == "dibujar" and t - dib["fin_t"] > dib["enfriar"]:
-        dibujo_empezar("cara" if (s_.get("conocida") and s_.get("id_persona")) else None, s_.get("id_persona"))
+    ofrenda_viva = (RO is not None and RO.activa(t) and not (RO.r or {}).get("dibujo_pedido")) or bool(animo_de_prueba(t))   # Violeta's map (20 Oct): ofrenda > repertorio, and the
+    if dib["activo"] and ofrenda_viva and not dib.get("de_reaccion"): dib["activo"] = False; dib["fin_t"] = t   # drawing belongs to the repertoire ("sola: dibuja"): an offering (or the mood test) interrupts it
+    if dib["activo"] and dib.get("de_reaccion") and not (RO is not None and RO.activa(t)): dib["activo"] = False; dib["fin_t"] = dib.get("fin_t_antes", dib["fin_t"]); dib["de_reaccion"] = False   # the flight ends with its reaction
+    if not dib["activo"] and dec.get("con_cuerpo") == "dibujar" and t - dib["fin_t"] > dib["enfriar"] and not ofrenda_viva:   # and none starts while one plays
+        dibujo_empezar(_figura_de_su_mundo(s_, t), s_.get("id_persona"))   # 21 Oct: what she draws comes from what she lived (see _figura_de_su_mundo)
+    if not dib["activo"] and DIB_PRUEBA and t - dib["fin_t"] > float((DIB_PRUEBA.split(":") + ["120"])[1]):
+        _f = DIB_PRUEBA.split(":")[0]; dibujo_empezar(None if _f in ("", "azar") else _f); print(f"   (drawing test: {dib['figura']})")
     if not dib["activo"]: return None
     x, y, pluma = dib["puntos"][dib["i"]]
     if math.hypot(st["ax"] - x, st["ay"] - y) < dib["llega"]:
         dib["i"] += 1
-        if dib["i"] >= len(dib["puntos"]): dib["activo"] = False; dib["fin_t"] = t; return {"figura": dib["figura"], "persona": dib["persona"], "fin": 1}
+        if dib["i"] >= len(dib["puntos"]):
+            dib["activo"] = False; dib["fin_t"] = dib.get("fin_t_antes", t) if dib.get("de_reaccion") else t; dib["de_reaccion"] = False; _dibujo_guardar(t)
+            return {"figura": dib["figura"], "persona": dib["persona"], "fin": 1, "pluma": 0 if dib.get("sin_pluma") else 1}
         x, y, pluma = dib["puntos"][dib["i"]]
-    k = 0.004 + 0.03 * 0.35; st["ax"] += (x - st["ax"]) * k; st["ay"] += (y - st["ay"]) * k; st["az"] += (-1.4 - st["az"]) * 0.01   # low over the salar
+    k = 0.03 if dib.get("sin_pluma") else 0.004 + 0.03 * 0.35; st["ax"] += (x - st["ax"]) * k; st["ay"] += (y - st["ay"]) * k   # a flight is fast; a drawing is her pace
+    if not dib.get("sin_pluma"): st["az"] += (-1.4 - st["az"]) * 0.01   # low over the salar (only when drawing)
     dx, dy = x - st["ax"], y - st["ay"]
     if dx * dx + dy * dy > 0.01: yaw_obj = math.atan2(dx, dy); dyaw = (yaw_obj - st["wy"] + math.pi) % (2 * math.pi) - math.pi; st["wy"] += max(-0.03, min(0.03, dyaw * 0.02))
-    return {"figura": dib["figura"], "persona": dib["persona"], "i": dib["i"], "n": len(dib["puntos"]), "x": round(x, 3), "y": round(y, 3), "pluma": int(pluma), "progreso": round(dib["i"] / len(dib["puntos"]), 2), "fin": 0}
-enc = {"t0": None, "ultima": 0.0, "dec": {}, "prob": {}, "bailo": 0, "toco": 0, "abierta_t": 0.0, "palabras": set(), "dist0": None, "quieto": 0.0, "palanca0": 0.0}
+    return {"figura": dib["figura"], "persona": dib["persona"], "i": dib["i"], "n": len(dib["puntos"]), "x": round(x, 3), "y": round(y, 3), "pluma": 0 if dib.get("sin_pluma") else int(pluma), "vuelo": int(bool(dib.get("sin_pluma"))), "progreso": round(dib["i"] / len(dib["puntos"]), 2), "fin": 0}
+enc = {"t0": None, "ultima": 0.0, "dec": {}, "prob": {}, "bailo": 0, "toco": 0, "abierta_t": 0.0, "palabras": set(), "dist0": None, "quieto": 0.0, "palanca0": 0.0, "politica": "ella"}
+EVALUAR = os.environ.get("YAKUMAMA_EVALUAR") == "1"   # THE MEASURE (21 Oct, RLCD): a day where every other encounter is decided at random (decisiones.decidir politica "azar"); calibracion.py compares
 def _resultado(d, t, se_fue):
     """the outcome of the open decision, for the engagement reward: time, distance that shrank, her words used, stillness, joystick, return."""
     dm = d.get("distancia_m"); acerco = int(dm is not None and enc["dist0"] is not None and float(dm) < float(enc["dist0"]) - 0.3)
@@ -202,7 +320,11 @@ def _resultado(d, t, se_fue):
 def decidir(d, t, hay_persona, dom, energia_cuerpo):
     """every 4 s (and when the person leaves) she decides how to interact; the previous decision is closed with its outcome and logged."""
     if DEC is None: return {}, {}
-    if hay_persona and enc["t0"] is None: enc["t0"] = t; enc["bailo"] = 0; enc["toco"] = 0; enc["palabras"] = set(); enc["dist0"] = d.get("distancia_m"); enc["quieto"] = 0.0; enc["palanca0"] = float(d.get("palanca_s") or 0)
+    if hay_persona and enc["t0"] is None:
+        enc["t0"] = t; enc["bailo"] = 0; enc["toco"] = 0; enc["palabras"] = set(); enc["dist0"] = d.get("distancia_m"); enc["quieto"] = 0.0; enc["palanca0"] = float(d.get("palanca_s") or 0)
+        enc["politica"] = ("azar" if random.random() < 0.5 else "ella") if EVALUAR else "ella"   # a coin per encounter, so the two policies meet the same afternoon and the same people
+        if EVALUAR: print(f"   [evaluar] this encounter: {enc['politica']}", flush=True)
+    if _cuerpo["sujeta"] > 0.5: enc["toco"] = 1; enc["palabras"].add("aleta")   # a hand on her printed fin is a touch word too
     if hay_persona and baile["activo"]: enc["bailo"] = 1
     if (d.get("tacto") or 0) > 0.3: enc["toco"] = 1; enc["palabras"].add(str(d.get("tacto_zona") or "tacto"))
     if d.get("ofrenda") in ("pez", "no_pez"): enc["palabras"].add("boca")
@@ -215,32 +337,382 @@ def decidir(d, t, hay_persona, dom, energia_cuerpo):
         if DEC.abierta: DEC.cerrar(_resultado(d, t, 0))
         s_ = {"persona": int(bool(hay_persona)), "conocida": int(bool(d.get("conocida"))), "animo": dom, "energia": energia_cuerpo, "segundos": (t - enc["t0"]) if enc["t0"] else (t - st["vistos"]), "tacto": d.get("tacto") or 0, "tacto_zona": d.get("tacto_zona"), "ropa_gusta": bool(d.get("color_ropa")), "pide_olvido": bool(d.get("olvidar")),
               "id_persona": d.get("visita") or None, "quieto": enc["quieto"], "vuelve": d.get("vuelve"), "distancia_m": d.get("distancia_m"), "flores": d.get("flores"), "flores_n": d.get("flores_n"), "joya": d.get("joya"), "joya_tiron": d.get("joya_tiron"),
-              "boca": d.get("ofrenda"), "boca_p": d.get("ofrenda_p"), "palanca_s": d.get("palanca_s"), "camara_cerca": d.get("camara_cerca"), "camara_mira": d.get("camara_mira"),
-              "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "quieto_foco": d.get("quieto_foco"), "telefono": int(bool(d.get("ve_telefono")))}
-        enc["dec"], enc["prob"] = DEC.decidir(s_); enc["ultima"] = t; enc["abierta_t"] = t
+              "boca": d.get("ofrenda"), "boca_p": d.get("ofrenda_p"), "ofrenda_id": d.get("ofrenda_id"), "reaccion": d.get("reaccion"), "ofrenda_nombre": d.get("ofrenda_nombre"), "palanca_s": d.get("palanca_s"), "camara_cerca": d.get("camara_cerca"), "camara_mira": d.get("camara_mira"),
+              "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "quieto_foco": d.get("quieto_foco"), "telefono": int(bool(d.get("ve_telefono"))), "viento": float(_clima["viento"] or 0.0) + 14.0 * _clima["mio"], "noche": int(_clima["noche"] or 0),
+              **({"oye_nivel": float((d.get("oido") or {}).get("nivel") or 0.0), "oye_golpe": float((d.get("oido") or {}).get("golpe") or 0.0), "oye_canta": float((d.get("oido") or {}).get("canta") or 0.0)} if isinstance(d.get("oido"), dict) and t - float(d.get("oido_t") or 0) < 3.0 else {}), "ultimo_viaje": _viaje["ultimo"], "show": int(_show["on"]), "con_cuerpo_prev": (enc.get("dec") or {}).get("con_cuerpo"),
+              "lluvia": float(_clima["lluvia"] or 0.0), "lluvia_real": _clima["lluvia_real"], "rachas": _clima["rachas"], "nubes": _clima["nubes"], "humedad": _clima["humedad"], "presion": _clima["presion"], "uv": _clima["uv"],   # the world (Open-Meteo)
+              "aleta_sujeta": round(_cuerpo["sujeta"], 2), "cansada": round(_cuerpo["cansada"], 2), "excitada": round(_cuerpo["excitada"], 2), "calor": _cuerpo["temp"]}   # her body (proprioception)
+        enc["dec"], enc["prob"] = DEC.decidir(s_, politica=(enc["politica"] if hay_persona else "ella")); enc["ultima"] = t; enc["abierta_t"] = t
         try: json.dump({"t": t, "decision": enc["dec"], "prob": enc["prob"], "fijo": (DEC.abierta or {}).get("fijo", ""), "animo": dom, "persona": int(bool(hay_persona)), "conocida": s_["conocida"], "segundos": round(s_["segundos"], 1),
-                        "personas_n": s_.get("personas_n"), "foco_razon": s_.get("foco_razon"), "tacto": s_["tacto"], "tacto_zona": s_["tacto_zona"], "ofrenda": s_.get("boca"), "ve_hermana": int(bool(d.get("ve_hermana"))), "ve_telefono": int(bool(d.get("ve_telefono"))), "id_persona": s_.get("id_persona"), "fuente": fuente if 'fuente' in dir() else None}, open("/tmp/ballena_cerebro.json", "w"))   # para la ventana: que decide y por que
+                        "personas_n": s_.get("personas_n"), "foco_razon": s_.get("foco_razon"), "tacto": s_["tacto"], "tacto_zona": s_["tacto_zona"], "ofrenda": s_.get("boca"), "ofrenda_id": s_.get("ofrenda_id"), "reaccion": s_.get("reaccion"), "reaccion_viva": ({"n": RO.r["n"], "texto": RO.r.get("texto", ""), "ofrenda_id": RO.r.get("ofrenda_id"), "nombre": str(RO.r.get("nombre") or "").split(" (")[0], "fase": round(RO.fase(t), 2), "animo": RO.r.get("animo")} if (RO is not None and RO.activa(t) and RO.r) else None), "ve_hermana": int(bool(d.get("ve_hermana"))), "ve_telefono": int(bool(d.get("ve_telefono"))), "id_persona": s_.get("id_persona"), "fuente": fuente if 'fuente' in dir() else None, "politica": enc["politica"] if hay_persona else "ella", "clima": {k: _clima[k] for k in CLIMA_CAMPOS}, "cuerpo_sentido": {"sujeta": s_["aleta_sujeta"], "cansada": s_["cansada"], "excitada": s_["excitada"], "calor": s_["calor"]}}, open("/tmp/ballena_cerebro.json", "w"))   # para la ventana: que decide y por que
         except Exception: pass
     return enc["dec"], enc["prob"]
 def reaccion_tacto(d, t, comp, m):
     """the sister is touched: head -> curious, she looks to that side; back -> calm; tail -> playful; fin -> alert; very hard -> angry startle. Returns the mood it pushes (or None)."""
     tacto = q(d, "tacto", 0, 1); zona = str(d.get("tacto_zona") or ""); boca = str(d.get("ofrenda") or "")
-    if boca == "no_pez": return "alert"      # not a fish: closed jaw, she turns away
+    if boca == "no_pez":
+        if RO is not None: RO.cortar()
+        return "alert"      # not a fish: closed jaw, she turns away
+    if RO is not None and RO.activa(t) and DEC is not None and (DEC.abierta or {}).get("fijo", "") in ("tiron", "palma"): RO.cortar()   # 20 Oct: a palm on the flowers or a pull on the jewel ends the scene too (refusals sit above everything)
+    nueva = (boca == "pez" and RO is not None and RO.activa(t) and d.get("ofrenda_id") and d.get("ofrenda_id") != (RO.r or {}).get("ofrenda_id")
+             and float(d.get("ofrenda_p") or 0) >= 0.5)   # Violeta's map (20 Oct): a NEW creature replaces the one playing
+    if RO is not None and RO.activa(t) and not nueva: return RO.animo(t)   # one of the 29 offerings: Violeta's reaction rules while it lasts (reacciones_ofrendas.py)
     if d.get("ve_hermana"): return "curious"  # her golden sister held up in front of her eye
-    if boca == "pez": return "feeding"
-    if tacto < 0.3: return None
+    if boca == "pez":
+        if RO is not None and d.get("reaccion") and float(d.get("ofrenda_p") or 0) >= 0.5 and ((DEC.abierta or {}).get("fijo", "") if DEC else "") not in ("tiron", "palma", "lente"):
+            if RO.empezar(d.get("reaccion"), t, d.get("ofrenda_color"), d.get("ofrenda_nombre"), d.get("ofrenda_id")):
+                if not a.callado: print(f"   OFRENDA {d.get('ofrenda_id')} {str(d.get('ofrenda_nombre') or '').split(' (')[0]}: reaccion {RO.r['n']} {RO.r['texto']}")
+                return RO.animo(t)
+        return "feeding"
+    if RO is not None and boca != "pez": RO.soltar()   # 21 Oct: nothing (or not a fish) in the mouth releases the last creature
+    if tacto < 0.3: return "angry" if _cuerpo["sujeta"] > 0.5 else None   # a hand holding her printed fin (proprioception) is rough: RED and flapping free (22 Oct, Violeta), never a frozen alert
     if tacto > 0.85: return "sad" if zona == "flores" else "angry"   # trampled flowers are a loss; a pull on the jewel is rage
-    return {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert", "flores": "calm", "joya": "calm"}.get(zona)
+    return {"cabeza": "curious", "lomo": "calm", "cola": "playful", "aleta": "alert", "flores": "playful", "joya": "calm"}.get(zona)   # flores: calm -> playful (21 Oct, Violeta: "flowers, she gets happy"; her cactus visits on the salar arrive as flowers too)
+ESC_CAND_S, ESC_HOLD_S = 3.0, 8.0
+TENENCIA_S = float(os.environ.get("YAKUMAMA_TENENCIA_S", 30.0))   # seconds a winning repertoire mood keeps her (21 Oct)   # the room's mood: seconds a candidate must lead, and the minimum a mood keeps (20 Oct)
+# ---------------- EL ÁRBITRO (Violeta's map, 20 Oct 2026: "tres capas compiten por el cuerpo, gana la de mayor prioridad") ----------------
+# Until now every author wrote straight into the same body dict in file order (mood curve, invented body, mirroring, oscillators, an
+# offering's recipe, touch, singing) and the renderer smoothed again: stiff, jumping movement. Now: the REPERTOIRE (base body + the
+# additive colour of mirroring/oscillators/touch/singing) is one layer; an OFFERING's recipe is a layer above it; COSQUILLAS (a hand on
+# her flowers/strips) is the layer above that. Each layer's weight ramps 0->1 in ARB_RAMPA_S; the active layer replaces the body as a
+# whole, the colour fades out under it, and ONE smoother per channel runs at the end. Position stays single-owner (drawing > recipe >
+# approach/retreat > choreography). Refusals and the lens stay absolute, applied on the packet as before.
+ARB_RAMPA_S = 0.5
+# THE UNDULATION (21 Oct, Violeta: "the ondulation on her brain, without force"): a travelling wave along her spine and flukes whose
+# rate and size follow HER OWN SPEED, measured on the position she sends plus the journey's speed Dan's renderer reports back (viaje_vel).
+# It is the water, not a choreography: it adds nothing when she hangs still and swells as she travels. Under the invention, over nothing.
+OND_AMP, OND_FLUKE = 0.08, 0.12     # radians per segment / on the flukes at full travel
+OND_HZ0, OND_HZ_GAIN = 0.35, 1.2    # strokes per second at rest, x (1 + gain * travel)
+OND_LAG = 0.9                       # phase lag per spine segment (a wave travelling head -> tail)
+OND_V_FULL, OND_VIAJE_FULL = 0.8, 4.0   # stage units/s and journey m/s that count as full travel
+_ond = {"ph": 0.0, "pos": None, "t": None, "v": 0.0}
+# HER JOURNEY IS HER DECISION (21 Oct, Violeta: "the more autonomy she has the better, even her AI running the camera"): every so
+# often, or when the renderer reports she has arrived, she decides where to go next and how the audience looks at her: toward
+# her cactus (the island's flowers), close to the audience, far across the salar, or stay. The odds come from her mood and whether
+# someone is with her; the renderer (ballena_td.py, viaje mode) obeys the packet's "viaje" field. YAKUMAMA_VIAJE_PRIMERO forces the first.
+VIAJE_DECIDE_S = (60.0, 120.0)
+VIAJE_ODDS = {"playful":   {"cerca": 0.3, "cactus": 0.2, "lejos": 0.1, "quedarse": 0.1, "show": 0.3}, "curious":   {"cactus": 0.3, "cerca": 0.3, "lejos": 0.1, "quedarse": 0.1, "show": 0.2},
+              "calm":      {"lejos": 0.3, "quedarse": 0.3, "cactus": 0.2, "cerca": 0.1, "montanas": 0.2}, "sad": {"lejos": 0.4, "quedarse": 0.3, "cactus": 0.1, "montanas": 0.3},
+              "singing":   {"quedarse": 0.5, "lejos": 0.2, "cactus": 0.1, "montanas": 0.3},   "feeding":   {"lejos": 0.3, "cactus": 0.2, "cerca": 0.2, "quedarse": 0.1, "show": 0.2},
+              "angry":     {"lejos": 0.4, "cerca": 0.3, "quedarse": 0.1, "show": 0.2},                "alert":     {"quedarse": 0.5, "cerca": 0.3, "lejos": 0.2},
+              "diving":    {"lejos": 0.4, "quedarse": 0.3, "cactus": 0.1, "montanas": 0.2},               "surfacing": {"cerca": 0.4, "cactus": 0.2, "quedarse": 0.1, "show": 0.3}}
+VIAJE_ALTURA = {"surfacing": (0.6, 1.0), "curious": (0.5, 1.0), "diving": (0.0, 0.3), "sad": (0.0, 0.3), "singing": (0.0, 0.4)}   # else 0.2..0.7
+_viaje = {"destino": None, "altura": 0.5, "t": 0.0, "prox": 0.0, "llegada_t": 0.0, "ultimo": None}
+# THE WEATHER IS HERS TOO (21 Oct, Violeta: "wind, all the environmental conditions should also be attached to the AI"; "gets super
+# windy"). The renderer sends what the salar lives (clima: wind m/s, sun elevation, night, rain, water, temperature) on 9995 -> her
+# recorder -> her brain. She uses it: strong wind pushes her journey far and to the mountains and keeps her from staying; calm invites
+# the show; at night, alone, her initiative dreams (singing, calm, diving) or has nightmares (sad, alert, angry). And she MAKES wind:
+# her own gusts (viento 0..1 in the packet) rise with anger, alertness and play, and in her nightmares; the renderer adds them to
+# the real wind over the salt and the soundtrack.
+VIENTO_ANIMO = {"angry": 0.9, "alert": 0.6, "playful": 0.4, "surfacing": 0.3, "feeding": 0.25, "diving": 0.3, "curious": 0.15, "calm": 0.0, "singing": 0.05, "sad": 0.2}
+CLIMA_CAMPOS = ("viento", "sol", "noche", "lluvia", "agua", "temperatura", "humedad", "nubes", "lluvia_real", "rachas", "presion", "uv")   # 21 Oct: more of the world (Open-Meteo by the hour, via Dan's renderer)
+_clima = {"viento": 0.0, "sol": 10.0, "noche": 0, "lluvia": 0.0, "agua": 0.0, "temperatura": None, "humedad": None, "nubes": None, "lluvia_real": None, "rachas": None, "presion": None, "uv": None, "t": 0.0, "dicho": 0.0, "mio": 0.0, "racha": 0.0, "racha_t": 0.0}
+def clima_leer(d, t):
+    c = d.get("clima")
+    if isinstance(c, dict) and t - float(d.get("clima_t") or 0) < 5.0:
+        for k in CLIMA_CAMPOS:
+            if c.get(k) is not None: _clima[k] = c[k]
+        _clima["t"] = t
+    if t - _clima["dicho"] > 60.0 and _clima["t"]:
+        _clima["dicho"] = t; print(f"   [weather] wind {float(_clima['viento']):.1f} m/s (gusts {_clima['rachas']}), sun {float(_clima['sol']):+.0f} deg{' (night)' if _clima['noche'] else ''}, rain {float(_clima['lluvia']):.2f} (real {_clima['lluvia_real']} mm), water {float(_clima['agua']):.2f}, {_clima['temperatura']} C, humidity {_clima['humedad']}%, clouds {_clima['nubes']}%, {_clima['presion']} hPa, uv {_clima['uv']} | her own wind {_clima['mio']:.2f}", flush=True)
+# PROPRIOCEPTION AS JUDGEMENT (21 Oct, Violeta: "the told-measured gap as a hand on her fin, temperature as tiredness and also excitement").
+# The board reports each fin's measured angle (degrees), temperature (C) and load; she TOLD them a value in -1..1. She calibrates her own
+# body: a forgetting least-squares fit measured = a*told + b per fin, so no unit table is needed and a re-flashed firmware re-learns in
+# a minute or two. A residual well beyond the fit's usual spread, held for a second, is a hand on that fin (aleta_sujeta 0..1): it
+# counts as a touch (mood alert, her word "aleta" in the reward) and leans her decisions (decisiones.puntajes). Temperature above a slow
+# baseline is EXCITEMENT (warm from moving, excitada 0..1); above CUERPO_CANSADA_C it is TIREDNESS (cansada 0..1): she rests.
+CUERPO_CANSADA_C, CUERPO_CANSADA_ANCHO = float(os.environ.get("YAKUMAMA_CANSADA_C", 60.0)), 10.0   # Feetech STS protect themselves near 70 C; at rest they sit 47-52 C here
+CUERPO_EXC_ANCHO, CUERPO_BASE_TAU = 6.0, 1200.0      # degrees above the baseline that count as fully excited; the baseline follows in ~20 min
+PROPIO_ON = os.environ.get("YAKUMAMA_PROPIO", "1") != "0"   # YAKUMAMA_PROPIO=0: she still logs her body but never judges a hold from it (22 Oct: a false hold kept her "alert" and still)
+SERVO_TAU = float(os.environ.get("YAKUMAMA_SERVO_TAU", 0.5))   # s: the fins follow what they are told with about this lag; she judges only once they have settled
+SUJETA_MAX_S, SUJETA_DESCANSO_S = 20.0, 10.0   # a hold is believed at most this long, then she lets go of the idea for a while (a false hold must never lock her)
+_cuerpo = {"fit": {"i": [0.0] * 5, "d": [0.0] * 5}, "res": {"i": 1.5, "d": 1.5}, "lag": {"i": None, "d": None}, "sujeta": 0.0, "sujeta_t": 0.0, "hold_t0": 0.0, "base": None, "temp": None, "cansada": 0.0, "excitada": 0.0, "t": 0.0, "dicho": 0.0}
+def _fit_ab(acc):
+    """(a, b) of the forgetting least squares acc = [n, sx, sy, sxx, sxy], once it has seen enough AND the fin has actually moved
+    (22 Oct: with the fins held still for a minute the fit had no range and read the offset as a hand); else None."""
+    den = acc[0] * acc[3] - acc[1] * acc[1]
+    if acc[0] < 40.0 or den / (acc[0] * acc[0]) < 0.02: return None   # var(told) under 0.02 (a swing under ~0.15): nothing to calibrate on
+    a = (acc[0] * acc[4] - acc[1] * acc[2]) / den; return a, (acc[2] - a * acc[1]) / acc[0]
+def _fit_add(acc, x, y, olvido=0.9995):   # ~7 min of memory at 5 readings/s: a still minute does not erase what the moving minutes taught
+    for i in range(5): acc[i] *= olvido
+    acc[0] += 1.0; acc[1] += x; acc[2] += y; acc[3] += x * x; acc[4] += x * y
+def cuerpo_leer(d, t):
+    cf = d.get("cuerpo_fisico") or {}; m = cf.get("medido") if isinstance(cf.get("medido"), dict) else None
+    if not m or t - _cuerpo["t"] < 0.2: return
+    dt = min(1.0, t - _cuerpo["t"]) if _cuerpo["t"] else 0.2; _cuerpo["t"] = t; gap = 0.0
+    for k, told_k, med_k in (("i", "aleta_i", "fl"), ("d", "aleta_d", "fr")):
+        try: x_raw = float(cf.get(told_k) or 0.0); y = float(m.get(med_k))
+        except (TypeError, ValueError): continue
+        lag = _cuerpo["lag"][k]; lag = x_raw if lag is None else lag + (x_raw - lag) * min(1.0, dt / SERVO_TAU); _cuerpo["lag"][k] = lag   # where the servo should be by now
+        x = lag; viajando = abs(x_raw - lag) > 0.05   # the servo is still on its way: no judgement this reading
+        acc = _cuerpo["fit"][k]; ab = _fit_ab(acc)
+        if ab is None:
+            if not viajando: _fit_add(acc, x, y)
+            continue
+        r = abs(y - (ab[0] * x + ab[1])); usual = _cuerpo["res"][k]
+        if viajando: continue
+        if r < 3.0 * usual: _fit_add(acc, x, y); _cuerpo["res"][k] = max(1.0, usual + (r - usual) * 0.02)   # her body's model and its usual spread learn only from settled readings that look like her own motion, never from the hold
+        umbral = 3.0 * usual + 2.0; g_ = (r - umbral) / umbral
+        if g_ > gap: gap = g_; _cuerpo["lado"] = -1.0 if k == "i" else 1.0   # which fin is held: her side eye goes there
+    obj = max(0.0, min(1.0, gap)); _cuerpo["sujeta"] += (obj - _cuerpo["sujeta"]) * (0.15 if obj > _cuerpo["sujeta"] else 0.1)   # ~2 s to be sure, a few to let go
+    if _cuerpo["sujeta"] > 0.5:   # believed at most SUJETA_MAX_S, then a rest: a wrong hold must never lock her in "alert"
+        if _cuerpo["hold_t0"] <= 0.0: _cuerpo["hold_t0"] = t
+        elif t - _cuerpo["hold_t0"] > SUJETA_MAX_S: _cuerpo["sujeta"] = 0.0; _cuerpo["hold_t0"] = -t; print("   [body] she stops believing the hand (20 s): letting it go", flush=True)
+    elif _cuerpo["hold_t0"] > 0.0: _cuerpo["hold_t0"] = 0.0
+    if _cuerpo["hold_t0"] < 0.0:
+        if t + _cuerpo["hold_t0"] < SUJETA_DESCANSO_S: _cuerpo["sujeta"] = 0.0
+        else: _cuerpo["hold_t0"] = 0.0
+    if not PROPIO_ON: _cuerpo["sujeta"] = 0.0
+    temps = [float(v) for v in (m.get("fl_temp"), m.get("fr_temp")) if v is not None and float(v) > 0]
+    if temps:
+        T = max(temps); _cuerpo["temp"] = T
+        if _cuerpo["base"] is None: _cuerpo["base"] = T
+        else: _cuerpo["base"] += (T - _cuerpo["base"]) * min(1.0, 0.2 / CUERPO_BASE_TAU)
+        _cuerpo["cansada"] = max(0.0, min(1.0, (T - CUERPO_CANSADA_C) / CUERPO_CANSADA_ANCHO))
+        if _cuerpo.get("t0") is None: _cuerpo["t0"] = t
+        _madura = max(0.0, min(1.0, (t - _cuerpo["t0"] - 600.0) / 600.0))   # 22 Oct: the servos warm from cold for the first 20 min of a day; that is not excitement
+        _cuerpo["excitada"] = max(0.0, min(1.0, (T - _cuerpo["base"]) / CUERPO_EXC_ANCHO)) * (1.0 - _cuerpo["cansada"]) * _madura
+    if _cuerpo["sujeta"] > 0.5 and t - _cuerpo["sujeta_t"] > 10.0:
+        _cuerpo["sujeta_t"] = t; print(f"   [body] a hand holds her fin (gap {gap:.1f}x beyond the usual): red, and she flaps to free herself", flush=True)
+        try: _ev["dom"] = None   # her angry signature (the tail slap) fires NOW, not after the pause
+        except NameError: pass
+    if t - _cuerpo["dicho"] > 60.0:
+        _cuerpo["dicho"] = t
+        print(f"   [body] fins told L {float(cf.get('aleta_i') or 0):+.2f} R {float(cf.get('aleta_d') or 0):+.2f} | measured L {float(m.get('fl') or 0):+.2f} ({m.get('fl_temp')} C) R {float(m.get('fr') or 0):+.2f} ({m.get('fr_temp')} C) | held {_cuerpo['sujeta']:.2f} tired {_cuerpo['cansada']:.2f} excited {_cuerpo['excitada']:.2f} (baseline {_cuerpo['base']})", flush=True)
+# SHE SLEEPS AND LEARNS (21 Oct, Violeta: "her dreams"): at night, alone for 10 minutes, once a night, the day's decisions and their
+# outcomes become weight (decisiones.aprender: a small contextual bandit over the log) and her decider reloads them. This is the
+# calibration loop closing: what preceded engagement gets more likely in that situation; what preceded people leaving, less.
+_sueno = {"noche_de": None, "hilo": None}
+def dormir(t):
+    if DEC is None or not _clima["noche"] or (t - st["vistos"]) < 600.0: return
+    hoy = time.strftime("%Y-%m-%d")
+    if _sueno["noche_de"] == hoy or (_sueno["hilo"] is not None and _sueno["hilo"].is_alive()): return
+    _sueno["noche_de"] = hoy
+    def _aprender():
+        try:
+            import decisiones as _Dm; print("   she sleeps: learning from the day's decisions", flush=True); _Dm.aprender()
+            DEC.pesos = json.load(open(_Dm.PESOS)); print(f"   she wakes with {sum(len(v) for v in DEC.pesos.values())} learned situations", flush=True)
+        except Exception as e: print(f"   (sleep: {e})", flush=True)
+    _sueno["hilo"] = threading.Thread(target=_aprender, daemon=True); _sueno["hilo"].start()
+def viento_de_ella(t, dom, dt):
+    """her own wind 0..1: the mood's base plus gusts she throws; nightmares at night blow harder."""
+    base = VIENTO_ANIMO.get(dom, 0.1) * (1.4 if (_clima["noche"] and dom in ("sad", "alert", "angry")) else 1.0)
+    if t > _clima["racha_t"]: _clima["racha_t"] = t + random.uniform(6.0, 25.0); _clima["racha"] = random.uniform(0.0, 0.5) * (1.0 if random.random() < 0.6 else 0.0)
+    obj = min(1.0, base + _clima["racha"]); _clima["mio"] += (obj - _clima["mio"]) * min(1.0, dt / 4.0)
+    if os.environ.get("YAKUMAMA_VIENTO_PROPIO") != "1": _clima["mio"] = 0.0   # 21 Oct, Violeta: "her environment shouldn't depend on her; she should learn to react to it" - the wind is Open-Meteo's only
+    return _clima["mio"]
+# THE SHOW (21 Oct, Violeta: "make a dance in the middle of the salar like a show, be vibrant, but never forget the audience"): one
+# of her journey choices. She swims to the open salt and there the DANCERS take her body: the H-JEPA sampling head pulls real
+# 2-second phrases from the bank (Galgo's breaking, the ballet and jazz dancers, Lucia's kullawada, Violeta, Sanam, Suri, Dan),
+# matched to her mood, for SHOW_S; the renderer cuts fast. After a show her next choice leans hard toward the audience.
+SHOW_S = (45.0, 75.0)
+# SHE IMITATES THE AUDIENCE WHEN SHE FEELS LIKE IT (21 Oct, Violeta): with a face in front of her, in a mood that looks (curious,
+# playful, alert, feeding) she may mirror its face for a while - blink, brows, jaw, smile, head turn, gaze - then stop; also whenever her
+# decision is to dance back. "imita" in the packet: the renderer mirrors fully while it is 1, and only lets her gaze follow otherwise.
+IMITA_S, IMITA_PAUSA_S = (10.0, 25.0), (30.0, 90.0)
+IMITA_GANAS = {"curious": 0.5, "playful": 0.4, "alert": 0.3, "feeding": 0.25, "surfacing": 0.2}
+_imita = {"on": False, "fin": 0.0, "prox": 0.0}
+def imita_paso(t, dom, hay_persona, dec):
+    if _imita["on"]:
+        if t >= _imita["fin"] or not hay_persona: _imita.update(on=False, prox=t + random.uniform(*IMITA_PAUSA_S)); print("   she stops imitating", flush=True)
+        return _imita["on"]
+    if not hay_persona or t < _imita["prox"]: return False
+    if (dec or {}).get("con_cuerpo") == "bailar_de_vuelta" or ((dec or {}).get("imitar") == "si" if DEC is not None and (dec or {}).get("imitar") else random.random() < IMITA_GANAS.get(dom, 0.05)):   # ONE DECIDER
+        _imita.update(on=True, fin=t + random.uniform(*IMITA_S)); print(f"   she feels like imitating the face in front of her ({dom})", flush=True)
+    else: _imita["prox"] = t + 5.0
+    return _imita["on"]
+SHOW_GANANCIA = 2.5
+_show = {"on": False, "fin": 0.0, "gen": None, "gen_t0": 0.0, "n": 0}
+def show_paso(t, dom, d, llegada):
+    """starts the show on arrival at a 'show' destination; while it lasts, her body is the dancers' (d['canales'])."""
+    if not _show["on"]:
+        if _viaje["destino"] == "show" and llegada and jepa is not None and JEPA_BALLENA and hasattr(jepa, "banco"):
+            _show.update(on=True, fin=t + random.uniform(*SHOW_S), gen=None, n=_show["n"] + 1); print(f"   SHOW {_show['n']}: the dancers take her body on the open salt", flush=True)
+        else: return
+    if t >= _show["fin"] or _viaje["destino"] != "show": _show.update(on=False, gen=None); print("   show over: back to herself", flush=True); return
+    if _show["gen"] is None or int((t - _show["gen_t0"]) * jepa.fps) >= len(_show["gen"]) - 1:
+        try: _show["gen"], _ = jepa.muestrear(dom, ruido=0.3, desde_contexto=jepa.n >= jepa.largo); _show["gen_t0"] = t
+        except Exception as e: print(f"   (show: {e})", flush=True); _show.update(on=False, gen=None); return
+    fila = _show["gen"][min(len(_show["gen"]) - 1, int((t - _show["gen_t0"]) * jepa.fps))]
+    C = {c: k for k, c in enumerate(jepa.CUERPO)}; g = lambda c: float(fila[C[c]]) if c in C and np.isfinite(fila[C[c]]) else 0.0
+    G = SHOW_GANANCIA; cl = lambda v, m: max(-m, min(m, v))   # the dancers' phrases are small on her body (pitch +-0.02 measured): louder for the show, clipped
+    d["canales"] = dict(pitch=cl(g("pitch") * G, 0.6), roll=cl(g("roll") * G, 0.7), yaw=cl(g("yaw") * G, 0.6), head=cl(g("head") * G, 0.5), spine=[cl(g(f"spine{k}") * G, 0.35) for k in range(6)], fluke=cl(g("fluke") * G, 0.5), flap=0.0, ladeo=0.0,
+                        aleta_l=[cl(g("flap_l") * G, 1.2), g("codo_l"), g("muneca_l")], aleta_r=[cl(g("flap_r") * G, 1.2), g("codo_r"), g("muneca_r")], jaw=g("jaw"), cara=[g("cara_parpado"), g("cara_rabia"), g("cara_tristeza"), g("cara_asombro")],
+                        mirada=[g("mirada_yaw"), g("mirada_pitch")], spin=g("spin"), depth=g("depth"), turbina=max(0.3, g("turbina")))
+    d["cuerpo_jepa"] = 1; d["show_canales"] = 1
+def viaje_decidir(t, dom, hay_persona, llegada):
+    if _viaje["prox"] == 0.0: _viaje["prox"] = t + 5.0
+    if llegada and t - _viaje["llegada_t"] > 30.0: _viaje["llegada_t"] = t; _viaje["prox"] = min(_viaje["prox"], t + random.uniform(20.0, 60.0))
+    if t < _viaje["prox"]: return
+    odds = dict(VIAJE_ODDS.get(dom, VIAJE_ODDS["calm"]))
+    if hay_persona: odds["cerca"] = odds.get("cerca", 0.1) * 2.0
+    _w = float(_clima["viento"] or 0.0) + 14.0 * _clima["mio"]   # the wind she lives: real plus her own
+    if _w > 8.0: odds["lejos"] = odds.get("lejos", 0.1) * 2.0; odds["montanas"] = odds.get("montanas", 0.05) * 2.5; odds["quedarse"] = odds.get("quedarse", 0.1) * 0.5; odds["show"] = odds.get("show", 0.0) * 0.5
+    elif _w < 2.0: odds["show"] = odds.get("show", 0.0) * 1.5 + 0.05; odds["quedarse"] = odds.get("quedarse", 0.1) * 1.3
+    if _viaje["ultimo"] == "show": odds["cerca"] = odds.get("cerca", 0.1) + 1.0; odds.pop("show", None)   # never forget the audience: after a show, to them
+    if _viaje["ultimo"] in ("montanas", "lejos"): odds["cerca"] = odds.get("cerca", 0.1) * 1.5
+    forzado = os.environ.get("YAKUMAMA_VIAJE_PRIMERO") if _viaje["destino"] is None else None
+    decidido = (enc.get("dec") or {}).get("viaje") if DEC is not None else None   # ONE DECIDER: her decision model chose it (priors, reward, Laya)
+    dest = forzado if forzado in odds else (decidido if decidido in odds or decidido in ("cactus", "cerca", "lejos", "quedarse", "show", "montanas") else random.choices(list(odds), weights=list(odds.values()))[0])
+    lo, hi = VIAJE_ALTURA.get(dom, (0.2, 0.7))
+    _viaje.update(destino=dest, altura=round(random.uniform(lo, hi), 2), t=t, prox=t + random.uniform(*VIAJE_DECIDE_S), ultimo=dest)
+    print(f"   she decides her journey: {dest} (she is {dom}{', someone is here' if hay_persona else ''}), the camera {_viaje['altura']:.1f} high", flush=True)
+# THE SIGNATURE OF EACH MOVEMENT (comportamientos_animos.py, FIRMA in each curve's comment): the channels the curve owns while the
+# diffusion invents the rest. singing hangs head down with the mouth on the note; curious stands vertical, high, turning slowly;
+# feeding rolls with the mouth; sad lists with everything fallen and sinks; angry slaps the tail; alert arches and scans; diving arches,
+# noses down with the flukes up and goes deep; surfacing rises at 45 degrees and blows; playful breaches with two turns and slaps.
+FIRMA = {"calm": (), "singing": ("pitch", "head", "jaw", "depth"), "playful": ("spin", "depth", "pitch", "flap"),
+         "curious": ("pitch", "yaw", "head", "depth"), "feeding": ("jaw", "roll", "pitch", "depth"),
+         "sad": ("pitch", "roll", "head", "fluke", "flap", "ladeo", "depth", "spine"), "angry": ("fluke", "head", "jaw", "pitch", "spine"),
+         "alert": ("head", "pitch", "spine"), "diving": ("pitch", "fluke", "head", "depth", "spine"), "surfacing": ("pitch", "head", "flap", "jaw", "depth")}
+# THE SIGNATURE AS AN EVENT, NOT A LOOP (21 Oct, Violeta: "her movement is repetitive and rather boring"; Dan's way in his brain:
+# one-shot gestures with a cooldown, the attitude held in between). On entering a mood she performs the curve's cycle ONCE (the dive
+# and return, the rise and blow, the breach, the lunge, the tail slap, the startle); then the invention carries her whole body, holding
+# only the mood's posture; the event comes back after 25-40 s if she is still in the mood. Postural moods (singing, curious, sad,
+# calm) keep their curve: a hung singer and a vertical spyhop are postures, not events. Her face is never a rule: cara is the invention's.
+EVENTO_S = {"playful": 12.0, "feeding": 6.0, "angry": 6.4, "alert": 5.0, "diving": 14.0, "surfacing": 9.0}
+POSTURA = {"angry": {"pitch": -0.2, "head": -0.15}, "alert": {"head": -0.1, "pitch": 0.0}}   # what stays of the signature between events
+EVENTO_PAUSA = (25.0, 40.0)
+CAMINO_S = {"diving": 20.0, "surfacing": 12.0}   # the designed path's own cycle, squeezed to the event so the travel ends with the move
+_ev = {"dom": None, "t0": 0.0, "fin": 0.0, "prox": 0.0}
+def firma_evento(dom, t):
+    """(the channels the curve owns this frame with their values, the designed-path time for z) for an event mood;
+    (None, None) for a postural mood (the running curve owns FIRMA[dom]); z time -1 = hold at the surface."""
+    if dom not in EVENTO_S: return None, None
+    if _ev["dom"] != dom:
+        if os.environ.get("YAKUMAMA_DEBUG_EVENTO"): print(f"   evento: {_ev['dom']} -> {dom} at {t:.1f}", flush=True)
+        _ev.update(dom=dom, t0=t, fin=t + EVENTO_S[dom], prox=0.0)
+    if t < _ev["fin"]:
+        te = t - _ev["t0"]; c = CA.COMPORTAMIENTOS[dom](te)
+        return {k: c[k] for k in FIRMA[dom]}, te * CAMINO_S.get(dom, EVENTO_S[dom]) / EVENTO_S[dom]
+    if _ev["prox"] == 0.0: _ev["prox"] = t + random.uniform(*EVENTO_PAUSA)
+    if t >= _ev["prox"]:
+        _ev.update(t0=t, fin=t + EVENTO_S[dom], prox=0.0); return firma_evento(dom, t)
+    return dict(POSTURA.get(dom, {})), -1.0
+ARB_TAU_POS = 0.6   # seconds: her sent position eases toward the brain's target (a startle still reads: 0.6 s to 63 %)
+ARB_TAU = {"jaw": 0.08, "cara": 0.10, "mirada": 0.10, "head": 0.22, "flap": 0.25, "ladeo": 0.25, "fluke": 0.25, "pitch": 0.30, "roll": 0.30, "yaw": 0.30, "depth": 0.35, "spine": 0.25}
+_arb = {"w": {"ofrenda": 0.0, "cosquillas": 0.0}, "t": None, "suave": None}
+_ARB_ESC = ("pitch", "roll", "yaw", "head", "flap", "ladeo", "fluke", "jaw", "depth")
+
+def _arb_peso(nombre, activo, dt):
+    w = _arb["w"][nombre]; w += (1.0 if activo else -1.0) * dt / ARB_RAMPA_S
+    _arb["w"][nombre] = max(0.0, min(1.0, w)); return _arb["w"][nombre]
+
+def _arb_mezcla(a, b, w):
+    """a*(1-w) + b*w over the body channels (scalars, spine, cara, mirada); everything else from b when w >= 0.5."""
+    if w <= 0.0: return dict(a)
+    if w >= 1.0: return dict(b)
+    out = dict(b)
+    for k in _ARB_ESC: out[k] = float(a.get(k, 0.0)) * (1 - w) + float(b.get(k, 0.0)) * w
+    out["spine"] = [float(x) * (1 - w) + float(y) * w for x, y in zip(a.get("spine", [0] * 6), b.get("spine", [0] * 6))]
+    out["cara"] = tuple(float(x) * (1 - w) + float(y) * w for x, y in zip(a.get("cara", (0, 0, 0, 0)), b.get("cara", (0, 0, 0, 0))))
+    out["mirada"] = tuple(float(x) * (1 - w) + float(y) * w for x, y in zip(a.get("mirada", (0, 0)), b.get("mirada", (0, 0))))
+    out["spin"] = b.get("spin", a.get("spin", 0.0)) if w >= 0.5 else a.get("spin", 0.0)
+    return out
+
+def _arb_suavizar(comp, dt):
+    """ONE smoother, per channel (ARB_TAU seconds); spin is an angle and is left alone."""
+    prev = _arb["suave"]
+    if prev is None: _arb["suave"] = dict(comp); return comp
+    out = dict(comp)
+    def k(tau): return 1.0 - math.exp(-dt / max(1e-3, tau))
+    for c in _ARB_ESC: out[c] = float(prev.get(c, comp[c])) + (float(comp[c]) - float(prev.get(c, comp[c]))) * k(ARB_TAU[c])
+    out["spine"] = [float(p_) + (float(c_) - float(p_)) * k(ARB_TAU["spine"]) for p_, c_ in zip(prev.get("spine", comp["spine"]), comp["spine"])]
+    out["cara"] = tuple(float(p_) + (float(c_) - float(p_)) * k(ARB_TAU["cara"]) for p_, c_ in zip(prev.get("cara", comp["cara"]), comp["cara"]))
+    out["mirada"] = tuple(float(p_) + (float(c_) - float(p_)) * k(ARB_TAU["mirada"]) for p_, c_ in zip(prev.get("mirada", comp["mirada"]), comp["mirada"]))
+    _arb["suave"] = out; return out
+
+# ---------------- THE REACTION'S DESCRIPTION ON THE SALAR (Violeta, 20 Oct: "we want to see the description as it plays") ----------------
+# Dan's text overlay in TD listens on OSC 7002 (td/setup_alma_text.py): /ballena/alma/linea (big, bottom-left) and /expresion.
+# When a reaction starts, its number and text go there; when it ends, they clear. Hand-built OSC (no dependency). YAKUMAMA_TD=host for a TD elsewhere.
+_OSC_TD = (os.environ.get("YAKUMAMA_TD", "127.0.0.1"), 7002); _osc_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); _desc = {"n": None}
+def _osc_str(addr, text):
+    def pad(b): return b + b"\0" * (4 - len(b) % 4)
+    try: _osc_sock.sendto(pad(addr.encode()) + pad(b",s") + pad(str(text).encode("utf-8")), _OSC_TD)
+    except Exception: pass
+def describir_reaccion(t):
+    """once per change: the playing reaction's description to TD's overlay (and nothing when none plays)."""
+    n = RO.r["n"] if (RO is not None and RO.activa(t) and RO.r) else None
+    if n == _desc["n"]: return
+    _desc["n"] = n
+    if n is None: _osc_str("/ballena/alma/linea", ""); _osc_str("/ballena/alma/expresion", ""); return
+    r = RO.r; _osc_str("/ballena/alma/linea", f"{int(r.get('ofrenda_id') or 0):02d}  ·  {str(r.get('nombre') or '').split(' (')[0]}")
+    _osc_str("/ballena/alma/expresion", f"reacción {n}: {r.get('texto', '')}")
+
+# ---------------- MOOD TEST (20 Oct 2026, Violeta: "see the 10 moods animate in succession"): /tmp/ballena_animo_prueba.json {"animo": "sad"} ----------------
+# written by carrusel_animos.py every second; fresher than 3 s it forces her mood (fuente "prueba"); stale or absent = no effect.
+_PRUEBA_ANIMO = "/tmp/ballena_animo_prueba.json"; _prueba = {"t": 0.0, "animo": None}
+def animo_de_prueba(t):
+    if t - _prueba["t"] < 0.5: return _prueba["animo"]
+    _prueba["t"] = t
+    try:
+        d_ = json.load(open(_PRUEBA_ANIMO)); _prueba["animo"] = d_.get("animo") if (t - float(d_.get("t", 0)) < 3.0 and d_.get("animo") in MOODS) else None
+    except Exception: _prueba["animo"] = None
+    return _prueba["animo"]
+
+def _turb(pk):
+    """the tail as a number: TURBINA_ANIMO says "pulso" in singing (one turn per heartbeat, = 1.0 as receptor_ballena.py reads it).
+    float("pulso") crashed her brain on 20 Oct 2026 the first time a lens was raised while she sang."""
+    v = pk.get("turbina")
+    return 1.0 if v == "pulso" else float(v or 0)
+# HER OWN BLINK (22 Oct 2026, Violeta: "she isn't blinking"). Until now her lids only moved when a visitor's blink was mirrored, so alone
+# she stared. This is physiology, not choreography: a blink every few seconds at a cadence her mood sets (alert and angry blink
+# fast, sad and singing slowly, diving keeps the lids low), each one a quick close and a slower open, sometimes a double blink.
+PARPADEO_CADA = {"calm": (3.5, 7.0), "curious": (2.0, 4.5), "playful": (2.0, 4.0), "alert": (1.2, 2.5), "angry": (1.0, 2.5), "feeding": (2.5, 5.0),
+                 "singing": (5.0, 9.0), "sad": (5.0, 10.0), "surfacing": (2.5, 5.0), "diving": (6.0, 12.0)}
+PARPADEO_PISO = {"sad": 0.25, "diving": 0.35, "singing": 0.15}   # lids kept a little low in these moods
+_parp = {"prox": 0.0, "t0": -9.0, "doble": False}
+# FROM HER BRAIN, NOT A TIMER (22 Oct, Violeta: "I want the blink to come from the brain"): modelos/cara_banco.npz holds 7 hours of real
+# faces her eye recorded for each mood (datasets/cara: 426 faces, 8 blinks/min when alert, 20 when sad, 31 when singing...), cut into 6-s
+# phrases of eyelid and brow at 12/s. She plays a phrase of her mood's faces, then another: her blinks are the blinks of the people she
+# has watched in that mood, with their rhythm and their doubles. The cadence table below is only the fallback when the bank is missing.
+_banco_cara = None
+try:
+    _bz = np.load(os.path.join(AQUI, "modelos", "cara_banco.npz")); _banco_cara = {m: _bz[m] for m in _bz.files}
+    print(f"   face bank: {sum(len(v) for v in _banco_cara.values())} phrases of real faces in {len(_banco_cara)} moods (her blink comes from them)", flush=True)
+except Exception as _e: print(f"   (no face bank: {_e}; blink from the cadence table)", flush=True)
+_frase_cara = {"m": None, "w": None, "t0": 0.0}
+def parpadeo_propio(t, dom, hay_persona):
+    if _banco_cara is not None:
+        B = _banco_cara.get(dom) if dom in _banco_cara else None
+        if B is None: B = _banco_cara.get("calm")
+        if B is not None and len(B):
+            fin = _frase_cara["w"] is None or _frase_cara["m"] != dom or (t - _frase_cara["t0"]) * 12.0 >= len(_frase_cara["w"]) - 1
+            if fin:
+                w = None
+                for _ in range(6):   # a phrase that starts with the eyes open and has a blink in it, if one is found quickly
+                    c = B[random.randrange(len(B))]
+                    if c[0, 0] < 0.25 and (c[:, 0] > 0.5).any(): w = c; break
+                    w = w if w is not None else c
+                _frase_cara.update(m=dom, w=w, t0=t)
+            w = _frase_cara["w"]; x = (t - _frase_cara["t0"]) * 12.0; i = int(x); f = x - i
+            v = float(w[i, 0] * (1 - f) + w[min(i + 1, len(w) - 1), 0] * f)
+            return round(max(0.0, min(1.0, v)), 3)
+    if t >= _parp["prox"]:
+        lo, hi = PARPADEO_CADA.get(dom, (3.0, 6.0)); k = 0.8 if hay_persona else 1.0   # a little livelier with someone there
+        _parp["t0"] = t; _parp["doble"] = random.random() < 0.15; _parp["prox"] = t + random.uniform(lo, hi) * k
+    te = t - _parp["t0"]; v = 0.0
+    def _uno(x): return (x / 0.08 if x < 0.08 else max(0.0, 1.0 - (x - 0.08) / 0.17)) if 0.0 <= x < 0.25 else 0.0   # 80 ms down, 170 ms up
+    v = _uno(te)
+    if _parp["doble"]: v = max(v, _uno(te - 0.3))
+    return round(max(v, PARPADEO_PISO.get(dom, 0.0)), 3)
 def paso():
-    t = time.time(); d = dict(latest); hay_persona = (t - recibido["t"] < 2.0) and (("blink" in d and "jaw_open" in d) or d.get("actor_animo") or "esqueleto" in d)
+    t = time.time(); d = vigente(t); st["vista_d"] = d; hay_persona =(t - recibido["t"] < 2.0) and (("blink" in d and "jaw_open" in d) or d.get("actor_animo") or "esqueleto" in d)
     if hay_persona: st["vistos"] = t
+    if t - st.get("diag_t", 0.0) > 5.0:   # WHO IS HERE NOW, said out loud: what the room reads and what counts as a person
+        st["diag_t"] = t
+        print(f"   [sees] colour {d.get('scene_color', '-')} bright {float(d.get('scene_bright', 0) or 0):.2f} water {float(d.get('water', 0) or 0):.2f} | person: "
+              + (", ".join(n for n, ok in (("moving face", "blink" in d and "jaw_open" in d), ("face mood " + str(d.get("actor_animo")), d.get("actor_animo")),
+                                          ("body e%.2f" % float(d.get("cuerpo_energia", 0) or 0), "esqueleto" in d)) if ok) or "nobody")
+              + f" | alone {t - st['vistos']:.0f} s", flush=True)
     d = completar_con_red(d, t); m = compute_mood(d)
     actor = d.get("actor_animo"); fuente = "escena"
     # --- her own initiative: nobody for a while -> she plans her next mood (H-JEPA) or picks the one she has done least
     sola = a.iniciativa > 0 and (t - st["vistos"]) > a.iniciativa
     if sola:
         if st["ella"] is None or t - st["ella_t0"] > 32.0:
-            meta = min(MOODS, key=lambda k: st["historia"][k]); accion = meta
+            _sueno = ("singing", "calm", "diving", "sad", "alert", "angry", "curious") if _clima["noche"] else MOODS   # at night, alone: her dreams and her nightmares
+            meta = min(_sueno, key=lambda k: st["historia"][k]); accion = meta
             if jepa is not None:
                 p = jepa.plan(meta)
                 if p and p["accion"] in MOODS: accion = p["accion"]
@@ -248,7 +720,7 @@ def paso():
             st["cuerpo_gen"] = None
             if jepa is not None:   # the JEPA generates her next 32 s: in her body space (whale channels) if hjepa_ballena.pt, else six qualities that conduct her
                 try:
-                    if JEPA_BALLENA and INV is not None: st["cuerpo_gen"] = INV.inventar(accion, segundos=32.0, prefijo=st.get("cuerpo_gen")[-12:] if st.get("cuerpo_gen") is not None else None); st["animos_gen"] = [accion]   # SHE INVENTS (diffusion, Paqarina's method in her body)
+                    if JEPA_BALLENA and INV is not None: st["cuerpo_gen"] = None; st["animos_gen"] = [accion]   # SHE INVENTS: in the thread below, for every mood, not only here (17 Oct night)
                     elif JEPA_BALLENA and hasattr(jepa, "banco"): st["cuerpo_gen"], st["animos_gen"] = jepa.muestrear(accion, ruido=0.3, desde_contexto=jepa.n >= jepa.largo)   # SAMPLING HEAD: real phrases retrieved along her plan
                     elif JEPA_BALLENA and jepa.n >= jepa.largo: st["cuerpo_gen"], st["animos_gen"] = jepa.continuar(accion, ruido=0.3)   # continuing what she just did (the last 32 s in her buffer)
                     else: st["cuerpo_gen"], st["animos_gen"] = jepa.generar(accion)
@@ -266,13 +738,35 @@ def paso():
     else: st["ella"] = None
     toque = reaccion_tacto(d, t, None, m)
     if toque and (t - st.get("tacto_t", 0) > 0.0):   # TOUCH on the sister rules for 6 s after the last touch
-        if q(d, "tacto", 0, 1) > 0.3 or str(d.get("ofrenda") or "") in ("pez", "no_pez") or d.get("ve_hermana"): st["tacto_t"] = t; st["tacto_animo"] = toque   # a touch, an offering, or her sister in someone's hands
+        if q(d, "tacto", 0, 1) > 0.3 or _cuerpo["sujeta"] > 0.5 or str(d.get("ofrenda") or "") in ("pez", "no_pez") or d.get("ve_hermana") or (RO is not None and RO.activa(t)): st["tacto_t"] = t; st["tacto_animo"] = toque   # a touch, an offering (its reaction, while it lasts), or her sister in someone's hands
         if t - st.get("tacto_t", 0) < 6.0 and st.get("tacto_animo"): actor = st["tacto_animo"]; fuente = "tacto"
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
         whale_mood.update(m); fuente = "actor" if fuente not in ("ella", "tacto") else fuente
     orden = sorted(m.items(), key=lambda x: -x[1]); dom, sec = orden[0][0], (orden[1][0] if len(orden) > 1 else orden[0][0])
+    if fuente == "escena":   # THE ROOM DOES NOT FLAP HER (20 Oct): a colour on a boundary flipped feeding <-> surfacing every second (Dan saw it 17 Oct,
+        # 653 mood changes in one carousel), and every change restarts her invention and a 1.5 s crossfade in TD. A new room mood must hold the
+        # argmax for ESC_CAND_S before it takes over, and the current one keeps at least ESC_HOLD_S. Faces, touch, offerings and her own initiative are untouched.
+        if dom != st.get("esc_cand"): st["esc_cand"], st["esc_cand_t"] = dom, t
+        if st.get("esc_dom") is None or st["esc_dom"] not in m: st["esc_dom"], st["esc_t"] = dom, t
+        elif dom != st["esc_dom"] and t - st["esc_cand_t"] >= ESC_CAND_S and t - st["esc_t"] >= ESC_HOLD_S: st["esc_dom"], st["esc_t"] = dom, t
+        dom = st["esc_dom"]
+    _ap = animo_de_prueba(t)
+    if _ap: dom, fuente = _ap, "prueba"; sec = dom; m = {k: (1.0 if k == dom else 0.0) for k in m}; whale_mood.update(m)   # the mood test owns her mood (nothing else)
+    # TENURE (Violeta, 21 Oct: "one mood or movement or offering that wins needs to stay for 30 seconds"): within the repertoire (the room,
+    # a visitor's face, her own initiative) the mood that won keeps her for TENENCIA_S before another at that level can take over. Touch,
+    # offerings, refusals and the test sit above and interrupt; when they let go, the mood she returns to starts its own tenure.
+    ten = st.setdefault("tenencia", {"dom": dom, "t": t})
+    if fuente in ("escena", "ella", "actor"):
+        if dom != ten["dom"]:
+            if t - ten["t"] < TENENCIA_S: dom = ten["dom"]; sec = dom; m = {k: (1.0 if k == dom else 0.0) for k in m}; whale_mood.update(m)
+            else: ten["dom"], ten["t"] = dom, t
+    else: ten["dom"], ten["t"] = dom, t   # a higher layer holds her: when it ends, this mood starts fresh
     st["historia"][dom] += 1.0 / a.fps
+    inventado = invento(dom, t) if (INV is not None and JEPA_BALLENA) else None    # SHE INVENTS ALL THE TIME (above)
+    if inventado is not None:
+        d["cuerpo_jepa"] = 1
+        if not hay_persona and inventado["pulso"] > 0.3 and not d.get("emotibit_hr"): d["emotibit_hr"] = 100.0 * inventado["pulso"]
     # --- heartbeat
     hr = q(d, "emotibit_hr", 0, 300); eda = q(d, "emotibit_eda", 0, 1000)
     if 30 < hr < 220: st["hr"] += (hr - st["hr"]) * 0.05
@@ -284,11 +778,37 @@ def paso():
     excitacion = max(0.0, min(1.0, 0.6 * energia + 0.4 * tension)); beat *= LATIDO_ANIMO.get(dom, 0.5) * (0.5 + 0.5 * excitacion)
     # --- the behaviour of the mood, with the style's energy and the body that conducts
     comp = dict(comportamiento(st["tiempo"], dom, sec, 1.0 if actor in m else 0.8))
+    clima_leer(d, t); cuerpo_leer(d, t); viento_de_ella(t, dom, 1.0 / a.fps); imita_paso(t, dom, hay_persona, enc.get("dec")); dormir(t)
+    if d.get("ofrenda") == "pez" and FIG is not None:   # what she holds, and what she eats, for her drawings
+        _fam = FIG.familia(d.get("ofrenda_nombre"))
+        if _fam: _vivido["criatura"], _vivido["criatura_t"] = _fam, t
+        if _fam and (enc.get("dec") or {}).get("boca") == "comer": _vivido["comida"], _vivido["comida_t"] = _fam, t
+    show_paso(t, dom, d, bool(d.get("viaje_llegada")) and t - float(d.get("viaje_t") or 0) < 3.0)   # THE SHOW: the dancers' phrases become her body
     canales = d.get("canales") if isinstance(d.get("canales"), dict) else (bailar_de_vuelta(d, t) if hay_persona else None)
+    if canales is None: canales = inventado          # nobody dancing, no choreography: her invented body
+    elif inventado is not None and not isinstance(d.get("canales"), dict): d["cuerpo_jepa"] = 0   # dance-back is driving, not the invention
+    st["ev_tz"] = None
     if canales:
+        firma_dom = FIRMA.get(dom, ()) if (not isinstance(d.get("canales"), dict) or d.get("show_canales")) else ()   # a dancer's translated body is whole; the invention (and the show's phrases) are not: her breach/dive stay on top
+        ev_vals, st["ev_tz"] = firma_evento(dom, t) if firma_dom else (None, None)
+        if ev_vals is not None:   # an event mood: the curve on the EVENT's clock (phase 0 = the arch, the rise) during the move; the posture, or nothing, between moves
+            firma_dom = tuple(ev_vals.keys())
+            for kk, vv in ev_vals.items(): comp[kk] = vv
+            if st["ev_tz"] == -1.0: comp["spin"] = 0.0; comp["depth"] = 0.0   # between moves the running curve's breach/dive must not punch through
         for kk in ("pitch", "roll", "yaw", "head", "fluke", "flap", "ladeo", "jaw", "spin", "depth"):
-            if kk in canales: comp[kk] = float(canales[kk])
-        if "spine" in canales: comp["spine"] = [float(v) for v in canales["spine"]][:6]
+            if kk not in canales: continue
+            v = float(canales[kk])
+            # THE MOVEMENT'S SIGNATURE SURVIVES THE INVENTION (21 Oct, Violeta: "she isn't rolling like before"; later "she is just
+            # changing colours but isn't moving except playful, she also needs to sing, surface, dive"): the diffusion invents spin
+            # within +-0.02 and never breaches; measured 21 Oct 11:10 it DOES dive and surface on its own (diving pitch -0.68 depth -1.74,
+            # surfacing depth +0.83, from the real humpback's recordings) but never hangs head down or stands up (singing, curious);
+            # her curves do (singing pitch -0.62 depth -0.6; curious pitch +0.45 depth +0.7; diving pitch -0.7 depth -1.8; surfacing +0.45
+            # +1.2; playful spin to 12.6). The channels that ARE the movement (FIRMA) stay the curve's; the invention fills in the rest
+            # (texture: the roll, the fins, the head where it is not the signature). For spin and depth outside the signature the louder wins.
+            if kk in firma_dom: continue
+            if kk in ("spin", "depth") and abs(float(comp.get(kk, 0.0))) > abs(v): continue
+            comp[kk] = v
+        if "spine" in canales and "spine" not in firma_dom: comp["spine"] = [float(v) for v in canales["spine"]][:6]
         if "cara" in canales: comp["cara"] = tuple(float(v) for v in canales["cara"])
         if "mirada" in canales: comp["mirada"] = tuple(float(v) for v in canales["mirada"])
     k_est = ESTILO_ENERGIA.get(str(d.get("estilo") or ""), 1.0)
@@ -300,31 +820,82 @@ def paso():
         ke = 0.4 + 1.3 * q(d, "cuerpo_energia", 0.0, 1.0)
         for kk in ("flap", "ladeo", "fluke"): comp[kk] *= ke
         comp["spine"] = [v * ke for v in comp["spine"]]
+    _dto = 1.0 / a.fps if _ond["t"] is None else max(1e-3, min(0.2, t - _ond["t"])); _ond["t"] = t
+    _trav = max(0.0, min(1.0, max(_ond["v"] / OND_V_FULL, float(d.get("viaje_vel") or 0.0) / OND_VIAJE_FULL if t - float(d.get("viaje_t") or 0) < 3.0 else 0.0)))
+    _ond["ph"] = (_ond["ph"] + _dto * 2 * math.pi * OND_HZ0 * (1.0 + OND_HZ_GAIN * _trav)) % (2 * math.pi)
+    _oa = 0.15 + 0.85 * _trav   # THE UNDULATION: her own speed makes the wave
+    comp["spine"] = [v + OND_AMP * _oa * math.sin(_ond["ph"] - i * OND_LAG) for i, v in enumerate(comp["spine"])]
+    comp["fluke"] += OND_FLUKE * _oa * math.sin(_ond["ph"] - 6 * OND_LAG)
+    base = dict(comp); base["spine"] = list(comp["spine"])                      # THE REPERTOIRE's body before any additive colour
     comp["head"] += 0.03 * beat + 0.06 * tension * _onda(t, 0.9); comp["flap"] += 0.06 * beat + 0.1 * energia; comp["fluke"] -= 0.05 * beat
-    if fuente == "tacto":   # she turns her head toward the touch and the touched fin lifts
-        lado_t = {"aleta": 0.5}.get(str(d.get("tacto_zona") or ""), 0.0); comp["ladeo"] += lado_t * q(d, "tacto", 0, 1); comp["head"] += 0.15 * q(d, "tacto", 0, 1) * (1 if str(d.get("tacto_zona")) == "cabeza" else 0)
+    capa_ofrenda = None
+    if RO is not None and RO.activa(t):   # the offering's recipe, on its OWN copy of the base (it may also move st["ay"]: it owns her distance while it lasts)
+        capa_ofrenda = dict(base); capa_ofrenda["spine"] = list(base["spine"]); RO.cuerpo(t, capa_ofrenda, st)
+    tacto_vivo = q(d, "tacto", 0, 1) > 0.3 and (DEC.abierta or {}).get("fijo", "") not in ("tiron", "palma") if DEC else q(d, "tacto", 0, 1) > 0.3
+    sujeta_viva = _cuerpo["sujeta"] > 0.5   # LIBERARSE (22 Oct, Violeta: "when someone is rough she should turn red and flap her wings to set herself free")
+    capa_cosquillas = None
+    if tacto_vivo or sujeta_viva:   # COSQUILLAS: a hand on her flowers or strips interrupts everything, for as long as it stays (the map's layer 1); a hand holding her fin too
+        capa_cosquillas = dict(base); capa_cosquillas["spine"] = list(base["spine"])
+        if tacto_vivo:
+            _RO_cosquillas(1.0, t, capa_cosquillas, st)
+            zona_c = str(d.get("tacto_zona") or ""); capa_cosquillas["head"] += 0.15 * q(d, "tacto", 0, 1) * (1 if zona_c == "cabeza" else 0); capa_cosquillas["ladeo"] += 0.5 * q(d, "tacto", 0, 1) * (1 if zona_c == "aleta" else 0)
+        if sujeta_viva:   # both fins beat hard and she rolls against the hand, until it lets go
+            capa_cosquillas["flap"] += 0.8 * abs(_onda(t, 3.5)); capa_cosquillas["ladeo"] += 0.5 * _onda(t, 2.7); capa_cosquillas["roll"] += 0.25 * _onda(t, 1.3)
+        if sujeta_viva or (tacto_vivo and st.get("tacto_animo") == "angry"):   # SIDE EYE (22 Oct, Violeta: "when she is angry when touched, give a side eye too")
+            lado = _cuerpo.get("lado") if sujeta_viva else st.setdefault("ojo_lado", random.choice((-1.0, 1.0)))
+            capa_cosquillas["mirada"] = [0.85 * float(lado or 1.0), -0.1]
+            c_ = list(capa_cosquillas.get("cara") or [0.0, 0.0, 0.0, 0.0]); c_[0] = max(c_[0], 0.45); c_[1] = 1.0; capa_cosquillas["cara"] = c_   # lids half down, the angry brow
+        elif "ojo_lado" in st: del st["ojo_lado"]
+    # (the touch reflex now lives in the cosquillas layer above)
     dec, prob = decidir(d, t, hay_persona, dom, q(d, "cuerpo_energia", 0, 1))
-    if dec.get("distancia") == "acercarse" and hay_persona and not canales_local(d): st["ay"] += (-1.4 - st["ay"]) * 0.01
-    elif dec.get("distancia") == "alejarse" and hay_persona and not canales_local(d): st["ay"] += (1.2 - st["ay"]) * 0.01
+    if dec.get("distancia") == "acercarse" and hay_persona and not canales_local(d) and not (RO is not None and RO.activa(t)): st["ay"] += (-1.4 - st["ay"]) * 0.01
+    elif dec.get("distancia") == "alejarse" and hay_persona and not canales_local(d) and not (RO is not None and RO.activa(t)): st["ay"] += (1.2 - st["ay"]) * 0.01   # 20 Oct: a reaction owns her distance while it lasts
+    if RO is not None and RO.activa(t):   # a reaction that draws (16: a tail slap and she draws it) or writes (18: a poem)
+        fig = RO.dibujo()
+        if fig and FIG is not None and not dib["activo"]: dibujo_empezar(fig)
+        vf = RO.vuelo()
+        if vf and FIG is not None: dib["activo"] = False; dibujo_empezar(vf, pluma=False)   # the reaction's flight (pen up) takes her through space: the spiral IS a spiral
+        if RO.voz() == "poema" and isinstance(dec, dict): dec["voz"] = "poema"
     dibujo = dibujo_paso(dec, (DEC.abierta or {}).get("fijo", "") if DEC else "", t, {"conocida": int(bool(d.get("conocida"))), "id_persona": d.get("visita") or None})
     cara_actor = "blink" in d and "jaw_open" in d
     if dom == "singing" and cara_actor:
         canto = q(d, "jaw_open", 0.0, 1.0); comp["head"] += 0.35 * canto; comp["flap"] += 0.3 * canto; comp["fluke"] -= 0.1 * canto
         comp["spine"] = [v - 0.04 * canto * (i / 5.0) for i, v in enumerate(comp["spine"])]; comp["roll"] += 0.08 * canto * _onda(t, 2.5)
+    describir_reaccion(t)
+    # --- THE ARBITER: repertoire (base + colour) < offering < cosquillas, each with a ramped weight; then one smoother
+    dt_arb = 1.0 / a.fps if _arb["t"] is None else max(1e-3, min(0.2, t - _arb["t"])); _arb["t"] = t
+    w_of = _arb_peso("ofrenda", capa_ofrenda is not None, dt_arb); w_cos = _arb_peso("cosquillas", capa_cosquillas is not None, dt_arb)
+    arriba = max(w_of, w_cos)
+    color_ = _arb_mezcla(base, comp, 1.0 - arriba)                 # the additive colour fades out under a higher layer
+    if capa_ofrenda is not None or w_of > 0.0: color_ = _arb_mezcla(color_, capa_ofrenda if capa_ofrenda is not None else color_, w_of)
+    if capa_cosquillas is not None or w_cos > 0.0: color_ = _arb_mezcla(color_, capa_cosquillas if capa_cosquillas is not None else color_, w_cos)
+    if dec.get("boca") == "comer" and capa_ofrenda is None: color_["jaw"] = BOCA_MAX   # eating: the jaw opens THROUGH the smoother, not as a snap on the packet
+    comp = _arb_suavizar(color_, dt_arb)
     # --- where she goes
-    if a.coreo and int(d.get("espacio", 1)) == 1 and not d.get("solo_cara") and not dib["activo"]:
+    reaccionando = RO is not None and RO.activa(t)   # 20 Oct: while an offering's reaction moves her (back away, spiral, jump...), the mood's
+    if a.coreo and int(d.get("espacio", 1)) == 1 and not d.get("solo_cara") and not dib["activo"]:   # 21 Oct: during a reaction the choreography of the PHASE's movement moves her (Violeta: "repetitive, boring" without it)
         if st["coreo_dom"] != dom: st["coreo_dom"] = dom; st["coreo_t0"] = t; CA.breathe._coreo_t0 = t
         cerca = CERCA["conocida" if d.get("conocida") else ("nueva" if d.get("visita") else "nadie")]
         (tx, ty, tz), yaw_obj, rap = CA.coreo(dom, t - st["coreo_t0"], cerca); k = 0.004 + 0.03 * rap
+        _tzp = st.get("ev_tz"); tz = 0.0 if _tzp == -1.0 else CA.coreo_disenada(dom, (t - st["coreo_t0"]) if _tzp is None else _tzp, cerca)[0][2]   # 21 Oct: the HEIGHT of her travel is the designed path's (dive away and down to -1.6, surface rising -1 -> +1, sing hung at -0.5, sad sinking); a recorded dancer's z is only a hip
         st["ax"] += (tx - st["ax"]) * k; st["ay"] += (ty - st["ay"]) * k; st["az"] += (tz - st["az"]) * k
         if yaw_obj is None:
             dx, dy = tx - st["ax"], ty - st["ay"]; yaw_obj = math.atan2(dx, dy) if (dx * dx + dy * dy) > 0.01 else st["wy"]
         dyaw = (yaw_obj - st["wy"] + math.pi) % (2 * math.pi) - math.pi; st["wy"] += max(-0.03, min(0.03, dyaw * (0.01 + 0.03 * rap)))
-    if canales and canales.get("avance") is not None:   # travel from the body itself (the JEPA's or a dancer's): forward, sideways and turning speeds in her own heading
+    if canales and canales.get("avance") is not None and not reaccionando and not dib["activo"]:   # travel from the body itself (not while the pen owns her: 21 Oct, trapped at the edge mid-labyrinth) (the JEPA's or a dancer's): forward, sideways and turning speeds in her own heading — not during a reaction (20 Oct: the recipe owns where she goes)
         dt_ = 1.0 / a.fps; st["wy"] += float(canales.get("giro", 0)) * dt_; av, de = float(canales["avance"]) * 0.8, float(canales.get("deriva", 0)) * 0.8
         st["ax"] += (av * math.sin(st["wy"]) + de * math.cos(st["wy"])) * dt_; st["ay"] += (av * math.cos(st["wy"]) - de * math.sin(st["wy"])) * dt_; r_ = math.hypot(st["ax"], st["ay"])
-        if r_ > 2.0: st["ax"], st["ay"] = st["ax"] * 2.0 / r_, st["ay"] * 2.0 / r_   # the mountains: the edge of her salar
+        if r_ > 2.8: st["ax"], st["ay"] = st["ax"] * 2.8 / r_, st["ay"] * 2.8 / r_   # the edge of her stage, beyond any drawing's corner (R 2.4 x 1.0; was 2.0 and trapped her)
     x, y, z = st["ax"], st["ay"] - m.get("diving", 0) * 0.2 + m.get("surfacing", 0) * 0.15, st["az"] + comp["depth"]
+    # POSITION THROUGH THE SMOOTHER TOO (21 Oct, Violeta: "glitchy when it goes mood by mood"): measured 0 jumps on the body, 13 on y at
+    # scene boundaries (a scene ending, the fright shoving her back 0.24 units a frame). The targets keep their speed; what she sends eases.
+    _ps = _arb.setdefault("pos", None); _kp = 1.0 - math.exp(-dt_arb / ARB_TAU_POS)
+    if _ps is None: _arb["pos"] = [x, y, z]
+    else: _arb["pos"] = [_ps[0] + (x - _ps[0]) * _kp, _ps[1] + (y - _ps[1]) * _kp, _ps[2] + (z - _ps[2]) * _kp]
+    x, y, z = _arb["pos"]
+    if _ond["pos"] is not None: _ond["v"] += (math.hypot(x - _ond["pos"][0], y - _ond["pos"][1]) / dt_arb - _ond["v"]) * 0.1
+    _ond["pos"] = (x, y)
+    viaje_decidir(t, dom, hay_persona, bool(d.get("viaje_llegada")) and t - float(d.get("viaje_t") or 0) < 3.0)
     # --- H-JEPA: feed the body at 12/s, read every 2 s
     lectura = st["lectura"]
     if jepa is not None:
@@ -335,25 +906,73 @@ def paso():
             try: lectura = st["lectura"] = jepa.leer(dom)
             except Exception as e: lectura = st["lectura"] = {"error": str(e)[:80]}
     # --- the packet: everything she decided
-    col = MOOD_RGB.get(dom, (0.5, 0.5, 0.5)); r3 = lambda v: round(float(v), 3)
+    col = MOOD_RGB.get(dom, (0.5, 0.5, 0.5)); r3 = lambda v: round(float(v), 3); _parp_v = parpadeo_propio(t, dom, hay_persona)
     pk = {"animo": dom, "secundario": sec, "fuente": fuente, "x": r3(x), "y": r3(y), "z": r3(z), "yaw": r3((st["wy"] + math.pi) % (2 * math.pi) - math.pi),
           "pitch": r3(comp["pitch"]), "roll": r3(comp["roll"]), "giro": r3(comp["yaw"]), "head": r3(comp["head"]), "spine": [r3(v) for v in comp["spine"]], "fluke": r3(comp["fluke"]), "flap": r3(comp["flap"]), "ladeo": r3(comp["ladeo"]),
-          "jaw": r3(min(BOCA_MAX, comp["jaw"])), "jaw_actor": r3(q(d, "jaw_open", 0, 1)) if cara_actor else None, "boca": r3(min(BOCA_MAX, max(comp["jaw"], q(d, "jaw_open", 0, 1) if cara_actor else 0.0))),
+          "jaw": r3(min(BOCA_MAX, comp["jaw"])), "jaw_actor": r3(q(d, "jaw_open", 0, 1)) if cara_actor else None, "boca": r3(min(BOCA_MAX, max(comp["jaw"], q(d, "jaw_open", 0, 1) if (cara_actor and _imita["on"]) else 0.0))),   # the visitor's jaw only while she imitates
           "aleta_l": [r3(v) for v in canales["aleta_l"]] if canales and "aleta_l" in canales else None, "aleta_r": [r3(v) for v in canales["aleta_r"]] if canales and "aleta_r" in canales else None, "baila_de_vuelta": int(bool(baile["activo"])), "decision": dec or None, "decision_prob": prob or None, "turbina_viva": r3(canales["turbina"]) if canales and "turbina" in canales else None,
           "cara": [r3(v) for v in comp["cara"]], "mirada": [r3(v) for v in comp["mirada"]], "spin": r3(comp["spin"]), "depth": r3(comp["depth"]),
           "color": [round(c, 3) for c in col], "turbina": TURBINA_ANIMO.get(dom, 1.0), "latido": round(float(LATIDO_ANIMO.get(dom, 0.5)), 2), "beat": r3(beat), "tempo": r3(tempo), "energia": r3(energia), "tension": r3(tension),
-          "blink": round(q(d, "blink", 0, 1), 2), "eye_yaw": r3(q(d, "eye_yaw")), "eye_pitch": r3(q(d, "eye_pitch")), "head_yaw": r3(q(d, "head_yaw")), "head_pitch": r3(q(d, "head_pitch")), "brow_up": r3(q(d, "brow_up", 0, 1)), "mouth_smile": r3(q(d, "mouth_smile", 0, 1)),
-          "pulso": round(st["hr"], 1), "estilo": d.get("estilo"), "visita": d.get("visita"), "conocida": int(bool(d.get("conocida"))), "persona": int(bool(hay_persona)), "tacto": d.get("tacto"), "tacto_zona": d.get("tacto_zona"), "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "distancia_m": d.get("distancia_m"), "ofrenda": d.get("ofrenda"), "ve_hermana": d.get("ve_hermana"), "dibujo": dibujo,
-          "animo_cuerpo": lectura.get("animo_cuerpo"), "p_cuerpo": lectura.get("p_cuerpo"), "prevision": lectura.get("prevision"), "iniciativa": int(fuente == "ella"), "meta": st["meta"] if fuente == "ella" else None, "cuerpo_jepa": int(bool(d.get("cuerpo_jepa"))), "cuerpo": [round(float(d.get(c, 0) or 0), 3) for c in ("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")] if "cuerpo_pitch" in d else None, "t": round(t, 3)}
-    if dec.get("boca") == "comer": pk["jaw"] = pk["boca"] = r3(BOCA_MAX); pk["turbina"] = r3(float(pk["turbina"] or 0) * 1.5); pk["come"] = 1   # a fish: jaw open, tail spins up
+          "blink": round(max(q(d, "blink", 0, 1) if (cara_actor and _imita["on"]) else 0.0, _parp_v), 2),   # HER OWN BLINK (22 Oct): hers always; a visitor's only while she imitates "eye_yaw": r3(q(d, "eye_yaw")), "eye_pitch": r3(q(d, "eye_pitch")), "head_yaw": r3(q(d, "head_yaw")), "head_pitch": r3(q(d, "head_pitch")), "brow_up": r3(q(d, "brow_up", 0, 1)), "mouth_smile": r3(q(d, "mouth_smile", 0, 1)),
+          "pulso": round(st["hr"], 1), "estilo": d.get("estilo"), "visita": d.get("visita"), "conocida": int(bool(d.get("conocida"))), "persona": int(bool(hay_persona)), "tacto": d.get("tacto"), "tacto_zona": d.get("tacto_zona"), "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "distancia_m": d.get("distancia_m"), "ofrenda": d.get("ofrenda"), "ofrenda_id": d.get("ofrenda_id"), "ve_hermana": d.get("ve_hermana"), "dibujo": dibujo,
+          "animo_cuerpo": lectura.get("animo_cuerpo"), "p_cuerpo": lectura.get("p_cuerpo"), "prevision": lectura.get("prevision"), "iniciativa": int(fuente == "ella"), "meta": st["meta"] if fuente == "ella" else None, "cuerpo_jepa": int(bool(d.get("cuerpo_jepa"))), "viaje": ({"destino": _viaje["destino"], "altura": _viaje["altura"], "t": round(_viaje["t"], 2)} if _viaje["destino"] else None), "show": int(_show["on"]), "viento": round(_clima["mio"], 3), "imita": int(_imita["on"]), "cuerpo_fisico": d.get("cuerpo_fisico"), "propio": {"sujeta": round(_cuerpo["sujeta"], 2), "cansada": round(_cuerpo["cansada"], 2), "excitada": round(_cuerpo["excitada"], 2)}, "cuerpo": [round(float(d.get(c, 0) or 0), 3) for c in ("cuerpo_pitch", "cuerpo_roll", "cuerpo_yaw", "cuerpo_profundidad", "cuerpo_energia", "cuerpo_suavidad")] if "cuerpo_pitch" in d else None, "t": round(t, 3)}
+    if dec.get("boca") == "comer" and not (RO is not None and RO.activa(t)): pk["boca"] = pk["jaw"]; pk["turbina"] = r3(_turb(pk) * 1.5); pk["come"] = 1   # jaw already smoothed above   # a fish: jaw open, tail spins up (during an offering's reaction, the reaction owns the jaw: some do not eat)
     else: pk["come"] = 0
     if dec.get("boca") == "rehusar":   # a refusal (non-fish, jewel pulled, flowers trampled): jaw shut, tail stopped, fins folded, colour out
         pk["jaw"] = pk["boca"] = 0.0; pk["turbina"] = 0.0; pk["flap"] = 0.0; pk["color"] = [0.03, 0.03, 0.05]; pk["latido"] = 0.1; pk["rehusa"] = 1
     else: pk["rehusa"] = 0
+    if RO is not None: RO.paquete(t, pk, col)   # the offering's reaction: come/jaw as the reaction says, her colour (the creature's, orange, red, rainbow...), reaccion {n, texto, fase, extra}
     if DEC is not None and (DEC.abierta or {}).get("fijo") == "lente":   # a lens raised at her: still, dim, back turned (the sister on the table does not refuse the lens)
-        pk["turbina"] = r3(float(pk["turbina"] or 0) * 0.15); pk["flap"] = 0.0; pk["color"] = [round(c * 0.25, 3) for c in pk["color"]]; pk["latido"] = 0.2; pk["lente"] = 1
+        pk["turbina"] = r3(_turb(pk) * 0.15); pk["flap"] = 0.0; pk["color"] = [round(c * 0.25, 3) for c in pk["color"]]; pk["latido"] = 0.2; pk["lente"] = 1
     else: pk["lente"] = 0
+    # HER REFUSALS REACH THE INVENTED BODY TOO (Dan's PC, 18 Oct). While the diffusion drives her, the renderers (Dan's
+    # ballena_td and her receptor_ballena.py:1610) take the tail from turbina_viva and the fins from aleta_l/_r, so the
+    # lines above (turbina, flap) would not reach them: the tail would keep spinning through a refusal or a raised lens.
+    if pk.get("turbina_viva") is not None:
+        pk["turbina_viva"] = r3(pk["turbina_viva"] * (0.0 if pk["rehusa"] else 0.15 if pk["lente"] else 1.5 if pk["come"] else 1.0))
+    if pk["rehusa"] or pk["lente"]:
+        for a_ in ("aleta_l", "aleta_r"):
+            if pk.get(a_): pk[a_] = [0.0, 0.0, 0.0]   # fins folded, as flap 0
     return pk
+
+# ---------------- LA VISTA (Dan's PC, 19 Oct): what she perceives, as data, for a small screen on the table ----------------
+# Never an image (her rule): the skeleton's points, the face's numbers, her mood and colour, her decisions - one text line
+# ~20 times a second over UDP to YAKUMAMA_VISTA ("host:port[,host:port]"; an ESP32 with the ILI9341: firmware/vista_esp32 in
+# Dan's repo, or ballena_vista.py --serial for a board on USB). Built from the FRESH fields only (vigente), so a visitor who
+# has left leaves the screen too. Off when YAKUMAMA_VISTA is not set.
+VISTA = [(h, int(p)) for h, p in (e.strip().rsplit(":", 1) for e in os.environ.get("YAKUMAMA_VISTA", "").split(",") if ":" in e)]
+_vista = {"t": 0.0}
+def vista_linea(pk, d):
+    """V,mood,r,g,b,persona,known,alone_s,face,yaw,pitch,jaw,blink,brow,smile,distance,body,voice,refusal,people,26 x (x,up) in cm (9999 = unseen),
+    then N and N x (x*100, cm away, her chosen one, hands up) for everyone the crowd eye sees (N = 0 without it)"""
+    g = lambda k: int(round(100 * max(-9.99, min(9.99, float(d.get(k) or 0.0)))))
+    col = [int(255 * max(0.0, min(1.0, float(c)))) for c in (pk.get("color") or [0.5, 0.5, 0.5])[:3]]
+    dec = pk.get("decision") or {}
+    fijo = ((DEC.abierta or {}).get("fijo") if DEC is not None else "") or ("come" if pk.get("come") else "")
+    sk = d.get("esqueleto") if pk.get("persona") else None
+    pts = []
+    for j in range(26):
+        try: x, up = float(sk[3 * j]), float(sk[3 * j + 2])
+        except (TypeError, IndexError, ValueError): x = up = float("nan")
+        pts += [9999, 9999] if (x != x or up != up) else [int(round(x * 100)), int(round(up * 100))]
+    solo = 0 if pk.get("persona") else int(min(99999, time.time() - st["vistos"]))
+    # everyone the crowd eye sees (x across the frame, cm away, her chosen one, hands up), if it is running and fresh
+    gente = d.get("gente") if isinstance(d.get("gente"), list) and time.time() - float(d.get("gente_t") or 0) < 2.0 else []
+    gv = [len(gente)]
+    for p in gente:
+        try: gv += [int(round(100 * float(p[0]))), int(round(100 * float(p[1] or 0))), int(p[2]), int(p[3])]
+        except (TypeError, ValueError, IndexError): gv += [0, 0, 0, 0]
+    return ",".join(str(v) for v in ["V", pk.get("animo") or "-", *col, int(bool(pk.get("persona"))), int(bool(pk.get("conocida"))), solo,
+                                     int("blink" in d and "jaw_open" in d), g("head_yaw"), g("head_pitch"), g("jaw_open"), g("blink"), g("brow_up"), g("mouth_smile"),
+                                     dec.get("distancia") or "-", dec.get("con_cuerpo") or "-", dec.get("voz") or "-", fijo or "-", int(pk.get("personas_n") or 0), *pts, *gv]) + "\n"
+def vista_enviar(pk):
+    if not VISTA or time.time() - _vista["t"] < 0.05: return
+    _vista["t"] = time.time()
+    try:
+        b = vista_linea(pk, st.get("vista_d") or {}).encode()
+        for h, p in VISTA: sock_out.sendto(b, (h, p))
+    except Exception as e:
+        if not _vista.get("dicho"): _vista["dicho"] = True; print(f"   (vista: {str(e)[:80]})", flush=True)
 
 if __name__ == "__main__":
     print(f"   cerebro: in UDP {a.entrada} -> out {', '.join(f'{h}:{p}' for h, p in SALIDAS)} | {len(COMPORTAMIENTOS)} behaviours | choreography {'on' if a.coreo else 'off'} | initiative after {a.iniciativa:.0f} s | jepa {'on' if jepa else 'off'}")
@@ -362,6 +981,7 @@ if __name__ == "__main__":
         pk = paso(); b = json.dumps(pk).encode()
         if not a.prueba:
             for h, p in SALIDAS: sock_out.sendto(b, (h, p))
+            vista_enviar(pk)                                  # LA VISTA (off unless YAKUMAMA_VISTA is set)
         if time.time() - ult >= 1.0 and not a.callado:
             ult = time.time(); print(f"   {pk['animo']:10s} {pk['fuente']:6s} | at ({pk['x']:+.2f},{pk['y']:+.2f},{pk['z']:+.2f}) yaw {pk['yaw']:+.2f} | pitch {pk['pitch']:+.2f} roll {pk['roll']:+.2f} boca {pk['boca']:.2f} | pulse {pk['pulso']:.0f} | body reads {pk['animo_cuerpo']} | in {recibido['n']} pkts" + (f" | plan {pk['meta']}->{pk['animo']}" + (f" | body from JEPA {pk['cuerpo']}" if pk['cuerpo_jepa'] else "") if pk['iniciativa'] else ""), flush=True)
         if a.prueba and time.time() - t0 > 3: break

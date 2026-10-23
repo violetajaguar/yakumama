@@ -65,16 +65,23 @@ class Inventora:
     def __init__(self, ruta=None):
         ck = torch.load(ruta or os.path.join(AQUI, "modelos", "difusion_ballena.pt"), map_location="cpu", weights_only=False)
         self.W, self.nc, self.mu, self.sd, self.CAN, self.fps = ck["W"], ck["nc"], ck["mu"], ck["sd"], list(ck["canales"]), ck["fps"]; self.m = Denoiser(self.nc, self.W); self.m.load_state_dict(ck["dif"]); self.m.eval()
-        self.b = betas_coseno(PASOS); self.al = torch.cumprod(1 - self.b, 0)
+        # GPU when there is one (Dan's PC, RTX 4080 SUPER, 17 Oct night): 32 s took 7.5 s on its CPU, inside the brain's loop.
+        # CPU when torch has no CUDA, exactly as before. Apple Silicon (20 Oct, the brain moved to a Mac): MPS, as entrenar() does.
+        # Measured on Violeta's Mac (M5 Max, 20 Oct): this small batch-1 GRU runs 32 s in 2.1 s on the CPU and 12.6 s on MPS, so MPS
+        # is NOT taken by default; YAKUMAMA_DIFUSION_DEV=mps|cpu|cuda forces a device.
+        _dev = os.environ.get("YAKUMAMA_DIFUSION_DEV", "").strip() or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.dev = torch.device(_dev); self.m.to(self.dev)
+        self.b = betas_coseno(PASOS).to(self.dev); self.al = torch.cumprod(1 - self.b, 0)
     @torch.no_grad()
     def _ventana(self, c, temp=1.0, prefijo=None, guia=1.0, pasos=None):
-        x = torch.randn(1, self.W, self.nc) * temp; n = 0 if prefijo is None else len(prefijo); al, b = self.al, self.b; salto = max(1, PASOS // (pasos or PASOS))
+        dv = self.dev
+        x = torch.randn(1, self.W, self.nc, device=dv) * temp; n = 0 if prefijo is None else len(prefijo); al, b = self.al, self.b; salto = max(1, PASOS // (pasos or PASOS))
         for t in range(PASOS - 1, -1, -salto):
-            tt = torch.tensor([t])
-            if n: x[:, :n] = al[t].sqrt() * prefijo + (1 - al[t]).sqrt() * torch.randn(1, n, self.nc) * temp
+            tt = torch.tensor([t], device=dv)
+            if n: x[:, :n] = al[t].sqrt() * prefijo + (1 - al[t]).sqrt() * torch.randn(1, n, self.nc, device=dv) * temp
             x0p = self.m(x, tt, c)
             if guia > 1.0: x0u = self.m(x, tt, torch.zeros_like(c)); x0p = x0u + guia * (x0p - x0u)
-            tp = max(0, t - salto); at, atm = al[t], (al[tp] if t > 0 else torch.tensor(1.0)); bt = 1 - at / atm
+            tp = max(0, t - salto); at, atm = al[t], (al[tp] if t > 0 else torch.tensor(1.0, device=dv)); bt = 1 - at / atm
             media = (atm.sqrt() * bt / (1 - at)) * x0p + (((1 - bt).sqrt() * (1 - atm)) / (1 - at)) * x
             x = media + ((1 - atm) / (1 - at) * bt).sqrt() * torch.randn_like(x) if t > 0 else media
         if n: x[:, :n] = prefijo
@@ -84,14 +91,14 @@ class Inventora:
         solape = solape or self.W // 6   # m3f: inpaint one sixth of the window
         """a new dance of `segundos` for the mood, window after window, each continuing the last `solape` frames of the previous one
         (inpainting, as in Paqarina). prefijo: (k, nc) real frames in body units to start from (None = from nothing). Returns (n, nc)."""
-        c = torch.zeros(1, NCOND); c[0, MOODS.index(animo) if animo in MOODS else len(MOODS)] = 1.0
+        c = torch.zeros(1, NCOND, device=self.dev); c[0, MOODS.index(animo) if animo in MOODS else len(MOODS)] = 1.0
         if prefijo is not None:   # a prefix with fewer channels (e.g. the 30 of retarget_ballena, without pulse and skin) is completed with the means
             pf = np.asarray(prefijo, np.float32)[-solape:]; pad = np.tile(self.mu, (len(pf), 1)); pad[:, :min(self.nc, pf.shape[1])] = pf[:, :self.nc]; pf = np.where(np.isfinite(pad), pad, self.mu)
-        pre = None if prefijo is None else torch.tensor(((pf - self.mu) / self.sd).astype(np.float32))
+        pre = None if prefijo is None else torch.tensor(((pf - self.mu) / self.sd).astype(np.float32), device=self.dev)
         out = []; total = int(segundos * self.fps)
         while sum(len(o) for o in out) < total:
             w = self._ventana(c, temp, pre, guia, pasos); out.append(w if pre is None else w[len(pre):]); pre = w[-solape:]
-        X = torch.cat(out)[:total].numpy() * self.sd + self.mu; return X.astype(np.float32)
+        X = torch.cat(out)[:total].cpu().numpy() * self.sd + self.mu; return X.astype(np.float32)
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--minutos", type=float, default=25.0); ap.add_argument("--epochs", type=int, default=400); ap.add_argument("--batch", type=int, default=64); ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--p_uncond", type=float, default=0.0); ap.add_argument("--peso_vel", type=float, default=5.0); ap.add_argument("--peso_suave", type=float, default=1.0); ap.add_argument("--W", type=int, default=W); ap.add_argument("--generar", default=None); ap.add_argument("--n", type=int, default=2); ap.add_argument("--datos", default=None); ap.add_argument("--out", default=None); ap.add_argument("--desde", default=None); ap.add_argument("--cada", type=int, default=25, help="checkpoint every N epochs"); a = ap.parse_args()

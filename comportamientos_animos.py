@@ -27,7 +27,7 @@ MOOD_RGB = {   # saturados: se ven desde lejos y en cualquier luz
     "singing":   (0.62, 0.10, 0.95),
     "alert":     (0.10, 0.90, 0.25),   # verde (el rosa fue para hambre)
     "diving":    (0.02, 0.10, 0.55),
-    "sad":       (0.10, 0.12, 0.20),
+    "sad":       (0.15, 0.42, 0.92),   # grenouille bleue (22 oct, Violeta)
 }
 
 def _onda(t, periodo, fase=0.0): return math.sin(2 * math.pi * (t / periodo + fase))
@@ -116,6 +116,11 @@ def coreo_real(dom, t, cerca=1.0):
 def coreo(dom, t, cerca=1.0):
     r = coreo_real(dom, t, cerca)
     if r is not None: return r
+    return coreo_disenada(dom, t, cerca)
+def coreo_disenada(dom, t, cerca=1.0):
+    """el camino DISENADO de cada animo (el que habia antes de los caminos reales): la altura de estos es la firma del movimiento
+    en el espacio (bucear = alejarse y bajar; salir = subir desde abajo; cantar = colgada; triste = hundirse). cerebro_ballena.py
+    toma de aqui la z (21 oct, Violeta: 'she needs to move through space, surface, dive'): la z de un bailarin grabado es solo su cadera."""
     pi = math.pi
     if dom == "calm":      a = 2 * pi * t / 60; return (1.2 * math.sin(a), 0.6 * math.sin(2 * a), 0.0), None, 0.25                   # deriva lenta en elipse, 60 s
     if dom == "singing":   return (0.0, 0.0, -0.5), (2 * pi * t / 40) % (2 * pi), 0.4                                                 # colgada en casa, una vuelta cada 40 s

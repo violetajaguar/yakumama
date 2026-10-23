@@ -13,3 +13,18 @@ modelos/decisiones_personas.json
 docs/registro_chat_*.md
 fuentes/
 entregas/
+ofrendas_fotos/
+docs/ofrendas/emparejar.pdf
+.cache/
+
+# ojo de las manos: cachés de entrenamiento (se regeneran con entrenar_ofrendas.py)
+modelos/ofrendas_emb_*.npz
+modelos/ofrendas_manos.npz
+
+# 22 oct: entorno de TD, logs y fotos pesadas fuera del repo
+venv_td/
+logs/
+docs/ofrendas/*.jpg
+docs/ofrendas/*.jpeg
+docs/ofrendas/*.png
+modelos/mobilenet_v3_large_embedder.tflite
