@@ -15,7 +15,12 @@ PRE = ("Yakumama is a whale in a gallery. Her goal is to keep each visitor engag
 Q = {"engaged": {"type": "noul", "instructions": "Is this visitor deeply engaged with her, rather than just passing by?"},
      "maltrato": {"type": "score", "instructions": "How much is the visitor mistreating her sister (the touch points, the mouth)?", "criteria": ["not at all", "a little", "a lot"]},
      "retirarse": {"type": "noul", "instructions": "Should Yakumama move away from this visitor?"},
-     "regalo": {"type": "noul", "instructions": "Is the visitor giving her something or tending her gently?"}}
+     "regalo": {"type": "noul", "instructions": "Is the visitor giving her something or tending her gently?"},
+     # 21 Oct (ONE DECIDER): her journey, her show, her imitation and her voice ask Laya too. Copy this file to the mini (laya_puente mac starts it there).
+     "perform": {"type": "noul", "instructions": "Should Yakumama perform a dance show on the open salt right now, given who is here and how engaged they are?"},
+     "visit":   {"type": "noul", "instructions": "Should she swim to visit her cactus flowers now?"},
+     "imitate": {"type": "noul", "instructions": "Should she imitate this visitor's facial expressions now?"},
+     "speak":   {"type": "noul", "instructions": "Should she sing or say a poem to this visitor now, rather than stay silent?"}}
 ES = {"calm": "calm", "singing": "singing", "playful": "playful", "curious": "curious", "feeding": "hungry", "sad": "sad", "angry": "angry", "alert": "alert", "diving": "diving", "surfacing": "surfacing"}
 def describir(c):
     if not c.get("persona"): return f"No one is in front of her. She has been alone for {int(c.get('segundos') or 0)} seconds."
@@ -26,7 +31,9 @@ def describir(c):
     elif t > 0.3 and z == "flores": s.append("They are touching one metal flower gently with a fingertip.")
     elif t > 0.3 and z == "joya": s.append("A light hand rests on the jewel crown.")
     of = c.get("ofrenda")
-    if of == "pez": s.append("They hold one of her painted fish to the sister's mouth.")
+    if of == "pez":
+        nombre = str(c.get("ofrenda_nombre") or "").split(" (")[0]
+        s.append(f"They hold the {nombre} to the sister's mouth." if nombre else "They hold one of her painted creatures to the sister's mouth.")
     elif of == "no_pez": s.append("They push something that is not a fish into the sister's mouth.")
     if c.get("ve_hermana"): s.append("They hold her golden sister up in their hands, looking at her.")
     if c.get("ve_telefono"): s.append("They point a phone camera at her.")
@@ -42,7 +49,7 @@ def main():
             if texto != ult or una:
                 t0 = time.time(); r = agente.predict(PRE + texto, Q)["answers"]; ms = (time.time() - t0) * 1000
                 sc = r["maltrato"]; mal = float(sc.get("score", 0) or 0) / 2.0   # 0..2 -> 0..1
-                out = {"t": time.time(), "engaged": round(float(r["engaged"]["noul"]), 3), "maltrato": round(mal, 3), "retirarse": round(float(r["retirarse"]["noul"]), 3), "regalo": round(float(r["regalo"]["noul"]), 3), "ms": round(ms), "situacion": texto}
+                out = {"t": time.time(), "engaged": round(float(r["engaged"]["noul"]), 3), "maltrato": round(mal, 3), "retirarse": round(float(r["retirarse"]["noul"]), 3), "regalo": round(float(r["regalo"]["noul"]), 3), **{k: round(float(r[k]["noul"]), 3) for k in ("perform", "visit", "imitate", "speak") if k in r}, "ms": round(ms), "situacion": texto}
                 json.dump(out, open(SALIDA, "w"))
                 with open(LOG, "a") as f: f.write(json.dumps({**out, "decision": c.get("decision"), "fijo": c.get("fijo")}, ensure_ascii=False) + "\n")
                 ult = texto

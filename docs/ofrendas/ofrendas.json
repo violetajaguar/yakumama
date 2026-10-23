@@ -1,0 +1,597 @@
+{
+ "fecha_fotos": "2026-10-19 (01-23) y 2026-10-20 (24-29)",
+ "total_criaturas": 29,
+ "fotografiadas": 29,
+ "sin_foto": 0,
+ "nota": "29 reacciones para 29 criaturas, una por una. El numero de foto es el orden en que se fotografiaron, no el orden de la lista de Violeta.",
+ "reacciones": [
+  {
+   "n": 1,
+   "texto": "Le va a picar la garganta"
+  },
+  {
+   "n": 2,
+   "texto": "Se atragante"
+  },
+  {
+   "n": 3,
+   "texto": "Se intoxique y le haga cosquillas"
+  },
+  {
+   "n": 4,
+   "texto": "Empieza a saltar"
+  },
+  {
+   "n": 5,
+   "texto": "Se ponga feliz porque le gusta"
+  },
+  {
+   "n": 6,
+   "texto": "Le guste el olor"
+  },
+  {
+   "n": 7,
+   "texto": "No le gusta el olor"
+  },
+  {
+   "n": 8,
+   "texto": "Que vaya en espiral 🌀 y después se lo coma"
+  },
+  {
+   "n": 9,
+   "texto": "Que se vuelva de ese color"
+  },
+  {
+   "n": 10,
+   "texto": "Que saque la lengua y su lengua se vuelva rosada"
+  },
+  {
+   "n": 11,
+   "texto": "Que le mire con cara de disgusto 🤢"
+  },
+  {
+   "n": 12,
+   "texto": "Que abra la boca grande y se acerque despacio y se trague"
+  },
+  {
+   "n": 13,
+   "texto": "Se coma bailando"
+  },
+  {
+   "n": 14,
+   "texto": "Que le salude al pájaro mirando para arriba e intente volar"
+  },
+  {
+   "n": 15,
+   "texto": "Se asusta y vaya rápido hacia atrás"
+  },
+  {
+   "n": 16,
+   "texto": "Que le dé un coletazo y lo dibuje"
+  },
+  {
+   "n": 17,
+   "texto": "Que admire su belleza y quiera copiarle la forma"
+  },
+  {
+   "n": 18,
+   "texto": "Que le escriba una poesía"
+  },
+  {
+   "n": 19,
+   "texto": "Que trate de seguirla en el espacio"
+  },
+  {
+   "n": 20,
+   "texto": "Cuando se lo coma tendrá un súper poder de volverse y va a imitar sus rayas de dibujo"
+  },
+  {
+   "n": 21,
+   "texto": "Cuando se le acerque le saque la lengua y dé muchas vueltas"
+  },
+  {
+   "n": 22,
+   "texto": "Que le tenga miedo y le haga caras locas"
+  },
+  {
+   "n": 23,
+   "texto": "Que se ría sin parar y después se vuelva arcoíris de tanto reír"
+  },
+  {
+   "n": 24,
+   "texto": "Que baile y se vuelva de color naranja"
+  },
+  {
+   "n": 25,
+   "texto": "Que sus aletas se pongan puntiagudas y se vuelva roja de rabia"
+  },
+  {
+   "n": 26,
+   "texto": "Que con esta llore por la inquietud"
+  },
+  {
+   "n": 27,
+   "texto": "Que intente escapar"
+  },
+  {
+   "n": 28,
+   "texto": "Que cuando se coma esta, diving deep"
+  },
+  {
+   "n": 29,
+   "texto": "Que se hinche la panza y baile"
+  }
+ ],
+ "criaturas": [
+  {
+   "id": 1,
+   "archivo": "01_ciempies.jpg",
+   "original": "fuentes/ofrendas/01_ciempies.jpg",
+   "nombre": "ciempiés (cuerpo azul oscuro, cabeza naranja, muchas patas)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 3,
+    "texto": "Se intoxique y le haga cosquillas",
+    "adivinanza": true
+   },
+   "carpeta": "01_ciempies",
+   "reaccion": {
+    "n": 1,
+    "texto": "Le va a picar la garganta"
+   }
+  },
+  {
+   "id": 2,
+   "archivo": "02_pez_verde_boca_grande.jpg",
+   "original": "fuentes/ofrendas/02_pez_verde_boca_grande.jpg",
+   "nombre": "pez verde de boca grande (cabeza redonda, pincho rosado arriba)",
+   "tipo": "pez",
+   "reaccion_propuesta": {
+    "n": 2,
+    "texto": "Se atragante",
+    "adivinanza": true
+   },
+   "carpeta": "02_pez_verde_boca_grande",
+   "reaccion": {
+    "n": 2,
+    "texto": "Se atragante"
+   }
+  },
+  {
+   "id": 3,
+   "archivo": "03_saltamontes_verde.jpg",
+   "original": "fuentes/ofrendas/03_saltamontes_verde.jpg",
+   "nombre": "saltamontes verde (patas rosadas, ala verde oscuro)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 4,
+    "texto": "Empieza a saltar",
+    "adivinanza": false
+   },
+   "carpeta": "03_saltamontes_verde",
+   "reaccion": {
+    "n": 4,
+    "texto": "Empieza a saltar"
+   }
+  },
+  {
+   "id": 4,
+   "archivo": "04_pez_amarillo_cresta.jpg",
+   "original": "fuentes/ofrendas/04_pez_amarillo_cresta.jpg",
+   "nombre": "pez amarillo con cresta de tres púas, cola verde",
+   "tipo": "pez",
+   "reaccion_propuesta": {
+    "n": 25,
+    "texto": "Que sus aletas se pongan puntiagudas y se vuelva roja de rabia",
+    "adivinanza": true
+   },
+   "carpeta": "04_pez_amarillo_cresta",
+   "reaccion": {
+    "n": 21,
+    "texto": "Cuando se le acerque le saque la lengua y dé muchas vueltas"
+   }
+  },
+  {
+   "id": 5,
+   "archivo": "05_flor_amarilla.jpg",
+   "original": "fuentes/ofrendas/05_flor_amarilla.jpg",
+   "nombre": "flor amarilla y naranja, centro rosado, dos hojas",
+   "tipo": "flor",
+   "reaccion_propuesta": {
+    "n": 6,
+    "texto": "Le guste el olor",
+    "adivinanza": false
+   },
+   "carpeta": "05_flor_amarilla",
+   "reaccion": {
+    "n": 7,
+    "texto": "No le gusta el olor"
+   }
+  },
+  {
+   "id": 6,
+   "archivo": "06_flor_naranja.jpg",
+   "original": "fuentes/ofrendas/06_flor_naranja.jpg",
+   "nombre": "flor naranja, centro amarillo con espiral",
+   "tipo": "flor",
+   "reaccion_propuesta": {
+    "n": 7,
+    "texto": "No le gusta el olor",
+    "adivinanza": false
+   },
+   "carpeta": "06_flor_naranja",
+   "reaccion": {
+    "n": 6,
+    "texto": "Le guste el olor"
+   }
+  },
+  {
+   "id": 7,
+   "archivo": "07_pez_amarillo_liso.jpg",
+   "original": "fuentes/ofrendas/07_pez_amarillo_liso.jpg",
+   "nombre": "pez amarillo liso (sin dibujo, aletas rosadas)",
+   "tipo": "pez",
+   "reaccion_propuesta": {
+    "n": 9,
+    "texto": "Que se vuelva de ese color",
+    "adivinanza": true
+   },
+   "carpeta": "07_pez_amarillo_liso",
+   "reaccion": {
+    "n": 27,
+    "texto": "Que intente escapar"
+   }
+  },
+  {
+   "id": 8,
+   "archivo": "08_pez_azul_sol.jpg",
+   "original": "fuentes/ofrendas/08_pez_azul_sol.jpg",
+   "nombre": "pez azul oscuro con sol amarillo, aletas verdes",
+   "tipo": "pez",
+   "reaccion_propuesta": null,
+   "carpeta": "08_pez_azul_sol",
+   "reaccion": {
+    "n": 26,
+    "texto": "Que con esta llore por la inquietud"
+   }
+  },
+  {
+   "id": 9,
+   "archivo": "09_mariquita_rosada.jpg",
+   "original": "fuentes/ofrendas/09_mariquita_rosada.jpg",
+   "nombre": "mariquita rosada (cabeza naranja, patas verdes)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 10,
+    "texto": "Que saque la lengua y su lengua se vuelva rosada",
+    "adivinanza": true
+   },
+   "carpeta": "09_mariquita_rosada",
+   "reaccion": {
+    "n": 18,
+    "texto": "Que le escriba una poesía"
+   }
+  },
+  {
+   "id": 10,
+   "archivo": "10_pez_naranja_alas.jpg",
+   "original": "fuentes/ofrendas/10_pez_naranja_alas.jpg",
+   "nombre": "pez naranja con alas (aletas anchas con flor)",
+   "tipo": "pez",
+   "reaccion_propuesta": null,
+   "carpeta": "10_pez_naranja_alas",
+   "reaccion": {
+    "n": 24,
+    "texto": "Que baile y se vuelva de color naranja"
+   }
+  },
+  {
+   "id": 11,
+   "archivo": "11_pez_rosado_espiral.jpg",
+   "original": "fuentes/ofrendas/11_pez_rosado_espiral.jpg",
+   "nombre": "pez rosado con espiral naranja, dientes, cola azul",
+   "tipo": "pez",
+   "reaccion_propuesta": {
+    "n": 8,
+    "texto": "Que vaya en espiral 🌀 y después se lo coma",
+    "adivinanza": false
+   },
+   "carpeta": "11_pez_rosado_espiral",
+   "reaccion": {
+    "n": 8,
+    "texto": "Que vaya en espiral 🌀 y después se lo coma"
+   }
+  },
+  {
+   "id": 12,
+   "archivo": "12_pajaro_azul.jpg",
+   "original": "fuentes/ofrendas/12_pajaro_azul.jpg",
+   "nombre": "pájaro azul (pico naranja, alas verdes, cola rosada)",
+   "tipo": "pájaro",
+   "reaccion_propuesta": {
+    "n": 14,
+    "texto": "Que le salude al pájaro mirando para arriba e intente volar",
+    "adivinanza": false
+   },
+   "carpeta": "12_pajaro_azul",
+   "reaccion": {
+    "n": 14,
+    "texto": "Que le salude al pájaro mirando para arriba e intente volar"
+   }
+  },
+  {
+   "id": 13,
+   "archivo": "13_saltamontes_antenas_rosadas.jpg",
+   "original": "fuentes/ofrendas/13_saltamontes_antenas_rosadas.jpg",
+   "nombre": "saltamontes verde de antenas rosadas, flor en el ala",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 4,
+    "texto": "Empieza a saltar",
+    "adivinanza": false
+   },
+   "carpeta": "13_saltamontes_antenas_rosadas",
+   "reaccion": {
+    "n": 28,
+    "texto": "Que cuando se coma esta, diving deep"
+   }
+  },
+  {
+   "id": 14,
+   "archivo": "14_escorpion.jpg",
+   "original": "fuentes/ofrendas/14_escorpion.jpg",
+   "nombre": "escorpión (cuerpo rojo, pinzas naranjas, patas amarillas)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 15,
+    "texto": "Se asusta y vaya rápido hacia atrás",
+    "adivinanza": true
+   },
+   "carpeta": "14_escorpion",
+   "reaccion": {
+    "n": 15,
+    "texto": "Se asusta y vaya rápido hacia atrás"
+   }
+  },
+  {
+   "id": 15,
+   "archivo": "15_mariposa.jpg",
+   "original": "fuentes/ofrendas/15_mariposa.jpg",
+   "nombre": "mariposa (alas naranjas y rosadas, cuerpo verde)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 17,
+    "texto": "Que admire su belleza y quiera copiarle la forma",
+    "adivinanza": false
+   },
+   "carpeta": "15_mariposa",
+   "reaccion": {
+    "n": 5,
+    "texto": "Se ponga feliz porque le gusta"
+   }
+  },
+  {
+   "id": 16,
+   "archivo": "16_libelula.jpg",
+   "original": "fuentes/ofrendas/16_libelula.jpg",
+   "nombre": "libélula rosada (alas con ojos pintados)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 19,
+    "texto": "Que trate de seguirla en el espacio",
+    "adivinanza": true
+   },
+   "carpeta": "16_libelula",
+   "reaccion": {
+    "n": 19,
+    "texto": "Que trate de seguirla en el espacio"
+   }
+  },
+  {
+   "id": 17,
+   "archivo": "17_pez_rojo_largo.jpg",
+   "original": "fuentes/ofrendas/17_pez_rojo_largo.jpg",
+   "nombre": "pez rojo largo de boca abierta, rayas de colores",
+   "tipo": "pez",
+   "reaccion_propuesta": {
+    "n": 20,
+    "texto": "Cuando se lo coma tendrá un súper poder de volverse y va a imitar sus rayas de dibujo",
+    "adivinanza": true
+   },
+   "carpeta": "17_pez_rojo_largo",
+   "reaccion": {
+    "n": 20,
+    "texto": "Cuando se lo coma tendrá un súper poder de volverse y va a imitar sus rayas de dibujo"
+   }
+  },
+  {
+   "id": 18,
+   "archivo": "18_oruga_espirales.jpg",
+   "original": "fuentes/ofrendas/18_oruga_espirales.jpg",
+   "nombre": "oruga de tres discos con espirales, patas verdes",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 21,
+    "texto": "Cuando se le acerque le saque la lengua y dé muchas vueltas",
+    "adivinanza": true
+   },
+   "carpeta": "18_oruga_espirales",
+   "reaccion": {
+    "n": 25,
+    "texto": "Que sus aletas se pongan puntiagudas y se vuelva roja de rabia"
+   }
+  },
+  {
+   "id": 19,
+   "archivo": "19_mariquita_naranja.jpg",
+   "original": "fuentes/ofrendas/19_mariquita_naranja.jpg",
+   "nombre": "mariquita naranja (cabeza verde, patas rosadas)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 5,
+    "texto": "Se ponga feliz porque le gusta",
+    "adivinanza": true
+   },
+   "carpeta": "19_mariquita_naranja",
+   "reaccion": {
+    "n": 29,
+    "texto": "Que se hinche la panza y baile"
+   }
+  },
+  {
+   "id": 20,
+   "archivo": "20_pez_naranja_sol.jpg",
+   "original": "fuentes/ofrendas/20_pez_naranja_sol.jpg",
+   "nombre": "pez naranja redondo con sol, boca grande, aleta amarilla",
+   "tipo": "pez",
+   "reaccion_propuesta": {
+    "n": 24,
+    "texto": "Que baile y se vuelva de color naranja",
+    "adivinanza": true
+   },
+   "carpeta": "20_pez_naranja_sol",
+   "reaccion": {
+    "n": 9,
+    "texto": "Que se vuelva de ese color"
+   }
+  },
+  {
+   "id": 21,
+   "archivo": "21_abeja.jpg",
+   "original": "fuentes/ofrendas/21_abeja.jpg",
+   "nombre": "abeja (cuerpo amarillo a rayas, alas azules)",
+   "tipo": "insecto",
+   "reaccion_propuesta": {
+    "n": 1,
+    "texto": "Le va a picar la garganta",
+    "adivinanza": true
+   },
+   "carpeta": "21_abeja",
+   "reaccion": {
+    "n": 16,
+    "texto": "Que le dé un coletazo y lo dibuje"
+   }
+  },
+  {
+   "id": 22,
+   "archivo": "22_pez_verde_dientes.jpg",
+   "original": "fuentes/ofrendas/22_pez_verde_dientes.jpg",
+   "nombre": "pez verde oscuro con dientes y flores, aletas rayadas",
+   "tipo": "pez",
+   "reaccion_propuesta": {
+    "n": 22,
+    "texto": "Que le tenga miedo y le haga caras locas",
+    "adivinanza": true
+   },
+   "carpeta": "22_pez_verde_dientes",
+   "reaccion": {
+    "n": 11,
+    "texto": "Que le mire con cara de disgusto 🤢"
+   }
+  },
+  {
+   "id": 23,
+   "archivo": "23_pez_rosado_dientes.jpg",
+   "original": "fuentes/ofrendas/23_pez_rosado_dientes.jpg",
+   "nombre": "pez rosado con dientes, aletas rayadas verde y rosa",
+   "tipo": "pez",
+   "reaccion_propuesta": null,
+   "carpeta": "23_pez_rosado_dientes",
+   "reaccion": {
+    "n": 23,
+    "texto": "Que se ría sin parar y después se vuelva arcoíris de tanto reír"
+   }
+  },
+  {
+   "id": 24,
+   "archivo": "24_pez_amarillo_puas.jpg",
+   "original": "fuentes/ofrendas/24_pez_amarillo_puas.jpg",
+   "nombre": "pez amarillo con púas largas (cresta de cuatro picos, flores, ojo blanco)",
+   "tipo": "pez",
+   "reaccion_propuesta": null,
+   "carpeta": "24_pez_amarillo_puas",
+   "reaccion": {
+    "n": 17,
+    "texto": "Que admire su belleza y quiera copiarle la forma"
+   }
+  },
+  {
+   "id": 25,
+   "archivo": "25_arana.jpg",
+   "original": "fuentes/ofrendas/25_arana.jpg",
+   "nombre": "araña (cuerpo azul oscuro con cuadrado rosado, ocho patas, lengua rosada)",
+   "tipo": "insecto",
+   "reaccion_propuesta": null,
+   "carpeta": "25_arana",
+   "reaccion": {
+    "n": 3,
+    "texto": "Se intoxique y le haga cosquillas"
+   }
+  },
+  {
+   "id": 26,
+   "archivo": "26_pez_verde_cola_naranja.jpg",
+   "original": "fuentes/ofrendas/26_pez_verde_cola_naranja.jpg",
+   "nombre": "pez verde con línea blanca, cola naranja con puntos, aletas rosadas",
+   "tipo": "pez",
+   "reaccion_propuesta": null,
+   "carpeta": "26_pez_verde_cola_naranja",
+   "reaccion": {
+    "n": 12,
+    "texto": "Que abra la boca grande y se acerque despacio y se trague"
+   }
+  },
+  {
+   "id": 27,
+   "archivo": "27_cocodrilo.jpg",
+   "original": "fuentes/ofrendas/27_cocodrilo.jpg",
+   "nombre": "cocodrilo verde (boca abierta con dientes, patas rosadas, cola rosada)",
+   "tipo": "reptil",
+   "reaccion_propuesta": null,
+   "carpeta": "27_cocodrilo",
+   "reaccion": {
+    "n": 22,
+    "texto": "Que le tenga miedo y le haga caras locas"
+   }
+  },
+  {
+   "id": 28,
+   "archivo": "28_pez_rosado_cola_naranja.jpg",
+   "original": "fuentes/ofrendas/28_pez_rosado_cola_naranja.jpg",
+   "nombre": "pez rosado de boca abierta, aletas azul y verde, cola naranja",
+   "tipo": "pez",
+   "reaccion_propuesta": null,
+   "carpeta": "28_pez_rosado_cola_naranja",
+   "reaccion": {
+    "n": 10,
+    "texto": "Que saque la lengua y su lengua se vuelva rosada"
+   }
+  },
+  {
+   "id": 29,
+   "archivo": "29_pez_azul_cola_rosada.jpg",
+   "original": "fuentes/ofrendas/29_pez_azul_cola_rosada.jpg",
+   "nombre": "pez azul oscuro con aletas verde y amarilla, cola rosada, boca blanca",
+   "tipo": "pez",
+   "reaccion_propuesta": null,
+   "carpeta": "29_pez_azul_cola_rosada",
+   "reaccion": {
+    "n": 13,
+    "texto": "Se coma bailando"
+   }
+  }
+ ],
+ "emparejamiento": {
+  "fecha": "2026-10-20",
+  "quien": "Violeta",
+  "hoja": "docs/ofrendas/emparejar.pdf (impresa y rellenada a mano)",
+  "nota": "reaccion = la decidida por Violeta; reaccion_propuesta = la adivinanza anterior, se conserva solo como historia"
+ },
+ "fotos_ojo": {
+  "fecha": "2026-10-20",
+  "quien": "sanam",
+  "carpeta": "ofrendas_fotos/",
+  "total": 2700,
+  "nota": "fotos 1280x720 de la OAK-D con fotos_ofrendas.py; dos rafagas por criatura (76), mariposa tres (114), manos_vacias 38, otras_cosas 190, hermana_dorada 228"
+ }
+}

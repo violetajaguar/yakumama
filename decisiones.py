@@ -17,9 +17,14 @@ The situation (every field optional):
     persona 0/1 · conocida 0/1 · id_persona str · animo str · energia 0..1 · segundos · quieto 0..1 · vuelve 0/1 (seen another day)
     distancia_m · distancia_tend (-1 coming .. +1 leaving) · ropa_gusta · pide_olvido
     flores 0..1 (strongest stem) · flores_n (stems touched) · joya 0..1 · joya_tiron 0/1          (touch ESP, analog capacitive)
-    boca "pez"|"no_pez"|"nada" · boca_p 0..1                                                     (her eye looking at the table)
+    boca "pez"|"no_pez"|"nada" · boca_p 0..1 · ofrenda_id 1..29 · reaccion 1..29                (the eye of the hands: pez = any of the 29 creatures; its reaction is played by the brain, reacciones_ofrendas.py)
     palanca_s (seconds on the joystick this visit) · camara_cerca 0..1 (TouchDesigner camera near her) · camara_mira 0/1
     tacto / tacto_zona                                                                          (legacy: cabeza|lomo|cola|aleta|flores|joya)
+    viento m/s · rachas m/s · lluvia 0..1 (hers) · lluvia_real mm/h · nubes % · humedad % · presion hPa · uv · noche 0/1   (Open-Meteo, via the renderer: the WORLD; she reacts, never causes)
+    aleta_sujeta 0..1 (told/measured gap on a fin = a hand) · cansada 0..1 · excitada 0..1 · calor C   (PROPRIOCEPTION, cerebro_ballena.cuerpo_leer)
+Weather is learned on its own table: pesos["clima:<word>"] (clave_clima) adds to the situation's weights, so one day of rain teaches her
+about rain without splitting every situation six ways. The random-policy day (YAKUMAMA_EVALUAR=1): per encounter a coin picks "ella" or
+"azar" (uniform over the options; refusals still fixed); the log says which (politica) and calibracion.py prints the two side by side.
 Fixed refusals (never reweighted): no_pez in the mouth -> rehusar + turn away; a pull on the jewel; a palm over the flowers;
 a phone or camera raised at her (telefono) -> she turns away, still and dim, until it comes down: she gives her face to eyes, not to lenses
 (Violeta, 18 oct). The golden sister does not refuse the lens; only the digital whale does.
@@ -30,10 +35,18 @@ a visitor who asks to be forgotten is forgotten absolutely.
     venv/bin/python decisiones.py            (self-test on her situations)
     venv/bin/python decisiones.py --aprender (nightly: refit the weights from the log; refusals and forgets are skipped)
 """
-import os, sys, json, time, math
+import os, sys, json, time, math, random
 AQUI = os.path.dirname(os.path.abspath(__file__)); LOG = os.path.join(AQUI, "datasets", "decisiones.jsonl")
+PRIOR_VIAJE = {"playful":   {"cerca": 0.3, "cactus": 0.2, "lejos": 0.1, "quedarse": 0.1, "show": 0.3}, "curious": {"cactus": 0.3, "cerca": 0.3, "lejos": 0.1, "quedarse": 0.1, "show": 0.2},
+               "calm":      {"lejos": 0.3, "quedarse": 0.3, "cactus": 0.2, "cerca": 0.1, "montanas": 0.2}, "sad": {"lejos": 0.4, "quedarse": 0.3, "cactus": 0.1, "montanas": 0.3},
+               "singing":   {"quedarse": 0.5, "lejos": 0.2, "cactus": 0.1, "montanas": 0.3}, "feeding": {"lejos": 0.3, "cactus": 0.2, "cerca": 0.2, "quedarse": 0.1, "show": 0.2},
+               "angry":     {"lejos": 0.4, "cerca": 0.3, "quedarse": 0.1, "show": 0.2}, "alert": {"quedarse": 0.5, "cerca": 0.3, "lejos": 0.2},
+               "diving":    {"lejos": 0.4, "quedarse": 0.3, "cactus": 0.1, "montanas": 0.2}, "surfacing": {"cerca": 0.4, "cactus": 0.2, "quedarse": 0.1, "show": 0.3}}
+PRIOR_IMITAR = {"curious": 0.5, "playful": 0.4, "alert": 0.3, "feeding": 0.25, "surfacing": 0.2}
+EXPLORA, EXPLORA_PISO = float(os.environ.get("YAKUMAMA_EXPLORA", 0.15)), 0.12   # how often she tries a non-top option, and the least probable option she may try
 PESOS = os.path.join(AQUI, "modelos", "decisiones_pesos.json"); PERSONAS = os.path.join(AQUI, "modelos", "decisiones_personas.json")
-OPCIONES = {"distancia": ["acercarse", "quedarse", "alejarse"], "con_cuerpo": ["bailar_de_vuelta", "invitar", "observar", "dibujar"], "voz": ["poema", "canto", "silencio"],
+OPCIONES = {"viaje": ["cactus", "cerca", "lejos", "quedarse", "show", "montanas"], "imitar": ["si", "no"],   # 21 Oct: ONE DECIDER - her journey and her imitation are decisions like the others (priors in puntajes, learned by reward, Laya leans them)
+            "distancia": ["acercarse", "quedarse", "alejarse"], "con_cuerpo": ["bailar_de_vuelta", "invitar", "observar", "dibujar"], "voz": ["poema", "canto", "silencio"],
             "memoria": ["recordar", "olvidar"], "color": ["propio", "ropa"], "boca": ["comer", "rehusar", "esperar"]}
 PALMA_N = 3; PALMA_FUERZA = 0.7; TIRON_FUERZA = 0.85   # a palm = three or more stems above 0.7; a pull = jewel above 0.85 or joya_tiron
 LAYA = "/tmp/ballena_laya.json"; _laya = {"t": 0.0, "v": None}
@@ -60,6 +73,11 @@ def es_palma(s):
     pal, f = lectura_tacto(s); return pal == "flores" and (int(_f(s, "flores_n")) >= PALMA_N and f > PALMA_FUERZA or f > TIRON_FUERZA)
 def es_tiron(s):
     pal, f = lectura_tacto(s); return pal == "joya" and (bool(s.get("joya_tiron")) or f > TIRON_FUERZA)
+def clave_clima(s):
+    """the weather as one coarse word (21 Oct, Violeta: "she should learn to react to it"): lluvia | tormenta | viento | nublado | sol, with noche_ at night."""
+    vw, ra, ll, nu = _f(s, "viento"), _f(s, "rachas"), _f(s, "lluvia_real"), _f(s, "nubes")
+    w = "lluvia" if (ll > 0.2 or _f(s, "lluvia") > 0.5) else ("tormenta" if (vw > 10.0 or ra > 16.0) else ("viento" if vw > 5.0 else ("nublado" if nu > 70.0 else "sol")))
+    return ("noche_" if s.get("noche") else "") + w
 def situacion_clave(s):
     """the situation as a small discrete key, so the learned weights generalise: who, mood, moving, how long, which touch word, mouth."""
     pal, f = lectura_tacto(s); seg = _f(s, "segundos")
@@ -147,8 +165,47 @@ class Decisora:
             p["con_cuerpo"]["invitar"] += 0.6 * (eng - 0.5); p["voz"]["poema"] += (0.5 * (eng - 0.5) if seg > 30 else 0.0); p["memoria"]["recordar"] += 0.4 * (eng - 0.5)
             p["distancia"]["alejarse"] += 1.0 * mal + 0.6 * (ret - 0.5); p["color"]["propio"] += 0.5 * mal; p["distancia"]["acercarse"] += 0.5 * (reg - 0.5); p["voz"]["canto"] += 0.3 * (reg - 0.5)
         clave = situacion_clave(s)   # learned adjustments from the log, per situation
+        # HER JOURNEY (21 Oct): the priors that were odds tables in cerebro_ballena.py, now one decision among the others
+        an = str(s.get("animo") or "calm"); pv = PRIOR_VIAJE.get(an, PRIOR_VIAJE["calm"])
+        for o in OPCIONES["viaje"]: p["viaje"][o] += 2.0 * pv.get(o, 0.02)
+        p["viaje"]["montanas"] += 0.35   # 21 Oct, Violeta: "she never goes to the mountains": a real share in every mood
+        if s.get("persona"): p["viaje"]["cerca"] += 0.4
+        if s.get("persona") and not (self.persona(s) or {}).get("rudo"): p["distancia"]["acercarse"] += 0.6   # 21 Oct, Violeta: "she isn't coming close": with someone at her eye, approaching is her first instinct unless they were rough
+        vw = _f(s, "viento")
+        if vw > 8.0: p["viaje"]["lejos"] += 0.5; p["viaje"]["montanas"] += 0.6; p["viaje"]["quedarse"] -= 0.4; p["viaje"]["show"] -= 0.4
+        elif vw < 2.0: p["viaje"]["show"] += 0.3; p["viaje"]["quedarse"] += 0.2
+        if s.get("ultimo_viaje") == "show": p["viaje"]["cerca"] += 1.5; p["viaje"]["show"] -= 2.0   # never forget the audience
+        if s.get("ultimo_viaje") in ("lejos", "montanas"): p["viaje"]["cerca"] += 0.4
+        if s.get("noche"): p["viaje"]["montanas"] += 0.2; p["viaje"]["lejos"] += 0.1
+        # HER IMITATION: only with a face in front; a mood that looks wants it more
+        if s.get("persona"): p["imitar"]["si"] += 2.0 * PRIOR_IMITAR.get(an, 0.05); p["imitar"]["no"] += 2.0 * (1.0 - PRIOR_IMITAR.get(an, 0.05))
+        else: p["imitar"]["no"] += 3.0
+        if s.get("con_cuerpo_prev") == "bailar_de_vuelta": p["imitar"]["si"] += 1.0
+        # HER EAR (21 Oct, Violeta: "she listens to the audience and reacts?"): someone singing invites her song; a loud room invites her body and a show; a bang makes her hold back a moment
+        if _f(s, "oye_canta") > 0.55: p["voz"]["canto"] += 1.0; p["voz"]["silencio"] -= 0.4; p["distancia"]["acercarse"] += 0.3
+        if _f(s, "oye_nivel") > 0.5: p["con_cuerpo"]["invitar"] += 0.4; p["viaje"]["show"] += 0.3; p["viaje"]["cerca"] += 0.2
+        if _f(s, "oye_golpe") > 0.6: p["distancia"]["alejarse"] += 0.6; p["con_cuerpo"]["observar"] += 0.4; p["voz"]["silencio"] += 0.3
+        L = laya_opinion()   # Laya's new questions (laya_sentidos.py: perform, visit, imitate, speak), once the mini runs them
+        if L and s.get("persona"):
+            p["viaje"]["show"] += 0.8 * (L.get("perform", 0.5) - 0.5); p["viaje"]["cactus"] += 0.8 * (L.get("visit", 0.5) - 0.5)
+            p["imitar"]["si"] += 1.0 * (L.get("imitate", 0.5) - 0.5); p["voz"]["silencio"] -= 0.8 * (L.get("speak", 0.5) - 0.5)
+        # MORE OF THE WORLD (21 Oct, Violeta: "more environmental data"): small leans from the real rain, gusts, clouds, pressure and uv; the clima table below learns the rest
+        if _f(s, "lluvia_real") > 0.2: p["viaje"]["quedarse"] += 0.3; p["viaje"]["show"] -= 0.3; p["voz"]["canto"] += 0.2   # rain on her salt: she lingers and hums
+        if _f(s, "rachas") > 14.0: p["viaje"]["show"] -= 0.3; p["viaje"]["cerca"] += 0.2; p["con_cuerpo"]["observar"] += 0.2   # gusts: she keeps near and watches
+        if _f(s, "nubes") > 80.0: p["viaje"]["lejos"] += 0.2; p["voz"]["poema"] += 0.15   # an overcast sky: far, and wordy
+        if _f(s, "uv") > 6.0: p["viaje"]["cactus"] += 0.2; p["viaje"]["cerca"] += 0.1   # hard sun: the island, the audience
+        if 0.0 < _f(s, "presion", 1013.0) < 1000.0: p["viaje"]["quedarse"] += 0.2; p["con_cuerpo"]["observar"] += 0.2   # a low: something is coming, she holds
+        # HER BODY AS JUDGEMENT (21 Oct, Violeta: "the told-measured gap as a hand on her fin, temperature as tiredness and also excitement")
+        suj, can, exc = _f(s, "aleta_sujeta"), _f(s, "cansada"), _f(s, "excitada")
+        if suj > 0.3:   # a hand HOLDS her fin: rough (22 Oct, Violeta: red, she flaps free): she pulls away, her own colour, no show, no song; and she remembers who
+            p["distancia"]["alejarse"] += 0.8 * suj; p["color"]["propio"] += 0.6 * suj; p["con_cuerpo"]["observar"] += 0.3 * suj; p["viaje"]["show"] -= 0.6 * suj; p["voz"]["silencio"] += 0.3 * suj; p["memoria"]["recordar"] += 0.3 * suj
+        if can > 0.0:   # hot servos: tired; she rests (still, quiet, no dance, no show)
+            p["con_cuerpo"]["bailar_de_vuelta"] -= 1.2 * can; p["con_cuerpo"]["observar"] += 0.8 * can; p["viaje"]["show"] -= 1.0 * can; p["viaje"]["quedarse"] += 0.6 * can; p["voz"]["silencio"] += 0.3 * can; p["imitar"]["no"] += 0.5 * can
+        if exc > 0.0 and can < 0.5:   # warm from moving: excited; she keeps going
+            p["con_cuerpo"]["bailar_de_vuelta"] += 0.6 * exc; p["viaje"]["show"] += 0.4 * exc; p["viaje"]["cerca"] += 0.2 * exc; p["voz"]["canto"] += 0.2 * exc; p["imitar"]["si"] += 0.3 * exc
         for q in p:
             for o, w in self.pesos.get(clave, {}).get(q, {}).items(): p[q][o] += float(w)
+            for o, w in self.pesos.get("clima:" + clave_clima(s), {}).get(q, {}).items(): p[q][o] += float(w)   # what she has learned about this weather
         return p
     def rechazos(self, s, dec, prob):
         """the fixed answers above rules and weights. Returns the name of the refusal or '' (logged as 'fijo', skipped by learning)."""
@@ -160,7 +217,7 @@ class Decisora:
             if not s.get("pide_olvido"): fija("memoria", "recordar"); self.marcar(s, "rudo")
             fijo = "tiron" if es_tiron(s) else "palma"
         elif lectura_tacto(s)[0] == "flores" and 0.3 < lectura_tacto(s)[1] <= PALMA_FUERZA and (self.persona(s) or {}).get("rudo"): self.marcar(s, "perdon")   # forgiveness: a gentle touch later
-        if s.get("telefono") and not fijo:   # a lens raised at her: back turned, still, dim, silent, until it comes down (filming counts for nothing in her learning)
+        if s.get("telefono") and not fijo and os.environ.get("YAKUMAMA_REGLA_LENTE") == "1":   # the lens refusal is OFF (21 Oct, Violeta: "people use glasses, silly rule"); YAKUMAMA_REGLA_LENTE=1 restores it
             for q, o in (("distancia", "alejarse"), ("con_cuerpo", "observar"), ("voz", "silencio"), ("color", "propio")): fija(q, o)
             fijo = "lente"
         boca = str(s.get("boca") or "nada"); pb = _f(s, "boca_p", 1.0)
@@ -174,12 +231,21 @@ class Decisora:
             else: fija("boca", "esperar")   # not sure enough, or just fed: she waits and looks
         elif boca == "nada" and not fijo: self.rehusados = 0
         return fijo
-    def decidir(self, s, temp=0.8):
+    def decidir(self, s, temp=0.8, politica="ella"):
+        """politica "ella": her decision. "azar": THE MEASURE (21 Oct, RLCD: "a day of her decisions against a random policy"): a uniform
+        pick over each question's options, her probabilities still logged beside it, the refusals still fixed; calibracion.py compares."""
         p = self.puntajes(s); dec = {}; prob = {}
-        for q in p:
-            pr = _softmax(p[q], temp); prob[q] = pr; dec[q] = max(pr, key=pr.get)
+        for q in p:   # CALIBRATED, EXPLORING (21 Oct, RLCD): she SAMPLES from her probabilities (so the log can tell confidence from luck) unless YAKUMAMA_ARGMAX=1
+            pr = _softmax(p[q], temp); prob[q] = pr
+            top = max(pr, key=pr.get)   # BOUNDED EXPLORATION (21 Oct, Violeta: "I don't want her to be weird"): the best option most of the time; now and then one of the
+            if politica == "azar": dec[q] = random.choice(OPCIONES[q])
+            elif os.environ.get("YAKUMAMA_ARGMAX") == "1" or random.random() > EXPLORA: dec[q] = top   # reasonable ones (never below EXPLORA_PISO of probability)
+            else:
+                cand = {o: v for o, v in pr.items() if v >= EXPLORA_PISO} or {top: 1.0}
+                dec[q] = random.choices(list(cand), weights=list(cand.values()))[0]
         fijo = self.rechazos(s, dec, prob)
-        self.abierta = {"t": time.time(), "clave": situacion_clave(s), "fijo": fijo, "laya": {k: v for k, v in (laya_opinion() or {}).items() if k in ("engaged", "maltrato", "retirarse", "regalo")}, "situacion": {k: s.get(k) for k in ("persona", "conocida", "animo", "energia", "segundos", "quieto", "flores", "flores_n", "joya", "joya_tiron", "boca", "boca_p", "palanca_s", "camara_cerca", "tacto", "tacto_zona", "personas_n", "foco_razon", "telefono")},
+        self.abierta = {"t": time.time(), "clave": situacion_clave(s), "clima": clave_clima(s), "politica": politica, "fijo": fijo, "laya": {k: v for k, v in (laya_opinion() or {}).items() if k in ("engaged", "maltrato", "retirarse", "regalo")}, "situacion": {k: s.get(k) for k in ("persona", "conocida", "animo", "energia", "segundos", "quieto", "flores", "flores_n", "joya", "joya_tiron", "boca", "boca_p", "palanca_s", "camara_cerca", "tacto", "tacto_zona", "personas_n", "foco_razon", "telefono", "ofrenda_id", "reaccion",
+                                                                                                                      "viento", "rachas", "lluvia_real", "nubes", "humedad", "presion", "uv", "noche", "aleta_sujeta", "cansada", "excitada", "calor")},
                         "decision": dec, "prob": prob}
         return dec, prob
     @staticmethod
@@ -207,7 +273,9 @@ def aprender():
     for r in filas:
         if r.get("fijo"): continue
         usadas += 1; k = r["clave"]
-        for q, o in r["decision"].items(): acum.setdefault(k, {}).setdefault(q, {}).setdefault(o, []).append(r.get("recompensa", 0.0))
+        for q, o in r["decision"].items():
+            acum.setdefault(k, {}).setdefault(q, {}).setdefault(o, []).append(r.get("recompensa", 0.0))
+            if r.get("clima"): acum.setdefault("clima:" + r["clima"], {}).setdefault(q, {}).setdefault(o, []).append(r.get("recompensa", 0.0))   # the weather's own table
     pesos = {}
     for k, qs in acum.items():
         for q, os_ in qs.items():
@@ -225,7 +293,8 @@ SITUACIONES_PRUEBA = [
     ("tiron a la joya", {"persona": 1, "conocida": 1, "animo": "curious", "energia": 0.3, "segundos": 90, "joya": 0.95, "joya_tiron": 1, "id_persona": "p9"}),
     ("p9 vuelve y toca una flor", {"persona": 1, "conocida": 1, "animo": "calm", "energia": 0.2, "segundos": 20, "flores": 0.4, "flores_n": 1, "id_persona": "p9"}),
     ("ofrece un pez", {"persona": 1, "animo": "happy", "energia": 0.3, "segundos": 20, "boca": "pez", "boca_p": 0.9}),
-    ("ofrece el escorpion", {"persona": 1, "animo": "playful", "energia": 0.3, "segundos": 20, "boca": "no_pez", "boca_p": 0.9}),
+    ("ofrece el escorpion", {"persona": 1, "animo": "playful", "energia": 0.3, "segundos": 20, "boca": "pez", "boca_p": 0.9, "ofrenda_id": 14, "reaccion": 15}),   # 20 oct: the 29 creatures are all offerings; the scorpion scares her (reaction 15), the brain plays it
+    ("ofrece unas llaves", {"persona": 1, "animo": "playful", "energia": 0.3, "segundos": 20, "boca": "no_pez", "boca_p": 0.9}),
     ("ofrece un telefono", {"persona": 1, "animo": "neutral", "energia": 0.3, "segundos": 10, "boca": "no_pez", "boca_p": 0.8}),
     ("llora quieta, abrigo rojo", {"persona": 1, "animo": "sad", "energia": 0.05, "quieto": 0.9, "segundos": 240, "ropa_gusta": 1}),
     ("pide olvido", {"persona": 1, "conocida": 1, "animo": "calm", "energia": 0.2, "segundos": 120, "pide_olvido": 1, "id_persona": "p7"}),

@@ -52,9 +52,69 @@ def cara(firma):
     for tr in trazos:
         pts.append((float(P[_idx(tr[0])][0]), float(P[_idx(tr[0])][1]), False)); pts += [(float(P[_idx(k)][0]), float(P[_idx(k)][1]), True) for k in tr[1:]]
     return pts
-FIGURAS = {"espiral": espiral, "zigzag": zigzag, "laberinto": laberinto, "ballena": ballena}
-
-def elegir(nombre=None): return nombre if nombre in FIGURAS else random.choice(list(FIGURAS))
+# ---- HER WORLD AS LINES (21 Oct 2026, Violeta: "can she draw the animals she likes, the cactus, people, her surroundings"):
+# single-stroke figures in the Nazca manner, each a few straight runs, normalised to [-1, 1]. Strokes are lists of (x, y); the
+# first point of a stroke is flown to with the pen up, the rest drawn.
+def _trazos(trazos, esc=0.9):
+    pts = []
+    for tr in trazos:
+        pts.append((tr[0][0] * esc, tr[0][1] * esc, False)); pts += [(x * esc, y * esc, True) for x, y in tr[1:]]
+    return pts
+def pez():          # a fish: body, tail, an eye
+    return _trazos([[(-0.6, 0.0), (-0.3, 0.35), (0.3, 0.35), (0.7, 0.0), (0.3, -0.35), (-0.3, -0.35), (-0.6, 0.0)],
+                    [(-0.6, 0.0), (-1.0, 0.4), (-0.85, 0.0), (-1.0, -0.4), (-0.6, 0.0)], [(0.35, 0.1), (0.45, 0.16), (0.42, 0.04), (0.35, 0.1)]])
+def pajaro():       # a hummingbird: body, long beak, two wings, tail
+    return _trazos([[(-0.5, 0.0), (-0.2, 0.2), (0.3, 0.2), (0.5, 0.05), (0.3, -0.15), (-0.2, -0.15), (-0.5, 0.0)], [(0.5, 0.05), (1.0, 0.1)],
+                    [(-0.1, 0.2), (-0.4, 0.8), (0.15, 0.25)], [(-0.1, -0.15), (-0.45, -0.7), (0.15, -0.2)], [(-0.5, 0.0), (-1.0, 0.25), (-0.95, -0.2), (-0.5, 0.0)]])
+def arana():        # a spider: two bodies and eight legs
+    cuerpo = [(0.0, 0.35), (0.25, 0.15), (0.2, -0.15), (0.0, -0.3), (-0.2, -0.15), (-0.25, 0.15), (0.0, 0.35)]
+    cabeza = [(0.0, 0.35), (0.12, 0.55), (0.0, 0.7), (-0.12, 0.55), (0.0, 0.35)]
+    patas = [[(0.2, 0.2), (0.7, 0.6), (1.0, 0.3)], [(0.25, 0.05), (0.8, 0.1), (1.0, -0.2)], [(0.22, -0.1), (0.7, -0.4), (0.9, -0.75)], [(0.12, -0.25), (0.4, -0.7), (0.5, -1.0)],
+             [(-0.2, 0.2), (-0.7, 0.6), (-1.0, 0.3)], [(-0.25, 0.05), (-0.8, 0.1), (-1.0, -0.2)], [(-0.22, -0.1), (-0.7, -0.4), (-0.9, -0.75)], [(-0.12, -0.25), (-0.4, -0.7), (-0.5, -1.0)]]
+    return _trazos([cuerpo, cabeza] + patas)
+def mariposa():     # a butterfly: body, four wings, antennae
+    return _trazos([[(0.0, 0.5), (0.06, 0.0), (0.0, -0.5), (-0.06, 0.0), (0.0, 0.5)],
+                    [(0.06, 0.3), (0.6, 0.9), (1.0, 0.4), (0.5, 0.0), (0.06, 0.1)], [(0.06, -0.1), (0.7, -0.4), (0.6, -0.9), (0.1, -0.5), (0.06, -0.3)],
+                    [(-0.06, 0.3), (-0.6, 0.9), (-1.0, 0.4), (-0.5, 0.0), (-0.06, 0.1)], [(-0.06, -0.1), (-0.7, -0.4), (-0.6, -0.9), (-0.1, -0.5), (-0.06, -0.3)],
+                    [(0.0, 0.5), (0.25, 0.9)], [(0.0, 0.5), (-0.25, 0.9)]])
+def ciempies():     # a centipede: a wavy body and legs along it
+    cuerpo = [(-1.0 + 0.2 * i, 0.25 * math.sin(i * 1.1)) for i in range(11)]
+    patas = []
+    for i in range(1, 10, 1):
+        x, y = cuerpo[i]; patas.append([(x, y), (x - 0.08, y + 0.35)]); patas.append([(x, y), (x + 0.08, y - 0.35)])
+    return _trazos([cuerpo, [(1.0, 0.25 * math.sin(11.0)), (1.2, 0.3)], [(1.0, 0.25 * math.sin(11.0)), (1.2, -0.1)]] + patas, esc=0.8)
+def flor():         # a flower: a centre, eight petals, a stem and two leaves
+    c = [(0.15 * math.cos(math.radians(a)), 0.3 + 0.15 * math.sin(math.radians(a))) for a in range(0, 361, 60)]
+    petalos = [[(0.15 * math.cos(math.radians(a)), 0.3 + 0.15 * math.sin(math.radians(a))), (0.55 * math.cos(math.radians(a)), 0.3 + 0.55 * math.sin(math.radians(a))), (0.15 * math.cos(math.radians(a + 45)), 0.3 + 0.15 * math.sin(math.radians(a + 45)))] for a in range(0, 360, 45)]
+    return _trazos([c, [(0.0, 0.15), (0.0, -0.9)], [(0.0, -0.4), (-0.45, -0.6), (-0.1, -0.7), (0.0, -0.4)], [(0.0, -0.6), (0.45, -0.8), (0.1, -0.9), (0.0, -0.6)]] + petalos)
+def cactus():       # a cardon: the trunk and two arms
+    return _trazos([[(-0.15, -1.0), (-0.15, 0.9), (0.15, 0.9), (0.15, -1.0)], [(-0.15, 0.1), (-0.5, 0.1), (-0.5, 0.6), (-0.3, 0.6), (-0.3, 0.3), (-0.15, 0.3)],
+                    [(0.15, -0.2), (0.55, -0.2), (0.55, 0.45), (0.35, 0.45), (0.35, 0.0), (0.15, 0.0)], [(-0.6, -1.0), (0.6, -1.0)]])
+def montanas():     # the ring of mountains, Tunupa in the middle, the sun over them
+    cresta = [(-1.0, -0.3), (-0.75, 0.1), (-0.55, -0.15), (-0.3, 0.35), (-0.05, 0.65), (0.2, 0.3), (0.4, -0.1), (0.6, 0.2), (0.8, -0.2), (1.0, -0.3)]
+    sol = [(0.7 + 0.15 * math.cos(math.radians(a)), 0.75 + 0.15 * math.sin(math.radians(a))) for a in range(0, 361, 45)]
+    return _trazos([cresta, [(-1.0, -0.3), (-1.0, -0.6), (1.0, -0.6), (1.0, -0.3)], sol])
+def persona():      # a person standing, arms open, as the Nazca figures draw them
+    return _trazos([[(0.0, 0.9), (0.15, 0.75), (0.0, 0.6), (-0.15, 0.75), (0.0, 0.9)], [(0.0, 0.6), (0.0, -0.1)], [(-0.5, 0.6), (0.0, 0.45), (0.5, 0.6)],
+                    [(0.0, -0.1), (-0.3, -0.9)], [(0.0, -0.1), (0.3, -0.9)]])
+FIGURAS = {"espiral": espiral, "zigzag": zigzag, "laberinto": laberinto, "ballena": ballena,
+           "pez": pez, "pajaro": pajaro, "arana": arana, "mariposa": mariposa, "ciempies": ciempies, "flor": flor, "cactus": cactus, "montanas": montanas, "persona": persona}
+FAMILIA = {"pez": "pez", "pajaro": "pajaro", "arana": "arana", "escorpion": "arana", "mariposa": "mariposa", "libelula": "mariposa", "abeja": "mariposa",
+           "ciempies": "ciempies", "oruga": "ciempies", "saltamontes": "ciempies", "cocodrilo": "ballena", "flor": "flor", "mariquita": "mariposa"}
+def familia(nombre):
+    """the figure for a creature's name (the catalogue's words), or None."""
+    n = (nombre or "").lower()
+    for k, f in FAMILIA.items():
+        if k in n: return f
+    return None
+_ultimas = []
+def elegir(nombre=None, evitar=None):
+    """a figure by name, or one she has not drawn lately (the last 6 are avoided: 21 Oct, "not the same over and over")."""
+    if nombre in FIGURAS: f = nombre
+    else:
+        ev = list(evitar if evitar is not None else _ultimas); cand = [k for k in FIGURAS if k not in ev] or list(FIGURAS); f = random.choice(cand)
+    _ultimas.append(f); del _ultimas[:-6]
+    return f
 def puntos(nombre, firma=None, R=1.0):
     """the figure scaled to radius R; 'cara' needs the 210-distance firma (falls back to a random figure without it)."""
     if nombre == "cara" and firma is not None and len(firma) == 210: pts = cara(firma)

@@ -53,6 +53,7 @@ TECLAS = "1234567890"
 CARA = ("head_yaw", "head_pitch", "head_roll", "jaw_open", "blink", "blink_l", "blink_r", "brow_up", "brow_down",
         "mouth_sad", "mouth_smile", "eye_yaw", "eye_pitch", "tongue_out", "asombrado", "angry", "sad", "parpadeo")
 PUERTO_BLENDER = 9998
+PINGPONG_S = 3.0   # seconds: a second creature arriving within this of the last switch is a fight between senders, not a new offering
 ap = argparse.ArgumentParser(); ap.add_argument("--prueba", action="store_true"); ap.add_argument("--script", default=os.path.join(HUK, "ballena3.py"))
 ap.add_argument("--emotibit", type=int, default=12345, help="puerto OSC donde escucha al EmotiBit Oscilloscope (0 = no)")
 ap.add_argument("--emotibit-directo", type=int, default=1, help="1 = conectar directo al EmotiBit por WiFi, sin Oscilloscope (0 = no)")
@@ -67,7 +68,8 @@ ap.add_argument("--voz", type=int, default=1, help="1 = lee cada poema nuevo en 
 ap.add_argument("--sonido", type=int, default=1, help="1 = el sonido de cada animo (Huk/whale sound) al cambiar el animo dominante de Blender (afplay)")
 ap.add_argument("--musica", type=int, default=0, help="1 = musica de base en bucle, bajito (Huk/whale sound/base); apagada por defecto (Violeta, 18 oct: la de prueba cansa)")
 ap.add_argument("--panel-red", type=int, default=1, help="1 = el panel y la ventana (/ventana) se ven desde otras maquinas de la red (http://<esta ip>:8765); 0 = solo esta maquina")
-ap.add_argument("--ojo-objeto", type=int, default=1, help="1 = cada 3 s mira que tiene en la mano quien esta enfrente (moondream local via ollama): pez -> ofrenda")
+ap.add_argument("--ojo-objeto", type=int, default=1, help="1 = cada 3 s mira que tiene en la mano quien esta enfrente (ojo_ofrendas.Ojo: las 29 ofrendas, manos vacias, otras cosas, hermana; sin modelo, moondream via ollama): ofrenda -> pez + ofrenda_id + reaccion")
+ap.add_argument("--ojo-lente", type=int, default=0, help="1 = ademas le pregunta a moondream (ollama local) si hay un lente apuntando; 0 = no (sin ollama no cuesta nada: falla callado)")
 a = ap.parse_args()
 HUK = os.path.dirname(os.path.abspath(a.script))   # la carpeta de ballena3.py (whale.blend, yakumama_alma): --script la fija en otra maquina
 
@@ -505,7 +507,13 @@ def _leer_multitud(personas, ahora):
         p["palanca"] = int(en_mesa and bool(retorno.get("palanca_t"))); p["conocida"] = int(bool(visita.get("conocida")) and p.get("id") == multitud["foco"])
     foco, razon = elegir_foco(personas, multitud["foco"]) if (elegir_foco and personas) else (None, "")
     multitud.update(foco=(foco or {}).get("id"), razon=razon, t=ahora)
-    sentidos["personas_n"] = len(personas); sentidos["foco_razon"] = razon or None
+    _sala = retorno.get("sala") or {}; _sala_n = int(_sala.get("n") or 0) if ahora - float(_sala.get("t") or 0) < 3.0 else 0
+    sentidos["personas_n"] = max(len(personas), _sala_n); sentidos["foco_razon"] = razon or None   # the room camera's count (M4) when her own crowd eye is off
+    # LA VISTA (Dan's PC, 19 Oct): everyone she sees, as numbers, for the table screen - x across the frame, metres away,
+    # her chosen one, hands up. Time-stamped so her brain drops it if the crowd eye stops (sentidos are never cleared).
+    sentidos["gente"] = [[round(float(p.get("x") or 0.0), 2), p.get("distancia_m"), int(p.get("id") == multitud["foco"]),
+                          int(bool(p.get("manos_arriba")))] for p in personas[:6]]
+    sentidos["gente_t"] = ahora
     if foco: sentidos["distancia_m"] = foco.get("distancia_m"); sentidos["quieto_foco"] = foco.get("quieto"); sentidos["foco_x"] = foco.get("x"); sentidos["foco_mano_mesa"] = foco.get("mano_mesa")
     else: sentidos["distancia_m"] = None; sentidos["quieto_foco"] = None; sentidos["foco_x"] = None; sentidos["foco_mano_mesa"] = 0
 def _envejecer_retorno(ahora):
@@ -517,23 +525,52 @@ def _envejecer_retorno(ahora):
 def _leer_retorno(d, ahora):
     """v2 (18 oct): the sister of Barcelona. Touch ESP: {"flores": [stem 0..1, ...], "joya": 0..1, "joya_tiron": 0/1, "presencia": 0..1}.
     TouchDesigner: {"camara": {"cerca": 0..1, "mira": 0/1}, "palanca": 0/1}. Legacy {"tacto","zona"} still accepted.
-    Temporary, until her eye recognises the fish: {"ofrenda": "pez"|"no_pez"|"nada", "ofrenda_p": 0..1} may be sent by hand for tests."""
+    Hand test of the mouth: {"ofrenda": "pez"|"no_pez"|"nada", "ofrenda_p": 0..1, "ofrenda_id": 1..29} (ofrenda_id alone = that creature, reaction from the catalogue)."""
     if isinstance(d.get("personas"), list):   # the crowd eye (ojo_multitud.py): whom she attends, and how many are there
         _leer_multitud(d["personas"], ahora); return
-    tacto = float(d.get("tacto", 0) or 0); zona = str(d.get("zona", "") or "")
-    fl = d.get("flores"); con_tacto = isinstance(fl, list) or "joya" in d or "tacto" in d
-    if not con_tacto:   # a packet from TouchDesigner (camera, joystick) or a hand test of the mouth: the touch it carries is whatever the ESP last said
-        tacto, zona = retorno["tacto"], retorno["zona"]
-    else: retorno["tacto_t"] = ahora; sentidos["flores"] = 0.0; sentidos["flores_n"] = 0; sentidos["joya"] = 0.0; sentidos["joya_tiron"] = 0
-    if isinstance(fl, list) and fl:
-        vals = [max(0.0, min(1.0, float(v or 0))) for v in fl]; sentidos["flores"] = round(max(vals), 3); sentidos["flores_n"] = sum(1 for v in vals if v > 0.3)
-        if sentidos["flores"] > 0.3: tacto, zona = sentidos["flores"], "flores"
+    # THREE SOURCES OF TOUCH, EACH ITS OWN (20 Oct 2026): the strips on the sculpture arrive as {"tacto","zona"} from Dan's brain TEN TIMES A
+    # SECOND (ballena_td.py --violeta), the sister's flowers as {"flores": [...]}, the jewel as {"joya"}. Until today any packet with a touch
+    # field reset the others, so Dan's stream of zeros wiped a hand on the flowers within 0.1 s and no touch ever reached her brain
+    # (simular_jerarquia.py showed it). Now a packet updates only the source it carries; the touch she feels is the strongest fresh one.
+    fu = retorno.setdefault("fuentes", {"tiras": (0.0, "", 0.0), "flores": (0.0, "flores", 0.0), "joya": (0.0, "joya", 0.0)})
+    if "tacto" in d: fu["tiras"] = (float(d.get("tacto", 0) or 0), str(d.get("zona", "") or ""), ahora)
+    fl = d.get("flores")
+    if isinstance(fl, list):
+        vals = [max(0.0, min(1.0, float(v or 0))) for v in fl] or [0.0]; sentidos["flores"] = round(max(vals), 3); sentidos["flores_n"] = sum(1 for v in vals if v > 0.3)
+        fu["flores"] = (max(vals), "flores", ahora)
     if "joya" in d:
         sentidos["joya"] = round(max(0.0, min(1.0, float(d.get("joya") or 0))), 3); sentidos["joya_tiron"] = int(bool(d.get("joya_tiron")))
-        if sentidos["joya"] > 0.3 or sentidos["joya_tiron"]: tacto, zona = max(sentidos["joya"], 0.9 if sentidos["joya_tiron"] else 0.0), "joya"
-    if "ofrenda" in d: sentidos["ofrenda"] = str(d.get("ofrenda") or "nada"); sentidos["ofrenda_p"] = float(d.get("ofrenda_p", 1.0) or 0); retorno["ofrenda_t"] = ahora   # what is offered to the mouth: pez | no_pez | nada
+        fu["joya"] = (max(sentidos["joya"], 0.9 if sentidos["joya_tiron"] else 0.0), "joya", ahora)
+    vivas = [(v, z) for (v, z, t_) in fu.values() if ahora - t_ < 1.2 and v > 0.3]
+    tacto, zona = max(vivas) if vivas else (0.0, "")
+    if vivas: retorno["tacto_t"] = ahora
+    if ahora - fu["flores"][2] > 1.2: sentidos["flores"] = 0.0; sentidos["flores_n"] = 0
+    if ahora - fu["joya"][2] > 1.2: sentidos["joya"] = 0.0; sentidos["joya_tiron"] = 0
+    if "ofrenda" in d or "ofrenda_id" in d:   # what is offered to the mouth: pez | no_pez | nada; with ofrenda_id (1..29) the creature and its reaction come from the catalogue
+        c = _CAT.get(int(d.get("ofrenda_id") or 0)); boca = str(d.get("ofrenda") or ("pez" if c else "nada"))
+        # ONE SENDER AT A TIME (21 Oct): two sources alternating creatures (two carousels, an eye and a test) flipped her scene every
+        # second and her mood with it. A different creature within PINGPONG_S of the last switch is refused; the mouth keeps what it has.
+        _oid = (c or {}).get("id"); _pp = retorno.setdefault("pingpong", {"id": None, "t": 0.0, "dicho": 0.0})
+        if _oid and _pp["id"] and _oid != _pp["id"] and ahora - _pp["t"] < PINGPONG_S:
+            if ahora - _pp["dicho"] > 10: _pp["dicho"] = ahora; print(f"   (ofrendas: dos fuentes alternan {_pp['id']} y {_oid}: me quedo con {_pp['id']}; apaga una)", flush=True)
+            return
+        if _oid and _oid != _pp["id"]: _pp["id"], _pp["t"] = _oid, ahora
+        if boca == "nada": _pp["id"] = None
+        _poner_ofrenda(boca, d.get("ofrenda_p", 1.0), (c or {}).get("carpeta"), (c or {}).get("id"), (c or {}).get("nombre"), (c or {}).get("reaccion"), d.get("ofrenda_color")); retorno["ofrenda_t"] = ahora
     cam = d.get("camara")
     if isinstance(cam, dict): sentidos["camara_cerca"] = round(float(cam.get("cerca", 0) or 0), 3); sentidos["camara_mira"] = int(bool(cam.get("mira")))
+    od = d.get("oido")   # 21 Oct: her ear (Dan's alma, this Mac's mic): loudness, a bang, someone singing
+    if isinstance(od, dict): sentidos["oido"] = od; sentidos["oido_t"] = round(ahora, 2)
+    sl = d.get("sala")   # 21 Oct: the room as the Pro on the M4 sees it (count, nearest distance, attention, dwell), through Dan's brain
+    if isinstance(sl, dict):
+        retorno["sala"] = dict(sl, t=ahora); sentidos["sala"] = sl
+        if not multitud.get("t") or ahora - float(multitud.get("t") or 0) > 3.0: sentidos["personas_n"] = int(sl.get("n") or 0)   # her own crowd eye is off: the room's count is the M4's
+    cf = d.get("cuerpo_fisico")   # 21 Oct: what her printed body was told to do, and whether its board is alive (her efference copy)
+    if isinstance(cf, dict): sentidos["cuerpo_fisico"] = cf
+    cl = d.get("clima")   # 21 Oct: the weather the salar lives (wind, sun, night, rain, water, temperature) -> her brain
+    if isinstance(cl, dict): sentidos["clima"] = cl; sentidos["clima_t"] = round(ahora, 2)
+    vj = d.get("viaje")   # 21 Oct: the journey as the renderer lives it (speed, arrival), for her undulation and her next decision
+    if isinstance(vj, dict): sentidos["viaje_vel"] = round(float(vj.get("velocidad", 0) or 0), 2); sentidos["viaje_llegada"] = int(bool(vj.get("llegada"))); sentidos["viaje_t"] = round(ahora, 2)
     if "palanca" in d:
         if d.get("palanca"):
             if retorno["palanca_t"]: retorno["palanca_s"] += min(1.0, ahora - retorno["palanca_t"])
@@ -548,8 +585,11 @@ def _hilo_retorno(puerto=9995):
     except Exception as e: print(f"   (retorno 9995: {e})"); return
     sk.settimeout(0.5)
     while True:
-        try: b, _ = sk.recvfrom(2048); d = json.loads(b.decode()); ahora = time.time()
+        try: b, _addr = sk.recvfrom(2048); d = json.loads(b.decode()); ahora = time.time()
         except Exception: _envejecer_retorno(time.time()); continue
+        if os.environ.get("YAKUMAMA_LOG_9995") and ("ofrenda" in d or "ofrenda_id" in d):
+            try: open("/tmp/ballena_9995.log", "a").write(f"{ahora:.2f} {_addr[0]}:{_addr[1]} {json.dumps(d)[:120]}\n")
+            except Exception: pass
         _envejecer_retorno(ahora)
         _leer_retorno(d, ahora)
         if retorno["tacto"] > 0.3 and ahora - retorno["ultimo_gatillo"] > 45:
@@ -565,12 +605,27 @@ def ventana_evento(gatillo):
     ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": frase, "gatillo": gatillo}])[-6:]
     if gatillo in ("llega", "conocida", "ropa", "tacto", "hermana") or (gatillo == "animo" and time.time() - ventana["poema_t"] > 45):
         threading.Thread(target=ventana_poema, args=(gatillo, dict(datos)), daemon=True).start()
+POEMA_CADA_S = float(os.environ.get("YAKUMAMA_POEMA_CADA", 150.0))   # 21 oct (Violeta: "repite la poesia, cansona"): un poema nuevo como mucho cada tanto, aunque pasen muchas cosas
+VOZ_CADA_S = float(os.environ.get("YAKUMAMA_VOZ_CADA", 300.0))       # y lo lee en voz alta como mucho cada tanto, y solo si su decision de voz es "poema"
+_poema_ritmo = {"t": 0.0, "voz_t": 0.0}
+def _lineas_dichas(A, n=60):
+    out = []
+    for x in A._cargar(A.ARCH_POEMAS, [])[-n:]:
+        for l in str(x).split("\n"):
+            l = " ".join(l.strip().lower().split())
+            if len(l) > 6: out.append(l)
+    return out
+def _repite(poema, dichas):
+    ls = [" ".join(l.strip().lower().split()) for l in poema.split("\n") if len(l.strip()) > 6]
+    return any(l in dichas for l in ls) or len(ls) != len(set(ls))
 def ventana_poema(gatillo, datos):
     """pide un poema al alma (ollama) con lo que le pasa; si no hay ollama, no escribe mas que la frase"""
     if ventana["ocupado"]: return
+    if time.time() - _poema_ritmo["t"] < POEMA_CADA_S: return   # too soon for another poem (POEMA_CADA_S)
     ventana["ocupado"] = True
     try:
         sys.path.insert(0, HUK); import yakumama_alma as A
+        _dichas = _lineas_dichas(A)
         que = {"llega": "una persona nueva se paro frente a vos y te mira", "conocida": f"volvio alguien que ya vino; la otra vez le contestaste como {datos['estilo_previo']}", "nombre": f"volvio {datos['nombre']}, que ya vino {mem.personas.get(visita.get('id') or '', {}).get('visitas', 0)} veces; la conoces por su nombre",
                "ropa": "te gusta el color de la ropa de quien tienes enfrente y te tines de ese color", "animo": f"en la cara de quien te mira lees {datos['animo']}",
                "tacto": f"alguien esta tocando el cuerpo de tu hermana de metal{(' en ' + retorno['zona']) if retorno.get('zona') else ''}; lo sientes como si fuera el tuyo",
@@ -579,23 +634,32 @@ def ventana_poema(gatillo, datos):
         snap = {"water": 0.7, "scene_color": "the colour of their clothes" if gatillo == "ropa" else "gray", "scene_bright": r.get("brillo", 0.5), "humidity": 40, "l_palm_x": 0.5}
         usuario = (f"TU CUERPO Y EL SALAR AHORA\n{A._estado_en_cuerpo(snap)}\n\nLO QUE ACABA DE PASAR\n{que}. Se mueve como {datos['estilo']}. "
                    f"{'Mueve el cuerpo.' if (cuerpo.get('cuerpo_energia') or 0) > 0.3 else 'Esta casi quieta.'}\n\nLO QUE VE TU OJO\nuna cara, de cerca\n\nLO QUE CARGAS\n{len(mem.personas)} personas en la memoria\n\n"
-                   f"LO ULTIMO QUE ESCRIBISTE, no lo repitas\n{chr(10).join(A._cargar(A.ARCH_POEMAS, [])[-2:]) or 'ninguno'}\n\n{A.semilla() if hasattr(A, 'semilla') else ''}\n\nEscribi. Solo JSON.")
-        crudo = A._ollama(A.MODELO_ALMA, A.PIEL_SISTEMA, usuario, json_estricto=True, temperatura=0.95, tokens=220)
-        if crudo:
-            poema = str(json.loads(crudo).get("poema", "")).strip()
-            if poema:
+                   f"LINEAS QUE YA DIJISTE, NO LAS REPITAS NI LAS PARAFRASEES (ni sus imagenes)\n{chr(10).join(sorted(set(_dichas))[-40:]) or 'ninguna'}\n\n{A.semilla() if hasattr(A, 'semilla') else ''}\n\nEscribi algo que no hayas dicho. Solo JSON.")
+        poema = ""
+        for _intento in range(2):   # a poem that repeats a line she already said is thrown away; one more try, then nothing (silence beats repetition)
+            crudo = A._ollama(A.MODELO_ALMA, A.PIEL_SISTEMA, usuario, json_estricto=True, temperatura=0.95, tokens=220)
+            cand = str(json.loads(crudo).get("poema", "")).strip() if crudo else ""
+            if cand and not _repite(cand, _dichas): poema = cand; break
+            if cand: print("   (poema repetido, descartado)")
+        if poema:
+            _poema_ritmo["t"] = time.time()
+            if True:
                 ventana["poema"] = poema; ventana["poema_t"] = time.time(); p = A._cargar(A.ARCH_POEMAS, []); p.append(poema); A._guardar(A.ARCH_POEMAS, p[-200:])
                 print("   ┌─ VENTANA\n   │  " + poema.replace("\n", "\n   │  ") + "\n   └─")
-                threading.Thread(target=ventana_voz, args=(poema,), daemon=True).start()
+                try: _dec_voz = (json.load(open("/tmp/ballena_cerebro.json")).get("decision") or {}).get("voz")
+                except Exception: _dec_voz = "poema"
+                if _dec_voz == "poema" and time.time() - _poema_ritmo["voz_t"] >= VOZ_CADA_S:   # she reads it aloud only when her decider says poem, and not too often
+                    _poema_ritmo["voz_t"] = time.time(); threading.Thread(target=ventana_voz, args=(poema,), daemon=True).start()
+                else: print(f"   (poema escrito, no leido: voz={_dec_voz}, ultima lectura hace {time.time() - _poema_ritmo['voz_t']:.0f} s)")
     except Exception as e: print(f"   (ventana sin poema: {str(e)[:80]})")
     finally: ventana["ocupado"] = False
 VENTANA_HTML = """<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Yakumama</title>
 <style>body{margin:0;background:#000;color:#e8e2d6;font:300 clamp(22px,3.4vw,46px)/1.35 Georgia,'Times New Roman',serif;height:100vh;display:flex;flex-direction:column;justify-content:space-between;padding:5vh 7vw;box-sizing:border-box}
-#poema{white-space:pre-line;max-width:28ch;opacity:0;transition:opacity 2.5s}#poema.on{opacity:1}#linea{font-style:italic;opacity:.85;min-height:1.4em}
+#poema{white-space:pre-line;max-width:28ch;opacity:0;transition:opacity 2.5s}#poema.on{opacity:1}#reaccion{max-width:30ch;opacity:0;transition:opacity 1.2s}#reaccion.on{opacity:1}#reaccion .q{font:400 clamp(12px,1.2vw,16px)/1.5 -apple-system,Helvetica,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#c9a24a;opacity:.9}#reaccion .t{font-style:italic}#linea{font-style:italic;opacity:.85;min-height:1.4em}
 #trad{white-space:pre-line;font:300 clamp(13px,1.3vw,18px)/1.45 Georgia,serif;opacity:.55;max-width:60ch;display:flex;gap:3em}#trad div{flex:1}#decide{opacity:.7}
 #hace{font:400 clamp(12px,1.2vw,16px)/1.5 -apple-system,Helvetica,sans-serif;letter-spacing:.08em;text-transform:uppercase;opacity:.45;display:flex;gap:2.5em;flex-wrap:wrap}
 #color{width:.9em;height:.9em;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:.4em;background:#777}</style></head><body>
-<div id=poema></div><div id=trad><div id=es></div><div id=en></div></div><div id=linea></div>
+<div id=poema></div><div id=reaccion><div class=q></div><div class=t></div></div><div id=trad><div id=es></div><div id=en></div></div><div id=linea></div>
 <div id=hace><span><i id=color></i><span id=animo></span></span><span id=comp></span><span id=estilo></span><span id=memo></span><span id=cuerpo></span><span id=veo></span><span id=decide></span><span id=dibuja></span></div>
 <script>
 const C={calm:'#ebeffa',singing:'#9b4dff',playful:'#ff8000',curious:'#b3ff00',feeding:'#ff8cd9',sad:'#1e1e1e',angry:'#f21410',alert:'#1ae640',diving:'#102a6b',surfacing:'#19d6e8'};
@@ -607,6 +671,7 @@ async function tick(){try{const s=await (await fetch('/ventana_estado')).json();
  document.getElementById('veo').textContent=s.objeto?('veo: '+s.objeto):'';const D={acercarse:'me acerco',quedarse:'me quedo',alejarse:'me alejo',bailar_de_vuelta:'bailo',invitar:'invito',observar:'observo',poema:'poema',canto:'canto',silencio:'silencio',recordar:'te recuerdo',olvidar:'te olvido',propio:'mi color',ropa:'tu color',comer:'como',rehusar:'no',esperar:'',dibujar:'dibujo'};
  const db=s.dibujo;document.getElementById('dibuja').textContent=db?('dibujo '+(db.persona?'la cara de '+db.persona:db.figura)+' '+Math.round((db.progreso||0)*100)+'%'):'';
  const cb=s.cerebro;document.getElementById('decide').textContent=cb&&cb.decision?('decido: '+Object.values(cb.decision).map(v=>(v in D)?D[v]:v).filter(v=>v).join(' · ')+(cb.fijo?' ['+cb.fijo+']':'')+(cb.personas_n?' · '+cb.personas_n+' personas':'')+(cb.foco_razon?' · atiendo: '+cb.foco_razon:'')):'';
+ const rv=(s.cerebro||{}).reaccion_viva;const R=document.getElementById('reaccion');if(rv&&rv.texto){R.querySelector('.q').textContent=(rv.ofrenda_id?String(rv.ofrenda_id).padStart(2,'0')+' · ':'')+(rv.nombre||'')+' · reacción '+rv.n;R.querySelector('.t').textContent=rv.texto;R.classList.add('on');}else{R.classList.remove('on');}
  const l=s.lineas&&s.lineas.length?s.lineas[s.lineas.length-1].texto:'';if(l!==ultimaLinea){document.getElementById('linea').textContent=l;ultimaLinea=l}
  const a=s.animo||'';document.getElementById('animo').textContent=a||'sin nadie';document.getElementById('comp').textContent=B[a]||'';
  document.getElementById('color').style.background=s.color_ropa?('rgb('+s.color_ropa.map(v=>Math.round(v*255)).join(',')+')'):(C[a]||'#777');
@@ -626,14 +691,26 @@ def ventana_estado():
             "cuerpo": _pose.get("ultimo"), "color_ropa": (ropa or {}).get("rgb") if (ropa or {}).get("le_gusta") else None, "ve_hermana": int(sentidos.get("ve_hermana") or 0), "oro": sentidos.get("oro"), "ve_telefono": int(sentidos.get("ve_telefono") or 0)}
 # --- su voz, su lengua, su sonido, y lo que ve en la mano (18 oct): antes vivian en carrusel.py; ahora en modo visita tambien
 VOZ_DIR = os.path.join(HUK, "poemas_voz"); SONIDOS_DIR = os.path.join(HUK, "whale sound"); PY_DATOS = os.path.join(AQUI, "venv_datos", "bin", "python")
+if not os.path.exists(PY_DATOS): PY_DATOS = sys.executable   # Dan's PC (18 Oct): kokoro-onnx lives in this venv
+OLLAMA_HOST = os.environ.get("YAKUMAMA_OLLAMA", "localhost:11434")   # Dan's PC: the model runs on the Mac Mini
+MOON_HOST = os.environ.get("YAKUMAMA_MOONDREAM", "localhost:11434")   # moondream (the lens, the fish fallback) stays LOCAL: small, and the mini has no moondream (20 Oct: 404s)
+def _sonar(w, vol=1.0):
+    """play a wav and wait (Dan's PC, 18 Oct): afplay on the Mac; elsewhere sounddevice, on the output whose name
+    contains YAKUMAMA_AUDIO_OUT (e.g. itrack), else the default output."""
+    if sys.platform == "darwin":
+        subprocess.run(["afplay", "-v", str(vol), w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return
+    import soundfile as _sf, sounddevice as _sd
+    x, sr = _sf.read(w, dtype="float32"); want = os.environ.get("YAKUMAMA_AUDIO_OUT", "").lower(); dev = None
+    if want: dev = next((i for i, dd in enumerate(_sd.query_devices()) if want in dd["name"].lower() and dd["max_output_channels"] > 0), None)
+    _sd.play(x * vol, sr, device=dev); _sd.wait()
 _son = {"animo": None, "p": None, "base": None, "t": 0.0}
 def traducir_en(poema):
     """el poema en ingles, con Qwen local: mismas lineas, minusculas, sin comentario (de carrusel.py)."""
     try:
         import urllib.request as _u
-        cuerpo = json.dumps({"model": "qwen3.6", "stream": False, "think": False, "options": {"temperature": 0.2, "num_predict": 200},
+        cuerpo = json.dumps({"model": os.environ.get("OLLAMA_MODEL", "qwen3.6"), "stream": False, "think": False, "options": {"temperature": 0.2, "num_predict": 200},
                              "messages": [{"role": "system", "content": "Translate the poem to English. Keep the same number of lines and line breaks. Lowercase. No title, no comment, no quotes: only the translated lines."}, {"role": "user", "content": poema}]}).encode()
-        r = _u.urlopen(_u.Request("http://localhost:11434/api/chat", data=cuerpo, headers={"Content-Type": "application/json"}), timeout=90); t = json.loads(r.read())["message"]["content"].strip()
+        r = _u.urlopen(_u.Request("http://%s/api/chat" % OLLAMA_HOST, data=cuerpo, headers={"Content-Type": "application/json"}), timeout=90); t = json.loads(r.read())["message"]["content"].strip()
         return t.split("</think>")[-1].strip() if "</think>" in t else t
     except Exception: return ""
 def ventana_voz(poema):
@@ -649,7 +726,7 @@ def ventana_voz(poema):
         if os.path.exists(w):
             ventana["leyendo"] = True
             if _son["p"]: _son["p"].terminate(); _son["p"] = None   # el sonido del animo calla mientras ella lee
-            subprocess.run(["afplay", w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); ventana["leyendo"] = False; _son["animo"] = None
+            _sonar(w); ventana["leyendo"] = False; _son["animo"] = None
     except Exception as e: ventana["leyendo"] = False; print(f"   (voz: {str(e)[:60]})")
 def hilo_sonido():
     """el sonido del animo dominante de Blender (del latido /tmp/ballena_receptor.json) y la musica de base, bajito, en bucle."""
@@ -670,44 +747,95 @@ def hilo_sonido():
         except Exception: pass
 threading.Thread(target=hilo_sonido, daemon=True).start()
 OBJETOS_NO_PEZ = ("phone", "iphone", "scorpion", "lizard", "chameleon", "ladybug", "bug", "insect", "beetle", "spider", "cup", "bottle", "remote", "camera", "pen", "key")
+OJO = None
+try: _CAT = {int(c["id"]): c for c in json.load(open(os.path.join(AQUI, "docs", "ofrendas", "ofrendas.json")))["criaturas"]}
+except Exception: _CAT = {}
+def _poner_ofrenda(boca, p, clase=None, oid=None, nombre=None, reaccion=None, color=None):
+    """lo que el ojo (o la prueba a mano) dice de la mano: boca pez|no_pez|nada + la criatura exacta y su reaccion (docs/ofrendas/ofrendas.json)."""
+    sentidos["ofrenda"] = boca; sentidos["ofrenda_p"] = round(float(p or 0), 3); sentidos["ofrenda_clase"] = clase or ""; sentidos["ofrenda_id"] = oid; sentidos["ofrenda_nombre"] = nombre or ""
+    sentidos["reaccion"] = (reaccion or {}).get("n") if isinstance(reaccion, dict) else reaccion; sentidos["ofrenda_color"] = color
+def _cargar_ojo():
+    global OJO
+    try:
+        from ojo_ofrendas import Ojo; OJO = Ojo(); print(f"   ojo de las manos: {len(OJO.clases)} clases ({OJO.rasgos.nombre}) de modelos/ofrendas_clf.pkl")
+    except Exception as e: OJO = None; print(f"   (ojo de las manos off: {str(e)[:90]}; moondream decide pez / no pez como antes)")
+def _votar(votos):
+    """la clase que gana entre las ultimas miradas: 2 de 3 con p>=0.5, o la ultima sola con p>=0.7. Devuelve la ultima mirada de esa clase o None."""
+    if not votos: return None
+    # 21 oct (Violeta: "dice que ve pescados cuando no hay"): a creature only counts in a HAND. Without a hand in the frame it needs
+    # to be almost certain (p >= 0.92); the centipede was winning at 0.66-0.83 on nothing (clothes, the table).
+    def creible(v): return (not v.get("id")) or v.get("mano") or v["p"] >= 0.92
+    u = votos[-1]
+    if u["clase"] != "duda" and u["p"] >= 0.7 and creible(u): return u
+    cuenta = {}
+    for v in votos:
+        if v["clase"] != "duda" and creible(v): cuenta[v["clase"]] = cuenta.get(v["clase"], 0) + 1
+    if cuenta:
+        c = max(cuenta, key=cuenta.get)
+        if cuenta[c] >= 2: return next(v for v in reversed(votos) if v["clase"] == c)
+    return None
 def hilo_ojo_objeto():
-    """cada 3 s, si hay alguien enfrente, le pregunta a moondream (local, ollama) que tiene en la mano. pez -> ofrenda pez; un objeto de la lista -> no_pez;
-    nada -> nada. La prueba a mano por 9995 manda durante 10 s. La etiqueta va al paquete (ve_objeto) y a la ventana ('veo ...')."""
-    import urllib.request as _u, base64 as _b, numpy as _np
-    ORO_LO, ORO_HI = (15, 120, 150), (35, 255, 255); ORO_MIN = 0.012   # HSV band of the golden prototype (calibrated 18 oct on real frames: 19% of her pixels vs ~1% of wood and skin; phone frame's largest blob 0.005)
-    vez = 0; hermana_t = 0.0; telefono_t = 0.0; LENTE = ("phone", "iphone", "cellphone", "smartphone", "camera", "camcorder")
+    """cada 1 s busca oro (su hermana en las manos); cada 3 s, si hay alguien enfrente, el ojo de las manos (ojo_ofrendas.Ojo: las 29
+    ofrendas + manos vacias + otras cosas + hermana, entrenado con las fotos de Sanam del 20 oct) dice que tiene en la mano y, si es
+    una ofrenda, que reaccion le toca. Vota entre las ultimas 3 miradas (2 de 3, o una sola con p>=0.7). Una ofrenda -> ofrenda pez
+    + ofrenda_id/reaccion; otra cosa -> no_pez; manos vacias o duda -> nada. Sin modelo cargado, moondream (ollama) decide pez/no pez
+    como antes. moondream sigue mirando, si ollama responde, solo para el lente apuntando. La prueba a mano por 9995 manda 10 s."""
+    import urllib.request as _u, base64 as _b, numpy as _np, collections
+    HERMANA_ORO = os.environ.get("YAKUMAMA_HERMANA_ORO", "0") == "1"; ORO_LO, ORO_HI = (15, 120, 150), (35, 255, 255); ORO_MIN = 0.012; ORO_MAX = 0.20   # 20 Oct: over a fifth of the frame is clothing (a yellow shirt), not the prototype   # HSV band of the golden prototype (calibrated 18 oct on real frames: 19% of her pixels vs ~1% of wood and skin; phone frame's largest blob 0.005)
+    vez = 0; hermana_t = 0.0; telefono_t = 0.0; LENTE = ("phone", "iphone", "cellphone", "smartphone", "camera", "camcorder"); votos = collections.deque(maxlen=3); ultimo_dicho = ""; ult_v = None
+    if a.ojo_objeto: _cargar_ojo()
     while True:
         time.sleep(1.0); vez += 1
         try:
-            alguien = visita["activa"] or (time.time() - visita.get("ultima_cara", 0) < 15)   # the face may be covered by what the hands hold
+            cuerpo_reciente = bool(_pose.get("ts")) and time.time() - _pose["ts"][-1] < 15   # 20 Oct: a body (hands over the table) counts too - the camera may be below the face
+            alguien = visita["activa"] or (time.time() - visita.get("ultima_cara", 0) < 15) or cuerpo_reciente   # the face may be covered by what the hands hold
             if not a.ojo_objeto or not alguien or _lm.get("cuadro") is None:   # nobody in view: the eye's offering and label expire (the hand test by 9995 keeps its own 10 s)
-                if time.time() - retorno.get("ofrenda_t", 0) > 10 and sentidos.get("ofrenda") not in (None, "nada"): sentidos["ofrenda"] = "nada"; sentidos["ofrenda_p"] = 0.0
-                sentidos["ve_objeto"] = ""; sentidos["ve_hermana"] = 0; sentidos["ve_telefono"] = 0; ventana["objeto"] = ""; continue
-            import cv2; fr = _lm["cuadro"]; h, w0 = fr.shape[:2]; esc = 640.0 / max(w0, 1); fr = cv2.resize(fr, (640, int(h * esc))) if esc < 1 else fr
+                if time.time() - retorno.get("ofrenda_t", 0) > 10 and sentidos.get("ofrenda") not in (None, "nada"): _poner_ofrenda("nada", 0.0)
+                sentidos["ve_objeto"] = ""; sentidos["ve_hermana"] = 0; sentidos["ve_telefono"] = 0; ventana["objeto"] = ""; votos.clear(); continue
+            import cv2; cuadro = _lm["cuadro"]; fr = cuadro; h, w0 = fr.shape[:2]; esc = 640.0 / max(w0, 1); fr = cv2.resize(fr, (640, int(h * esc))) if esc < 1 else fr
             m = cv2.inRange(cv2.cvtColor(fr, cv2.COLOR_RGB2HSV), ORO_LO, ORO_HI); n_, _l, stats, _c = cv2.connectedComponentsWithStats((m > 0).astype(_np.uint8), 8)
             if n_ > 1:
                 k_ = 1 + int(_np.argmax(stats[1:, cv2.CC_STAT_AREA])); mayor = stats[k_, cv2.CC_STAT_AREA] / float(m.shape[0] * m.shape[1]); alto = _c[k_][1] / float(m.shape[0])
             else: mayor, alto = 0.0, 1.0
-            ve = int(mayor > ORO_MIN and alto < 0.8); sentidos["ve_hermana"] = ve; sentidos["oro"] = round(mayor, 3)   # a gold blob above the floor line: her sister in the hands
+            ve = int(ORO_MIN < mayor < ORO_MAX and alto < 0.8) if HERMANA_ORO else 0   # the GOLDEN PROTOTYPE in the hands (18 Oct), by colour. Off since 20 Oct: the sister on the table is
+            # not gold, she changes colour with her (Violeta); the detector fired on a yellow shirt. YAKUMAMA_HERMANA_ORO=1 brings it back for the prototype.
+            if ve and OJO is not None and ult_v and time.time() - ult_v["t"] < 4 and ult_v["clase"] != "hermana_dorada" and ult_v["p"] >= 0.5: ve = 0   # 20 Oct: the hand eye knows her sister; a yellow shirt with a fish is a fish
+            sentidos["ve_hermana"] = ve; sentidos["oro"] = round(mayor, 3)
             if ve:
                 ventana["objeto"] = "mi hermana dorada"
                 if time.time() - hermana_t > 60: hermana_t = time.time(); ventana_evento("hermana")
             if vez % 3: continue
+            if OJO is not None:   # --- el ojo de las manos
+                v = OJO.ver(_np.ascontiguousarray(cuadro)); votos.append(v); gana = _votar(votos); ult_v = dict(v, t=time.time())
+                if v["clase"] != "manos_vacias" or vez % 30 == 0: print(f"   [ojo manos] {v['clase']} p={v['p']:.2f} mano={v['mano']}" + (f" -> {gana['clase']}" if gana else " (sin voto)"), flush=True)   # 20 oct: say what the hand eye sees
+                sentidos["ve_objeto"] = ("" if v["clase"] == "duda" else (v["nombre"] if v["id"] else v["clase"]))[:40]
+                if time.time() - retorno.get("ofrenda_t", 0) > 10:   # the hand test by 9995 wins for 10 s
+                    if gana is not None and gana["id"]: _poner_ofrenda("pez", gana["p"], gana["clase"], gana["id"], gana["nombre"], gana["reaccion"], gana.get("color"))
+                    elif gana is not None and gana["clase"] == "otras_cosas": _poner_ofrenda("no_pez", gana["p"], "otras_cosas")
+                    elif gana is not None or all(x["clase"] in ("duda", "manos_vacias", "hermana_dorada") for x in votos): _poner_ofrenda("nada", v["p"])
+                if gana is not None and gana["id"] and not sentidos.get("ve_hermana"):
+                    corto = str(gana["nombre"]).split(" (")[0]; ventana["objeto"] = corto
+                    if corto != ultimo_dicho or time.time() - ventana["objeto_t"] > 20:
+                        ultimo_dicho = corto; ventana["objeto_t"] = time.time(); ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": f"veo en tu mano: {corto}. {(gana['reaccion'] or {}).get('texto', '')}", "gatillo": "objeto"}])[-6:]
+                elif gana is not None and gana["clase"] == "otras_cosas" and not sentidos.get("ve_hermana"): ventana["objeto"] = "algo que no es una ofrenda"
+                elif gana is None and all(x["clase"] in ("duda", "manos_vacias") for x in votos) and not sentidos.get("ve_hermana"): ventana["objeto"] = ""; ultimo_dicho = ""
+                if not a.ojo_lente: continue
             ok, buf = cv2.imencode(".jpg", cv2.cvtColor(fr, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 80])
             if not ok: continue
             cuerpo = json.dumps({"model": "moondream", "stream": False, "options": {"num_predict": 12, "temperature": 0.0}, "images": [_b.b64encode(buf.tobytes()).decode()],
                                  "prompt": "What object is the person holding in their hands? Answer with one or two words, or 'nothing'."}).encode()
-            r = _u.urlopen(_u.Request("http://localhost:11434/api/generate", data=cuerpo, headers={"Content-Type": "application/json"}), timeout=60)
+            r = _u.urlopen(_u.Request("http://%s/api/generate" % MOON_HOST, data=cuerpo, headers={"Content-Type": "application/json"}), timeout=60)
             et = json.loads(r.read()).get("response", "").strip().lower().strip(".").strip()
-            sentidos["ve_objeto"] = et[:40]
             lente = int(any(k in et for k in LENTE) and not sentidos.get("ve_hermana")); sentidos["ve_telefono"] = lente   # a lens raised at her: the digital whale turns away (decisiones: lente)
             if lente:
                 ventana["objeto"] = "un lente apuntando"
                 if time.time() - telefono_t > 30: telefono_t = time.time(); ventana_evento("telefono")
+            if OJO is not None: continue   # con el ojo de las manos, moondream solo aporta el lente
+            sentidos["ve_objeto"] = et[:40]
             if time.time() - retorno.get("ofrenda_t", 0) > 10:   # the hand test by 9995 wins for 10 s
                 # only a fish feeds her from here: a phone in the hand is not a phone in the sister's mouth. no_pez comes from the hand test
                 # (or, later, from the eye that sees the table) and never from an object merely held.
-                sentidos["ofrenda"] = "pez" if ("fish" in et) else "nada"; sentidos["ofrenda_p"] = 0.7
+                _poner_ofrenda("pez" if ("fish" in et) else "nada", 0.7)
             if et and et != "nothing" and not sentidos.get("ve_hermana") and not lente:
                 if et != ventana["objeto"] and time.time() - ventana["objeto_t"] > 20:
                     ventana["objeto_t"] = time.time(); ventana["lineas"] = (ventana["lineas"] + [{"t": time.time(), "texto": f"veo algo en tu mano: {et}.", "gatillo": "objeto"}])[-6:]

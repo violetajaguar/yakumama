@@ -1,0 +1,1856 @@
+{
+ "nadie|calm|quieta|larga|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "observar": 0.087,
+   "dibujar": -0.087
+  }
+ },
+ "nueva|surfacing|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": 0.015,
+   "acercarse": 0.023,
+   "alejarse": -0.038
+  },
+  "con_cuerpo": {
+   "observar": -0.068,
+   "invitar": -0.006,
+   "dibujar": 0.074
+  },
+  "voz": {
+   "silencio": -0.032,
+   "poema": 0.032
+  },
+  "memoria": {
+   "recordar": 0.075,
+   "olvidar": -0.075
+  },
+  "color": {
+   "propio": 0.131,
+   "ropa": -0.131
+  },
+  "boca": {
+   "esperar": 0.044,
+   "rehusar": -0.044
+  },
+  "viaje": {
+   "cerca": -0.057,
+   "show": 0.057
+  },
+  "imitar": {
+   "no": 0.068,
+   "si": -0.068
+  }
+ },
+ "nueva|surfacing|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": 0.04,
+   "alejarse": -0.04
+  },
+  "con_cuerpo": {
+   "invitar": 0.026,
+   "observar": -0.026
+  },
+  "voz": {
+   "silencio": -0.068,
+   "poema": 0.068
+  }
+ },
+ "nueva|surfacing|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.356,
+   "alejarse": 0.356
+  },
+  "con_cuerpo": {
+   "invitar": 0.176,
+   "observar": -0.176
+  },
+  "voz": {
+   "poema": 0.202,
+   "silencio": -0.202
+  }
+ },
+ "nueva|feeding|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.203,
+   "quedarse": 0.053,
+   "alejarse": 0.15
+  },
+  "con_cuerpo": {
+   "observar": -0.009,
+   "invitar": 0.009
+  },
+  "voz": {
+   "poema": 0.018,
+   "silencio": -0.018
+  },
+  "boca": {
+   "esperar": 0.015,
+   "comer": -0.015
+  },
+  "imitar": {
+   "no": 0.039,
+   "si": -0.039
+  }
+ },
+ "nueva|feeding|mueve|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.001,
+   "alejarse": -0.001
+  },
+  "imitar": {
+   "no": -0.127,
+   "si": 0.127
+  }
+ },
+ "nueva|alert|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.113,
+   "quedarse": -0.079,
+   "alejarse": -0.034
+  },
+  "con_cuerpo": {
+   "invitar": -0.023,
+   "observar": 0.023
+  },
+  "voz": {
+   "poema": 0.033,
+   "silencio": -0.033
+  },
+  "memoria": {
+   "recordar": -0.018,
+   "olvidar": 0.018
+  },
+  "boca": {
+   "esperar": 0.083,
+   "rehusar": -0.083
+  },
+  "viaje": {
+   "cerca": -0.143,
+   "quedarse": 0.143
+  },
+  "imitar": {
+   "no": 0.048,
+   "si": -0.048
+  }
+ },
+ "nueva|alert|mueve|larga|sin_tacto|boca_nada": {
+  "imitar": {
+   "no": -0.138,
+   "si": 0.138
+  }
+ },
+ "nueva|alert|mueve|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.132,
+   "alejarse": -0.132
+  }
+ },
+ "nueva|alert|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": -0.002,
+   "quedarse": 0.002
+  },
+  "voz": {
+   "silencio": -0.05,
+   "poema": 0.05
+  },
+  "viaje": {
+   "cerca": 0.125,
+   "quedarse": -0.125
+  },
+  "imitar": {
+   "si": -0.14,
+   "no": 0.14
+  }
+ },
+ "nueva|sad|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.184,
+   "alejarse": -0.039,
+   "quedarse": -0.146
+  },
+  "con_cuerpo": {
+   "invitar": 0.137,
+   "observar": -0.137
+  },
+  "voz": {
+   "poema": 0.15,
+   "silencio": -0.15
+  },
+  "viaje": {
+   "lejos": 0.082,
+   "cerca": 0.018,
+   "montanas": -0.1
+  }
+ },
+ "nueva|sad|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.31,
+   "quedarse": -0.31,
+   "acercarse": -0.0
+  },
+  "con_cuerpo": {
+   "observar": -0.223,
+   "invitar": 0.223
+  },
+  "boca": {
+   "esperar": -0.157,
+   "comer": 0.159,
+   "rehusar": -0.002
+  },
+  "viaje": {
+   "lejos": 0.051,
+   "montanas": -0.022,
+   "cerca": -0.029
+  }
+ },
+ "nueva|diving|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.074,
+   "quedarse": -0.074
+  },
+  "con_cuerpo": {
+   "observar": -0.085,
+   "invitar": 0.085
+  }
+ },
+ "nueva|diving|quieta|media|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": -0.077,
+   "poema": 0.077
+  }
+ },
+ "nueva|playful|mueve|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.124,
+   "alejarse": 0.141,
+   "quedarse": -0.017
+  }
+ },
+ "nueva|playful|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.0,
+   "quedarse": -0.0
+  },
+  "con_cuerpo": {
+   "invitar": 0.054,
+   "observar": -0.054
+  },
+  "voz": {
+   "poema": 0.031,
+   "silencio": -0.031
+  },
+  "boca": {
+   "esperar": 0.328,
+   "rehusar": -0.328
+  },
+  "imitar": {
+   "no": -0.094,
+   "si": 0.094
+  }
+ },
+ "nueva|singing|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.15,
+   "quedarse": -0.15
+  }
+ },
+ "nueva|singing|quieta|larga|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "invitar": 0.08,
+   "observar": -0.08
+  },
+  "voz": {
+   "canto": -0.101,
+   "poema": 0.101
+  }
+ },
+ "nueva|playful|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.285,
+   "alejarse": 0.1,
+   "quedarse": 0.185
+  },
+  "con_cuerpo": {
+   "invitar": 0.157,
+   "observar": -0.157
+  },
+  "voz": {
+   "poema": 0.048,
+   "silencio": -0.048
+  },
+  "memoria": {
+   "recordar": -0.0,
+   "olvidar": 0.0
+  },
+  "boca": {
+   "esperar": -0.07,
+   "rehusar": 0.07
+  },
+  "viaje": {
+   "cerca": -0.093,
+   "show": 0.093
+  },
+  "imitar": {
+   "no": 0.022,
+   "si": -0.022
+  }
+ },
+ "nueva|playful|mueve|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.029,
+   "alejarse": 0.029
+  },
+  "viaje": {
+   "cerca": -0.028,
+   "montanas": 0.028
+  },
+  "imitar": {
+   "si": -0.045,
+   "no": 0.045
+  }
+ },
+ "nueva|calm|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.127,
+   "alejarse": -0.133,
+   "quedarse": 0.259
+  },
+  "con_cuerpo": {
+   "invitar": 0.161,
+   "observar": -0.161
+  },
+  "voz": {
+   "poema": 0.033,
+   "silencio": -0.033
+  },
+  "memoria": {
+   "recordar": -0.182,
+   "olvidar": 0.182
+  },
+  "boca": {
+   "esperar": -0.097,
+   "comer": 0.097
+  },
+  "viaje": {
+   "cerca": -0.177,
+   "montanas": 0.018,
+   "quedarse": 0.159
+  }
+ },
+ "nueva|diving|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.107,
+   "alejarse": 0.107
+  },
+  "con_cuerpo": {
+   "invitar": 0.008,
+   "observar": -0.008
+  },
+  "voz": {
+   "poema": 0.033,
+   "silencio": -0.033
+  },
+  "color": {
+   "propio": -0.107,
+   "ropa": 0.107
+  }
+ },
+ "conocida|curious|quieta|larga|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "observar": -0.015,
+   "invitar": 0.015
+  },
+  "voz": {
+   "silencio": -0.008,
+   "poema": 0.008
+  },
+  "color": {
+   "ropa": 0.149,
+   "propio": -0.149
+  }
+ },
+ "nueva|curious|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.094,
+   "alejarse": -0.157,
+   "quedarse": 0.063
+  },
+  "con_cuerpo": {
+   "observar": -0.007,
+   "invitar": 0.007
+  },
+  "voz": {
+   "poema": 0.025,
+   "silencio": -0.025
+  }
+ },
+ "nueva|calm|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.049,
+   "alejarse": 0.205,
+   "quedarse": -0.253
+  },
+  "con_cuerpo": {
+   "observar": -0.242,
+   "invitar": 0.127,
+   "dibujar": 0.114
+  },
+  "voz": {
+   "silencio": -0.203,
+   "canto": 0.136,
+   "poema": 0.066
+  },
+  "memoria": {
+   "recordar": -0.08,
+   "olvidar": 0.08
+  },
+  "color": {
+   "propio": 0.095,
+   "ropa": -0.095
+  },
+  "boca": {
+   "esperar": -0.187,
+   "rehusar": 0.187
+  },
+  "viaje": {
+   "quedarse": -0.083,
+   "lejos": -0.009,
+   "cerca": -0.008,
+   "montanas": 0.1
+  }
+ },
+ "nueva|feeding|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.182,
+   "quedarse": -0.118,
+   "acercarse": -0.064
+  },
+  "con_cuerpo": {
+   "observar": -0.07,
+   "invitar": 0.07
+  },
+  "color": {
+   "propio": 0.178,
+   "ropa": -0.178
+  },
+  "imitar": {
+   "no": 0.012,
+   "si": -0.012
+  }
+ },
+ "nueva|calm|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.109,
+   "quedarse": 0.226,
+   "acercarse": -0.336
+  },
+  "con_cuerpo": {
+   "invitar": 0.074,
+   "observar": -0.074
+  },
+  "voz": {
+   "silencio": -0.184,
+   "poema": 0.012,
+   "canto": 0.172
+  },
+  "memoria": {
+   "recordar": 0.032,
+   "olvidar": -0.032
+  },
+  "viaje": {
+   "cerca": -0.02,
+   "montanas": 0.02
+  }
+ },
+ "nueva|feeding|mueve|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.076,
+   "alejarse": 0.076
+  }
+ },
+ "nueva|feeding|mueve|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.236,
+   "alejarse": 0.236
+  }
+ },
+ "nueva|feeding|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.09,
+   "quedarse": -0.204,
+   "acercarse": 0.114
+  },
+  "con_cuerpo": {
+   "observar": -0.057,
+   "invitar": 0.057
+  },
+  "voz": {
+   "silencio": -0.232,
+   "poema": 0.232
+  },
+  "imitar": {
+   "no": -0.018,
+   "si": 0.018
+  }
+ },
+ "nueva|calm|mueve|larga|sin_tacto|boca_nada": {
+  "viaje": {
+   "cerca": -0.033,
+   "montanas": 0.033
+  }
+ },
+ "nueva|curious|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.275,
+   "quedarse": -0.135,
+   "acercarse": -0.14
+  },
+  "con_cuerpo": {
+   "invitar": 0.196,
+   "observar": -0.106,
+   "dibujar": -0.09
+  },
+  "voz": {
+   "silencio": -0.061,
+   "canto": 0.061
+  },
+  "memoria": {
+   "recordar": -0.015,
+   "olvidar": 0.015
+  },
+  "color": {
+   "propio": -0.03,
+   "ropa": 0.03
+  },
+  "boca": {
+   "esperar": 0.045,
+   "rehusar": -0.153,
+   "comer": 0.108
+  },
+  "viaje": {
+   "cerca": -0.072,
+   "lejos": 0.072
+  },
+  "imitar": {
+   "no": -0.054,
+   "si": 0.054
+  }
+ },
+ "nueva|curious|mueve|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.099,
+   "alejarse": 0.099
+  }
+ },
+ "nueva|curious|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.107,
+   "quedarse": -0.107
+  },
+  "con_cuerpo": {
+   "observar": -0.176,
+   "invitar": 0.176
+  },
+  "voz": {
+   "silencio": -0.097,
+   "poema": 0.097
+  }
+ },
+ "nadie|curious|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": 0.029,
+   "acercarse": -0.006,
+   "alejarse": -0.023
+  },
+  "con_cuerpo": {
+   "observar": 0.027,
+   "invitar": -0.01,
+   "bailar_de_vuelta": -0.024,
+   "dibujar": 0.007
+  },
+  "voz": {
+   "silencio": 0.037,
+   "canto": -0.015,
+   "poema": -0.022
+  },
+  "memoria": {
+   "recordar": 0.018,
+   "olvidar": -0.018
+  },
+  "color": {
+   "propio": 0.026,
+   "ropa": -0.026
+  },
+  "boca": {
+   "esperar": 0.028,
+   "comer": 0.028,
+   "rehusar": -0.056
+  },
+  "viaje": {
+   "lejos": 0.015,
+   "montanas": 0.013,
+   "cactus": -0.013,
+   "cerca": 0.023,
+   "quedarse": -0.069,
+   "show": 0.03
+  }
+ },
+ "nadie|diving|quieta|corta|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": 0.073,
+   "canto": -0.073
+  },
+  "color": {
+   "propio": -0.006,
+   "ropa": 0.006
+  },
+  "viaje": {
+   "lejos": 0.015,
+   "montanas": -0.015
+  }
+ },
+ "nadie|playful|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.025,
+   "acercarse": 0.022,
+   "alejarse": 0.003
+  },
+  "con_cuerpo": {
+   "observar": -0.122,
+   "dibujar": 0.004,
+   "bailar_de_vuelta": -0.142,
+   "invitar": 0.259
+  },
+  "voz": {
+   "silencio": 0.051,
+   "canto": 0.036,
+   "poema": -0.087
+  },
+  "memoria": {
+   "recordar": -0.009,
+   "olvidar": 0.009
+  },
+  "color": {
+   "propio": -0.039,
+   "ropa": 0.039
+  },
+  "boca": {
+   "esperar": -0.069,
+   "comer": 0.111,
+   "rehusar": -0.042
+  },
+  "viaje": {
+   "cactus": 0.064,
+   "montanas": -0.032,
+   "cerca": -0.051,
+   "show": 0.019
+  }
+ },
+ "nueva|playful|mueve|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.025,
+   "alejarse": -0.025
+  },
+  "imitar": {
+   "si": 0.057,
+   "no": -0.057
+  }
+ },
+ "nueva|sad|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.007,
+   "quedarse": -0.007
+  },
+  "voz": {
+   "poema": 0.052,
+   "silencio": -0.052
+  },
+  "memoria": {
+   "recordar": 0.249,
+   "olvidar": -0.249
+  },
+  "viaje": {
+   "lejos": -0.123,
+   "cerca": 0.117,
+   "montanas": 0.006
+  }
+ },
+ "nueva|calm|mueve|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.093,
+   "alejarse": 0.093
+  },
+  "viaje": {
+   "cerca": 0.065,
+   "montanas": -0.065
+  }
+ },
+ "nueva|singing|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.25,
+   "quedarse": -0.25
+  },
+  "con_cuerpo": {
+   "observar": -0.104,
+   "invitar": 0.104
+  },
+  "voz": {
+   "canto": 0.058,
+   "silencio": -0.058
+  },
+  "color": {
+   "propio": 0.169,
+   "ropa": -0.169
+  },
+  "viaje": {
+   "cerca": -0.187,
+   "quedarse": 0.187
+  }
+ },
+ "nadie|calm|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.036,
+   "acercarse": 0.033,
+   "alejarse": 0.003
+  },
+  "con_cuerpo": {
+   "observar": 0.132,
+   "dibujar": -0.003,
+   "invitar": 0.007,
+   "bailar_de_vuelta": -0.136
+  },
+  "voz": {
+   "silencio": 0.008,
+   "poema": 0.007,
+   "canto": -0.015
+  },
+  "memoria": {
+   "recordar": 0.055,
+   "olvidar": -0.055
+  },
+  "color": {
+   "propio": 0.016,
+   "ropa": -0.016
+  },
+  "boca": {
+   "esperar": 0.06,
+   "comer": 0.004,
+   "rehusar": -0.064
+  },
+  "viaje": {
+   "montanas": 0.057,
+   "lejos": 0.046,
+   "quedarse": 0.037,
+   "cerca": 0.073,
+   "cactus": 0.027,
+   "show": -0.24
+  }
+ },
+ "nadie|playful|quieta|media|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": -0.112,
+   "poema": 0.112
+  },
+  "viaje": {
+   "cerca": 0.019,
+   "show": -0.019
+  }
+ },
+ "conocida|playful|quieta|larga|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "invitar": -0.082,
+   "dibujar": 0.082
+  }
+ },
+ "conocida|playful|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": 0.04,
+   "quedarse": -0.04
+  },
+  "con_cuerpo": {
+   "observar": 0.076,
+   "invitar": -0.076
+  }
+ },
+ "conocida|curious|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.224,
+   "quedarse": 0.224
+  },
+  "con_cuerpo": {
+   "observar": 0.029,
+   "invitar": -0.029
+  }
+ },
+ "conocida|playful|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": -0.184,
+   "quedarse": 0.184
+  },
+  "voz": {
+   "silencio": -0.009,
+   "poema": 0.009
+  }
+ },
+ "conocida|sad|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.102,
+   "quedarse": 0.164,
+   "alejarse": -0.062
+  }
+ },
+ "nueva|calm|mueve|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.127,
+   "alejarse": 0.127
+  },
+  "viaje": {
+   "cerca": 0.02,
+   "montanas": -0.02
+  }
+ },
+ "conocida|diving|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "acercarse": -0.032,
+   "alejarse": 0.032
+  },
+  "con_cuerpo": {
+   "observar": -0.15,
+   "invitar": 0.15
+  },
+  "color": {
+   "ropa": -0.163,
+   "propio": 0.163
+  }
+ },
+ "nueva|sad|mueve|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.174,
+   "acercarse": -0.174
+  }
+ },
+ "conocida|calm|quieta|larga|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "observar": -0.177,
+   "dibujar": -0.038,
+   "invitar": 0.215
+  },
+  "voz": {
+   "silencio": -0.055,
+   "poema": 0.055
+  },
+  "color": {
+   "ropa": -0.339,
+   "propio": 0.339
+  }
+ },
+ "nueva|playful|quieta|corta|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": -0.117,
+   "alejarse": 0.117
+  },
+  "con_cuerpo": {
+   "observar": -0.065,
+   "invitar": 0.065
+  },
+  "voz": {
+   "silencio": -0.098,
+   "canto": 0.098
+  },
+  "memoria": {
+   "recordar": 0.003,
+   "olvidar": -0.003
+  },
+  "imitar": {
+   "no": -0.095,
+   "si": 0.095
+  }
+ },
+ "nueva|feeding|quieta|corta|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": -0.082,
+   "alejarse": 0.082
+  },
+  "con_cuerpo": {
+   "observar": 0.077,
+   "invitar": -0.077
+  },
+  "imitar": {
+   "no": 0.073,
+   "si": -0.073
+  }
+ },
+ "nadie|surfacing|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.119,
+   "acercarse": 0.098,
+   "alejarse": 0.021
+  },
+  "con_cuerpo": {
+   "observar": -0.15,
+   "bailar_de_vuelta": 0.035,
+   "dibujar": 0.02,
+   "invitar": 0.095
+  },
+  "voz": {
+   "poema": -0.177,
+   "canto": 0.173,
+   "silencio": 0.004
+  },
+  "memoria": {
+   "recordar": -0.217,
+   "olvidar": 0.217
+  },
+  "color": {
+   "propio": -0.088,
+   "ropa": 0.088
+  },
+  "boca": {
+   "esperar": -0.178,
+   "comer": 0.043,
+   "rehusar": 0.135
+  },
+  "viaje": {
+   "cerca": 0.007,
+   "show": -0.156,
+   "cactus": 0.111,
+   "montanas": 0.039
+  }
+ },
+ "nadie|singing|quieta|media|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": -0.279,
+   "poema": 0.279
+  },
+  "viaje": {
+   "quedarse": -0.257,
+   "montanas": 0.257
+  }
+ },
+ "nadie|singing|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": 0.008,
+   "acercarse": -0.004,
+   "alejarse": -0.004
+  },
+  "con_cuerpo": {
+   "observar": 0.008,
+   "dibujar": -0.004,
+   "bailar_de_vuelta": -0.004
+  },
+  "voz": {
+   "silencio": 0.006,
+   "canto": -0.006
+  },
+  "memoria": {
+   "recordar": 0.044,
+   "olvidar": -0.044
+  },
+  "color": {
+   "propio": 0.006,
+   "ropa": -0.006
+  },
+  "boca": {
+   "esperar": -0.024,
+   "comer": 0.024
+  },
+  "viaje": {
+   "lejos": -0.002,
+   "quedarse": -0.1,
+   "montanas": 0.102
+  }
+ },
+ "nadie|angry|quieta|media|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": -0.322,
+   "poema": 0.322
+  },
+  "viaje": {
+   "lejos": -0.34,
+   "cerca": 0.34
+  }
+ },
+ "nadie|feeding|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.026,
+   "acercarse": -0.067,
+   "alejarse": 0.093
+  },
+  "con_cuerpo": {
+   "observar": 0.133,
+   "dibujar": 0.046,
+   "bailar_de_vuelta": -0.013,
+   "invitar": -0.166
+  },
+  "voz": {
+   "silencio": 0.026,
+   "canto": 0.04,
+   "poema": -0.066
+  },
+  "memoria": {
+   "recordar": -0.021,
+   "olvidar": 0.021
+  },
+  "color": {
+   "propio": 0.04,
+   "ropa": -0.04
+  },
+  "boca": {
+   "esperar": -0.062,
+   "comer": 0.062
+  },
+  "viaje": {
+   "lejos": 0.032,
+   "cerca": -0.012,
+   "show": -0.02
+  }
+ },
+ "nadie|surfacing|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": 0.01,
+   "acercarse": -0.012,
+   "alejarse": 0.002
+  },
+  "con_cuerpo": {
+   "observar": 0.029,
+   "invitar": -0.063,
+   "bailar_de_vuelta": 0.005,
+   "dibujar": 0.029
+  },
+  "voz": {
+   "silencio": 0.007,
+   "poema": 0.004,
+   "canto": -0.011
+  },
+  "memoria": {
+   "recordar": 0.017,
+   "olvidar": -0.017
+  },
+  "color": {
+   "propio": -0.029,
+   "ropa": 0.029
+  },
+  "boca": {
+   "esperar": 0.029,
+   "comer": 0.042,
+   "rehusar": -0.071
+  },
+  "viaje": {
+   "cactus": -0.006,
+   "cerca": -0.003,
+   "show": 0.022,
+   "montanas": -0.006,
+   "lejos": -0.006
+  }
+ },
+ "nueva|curious|quieta|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": 0.003,
+   "quedarse": -0.003
+  },
+  "voz": {
+   "silencio": -0.052,
+   "poema": 0.052
+  }
+ },
+ "nadie|curious|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": 0.088,
+   "acercarse": -0.167,
+   "alejarse": 0.08
+  },
+  "con_cuerpo": {
+   "observar": -0.229,
+   "dibujar": 0.178,
+   "bailar_de_vuelta": 0.051
+  },
+  "voz": {
+   "silencio": -0.162,
+   "poema": 0.022,
+   "canto": 0.14
+  },
+  "memoria": {
+   "recordar": 0.018,
+   "olvidar": -0.018
+  },
+  "color": {
+   "propio": 0.016,
+   "ropa": -0.016
+  },
+  "viaje": {
+   "cactus": -0.04,
+   "cerca": -0.026,
+   "lejos": 0.025,
+   "show": 0.041
+  }
+ },
+ "nadie|surfacing|quieta|media|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.042,
+   "alejarse": 0.205,
+   "acercarse": -0.163
+  },
+  "con_cuerpo": {
+   "observar": -0.061,
+   "invitar": -0.08,
+   "bailar_de_vuelta": 0.095,
+   "dibujar": 0.045
+  },
+  "voz": {
+   "silencio": -0.228,
+   "poema": 0.161,
+   "canto": 0.067
+  },
+  "memoria": {
+   "recordar": -0.06,
+   "olvidar": 0.06
+  },
+  "color": {
+   "propio": 0.073,
+   "ropa": -0.073
+  },
+  "boca": {
+   "esperar": -0.058,
+   "comer": -0.118,
+   "rehusar": 0.176
+  },
+  "viaje": {
+   "cerca": 0.111,
+   "show": 0.027,
+   "lejos": -0.215,
+   "quedarse": 0.287,
+   "cactus": -0.024,
+   "montanas": -0.187
+  }
+ },
+ "conocida|calm|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.311,
+   "alejarse": 0.311
+  }
+ },
+ "nueva|alert|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.155,
+   "alejarse": 0.155
+  },
+  "con_cuerpo": {
+   "invitar": 0.377,
+   "observar": -0.377
+  },
+  "viaje": {
+   "cerca": -0.024,
+   "quedarse": 0.024
+  },
+  "imitar": {
+   "no": 0.001,
+   "si": -0.001
+  }
+ },
+ "nadie|alert|quieta|corta|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": 0.067,
+   "poema": -0.067
+  },
+  "memoria": {
+   "recordar": 0.014,
+   "olvidar": -0.014
+  }
+ },
+ "conocida|curious|quieta|media|sin_tacto|boca_pez": {
+  "voz": {
+   "silencio": -0.163,
+   "poema": 0.163
+  }
+ },
+ "nueva|curious|quieta|corta|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": 0.025,
+   "alejarse": -0.025
+  },
+  "con_cuerpo": {
+   "observar": 0.051,
+   "invitar": -0.051
+  }
+ },
+ "conocida|feeding|quieta|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": -0.093,
+   "alejarse": -0.038,
+   "acercarse": 0.131
+  },
+  "voz": {
+   "poema": 0.036,
+   "silencio": -0.036
+  }
+ },
+ "nueva|curious|mueve|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": -0.075,
+   "acercarse": 0.075
+  }
+ },
+ "nueva|playful|quieta|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": -0.038,
+   "quedarse": 0.038
+  },
+  "voz": {
+   "silencio": 0.017,
+   "poema": 0.05,
+   "canto": -0.067
+  },
+  "imitar": {
+   "no": 0.044,
+   "si": -0.044
+  }
+ },
+ "conocida|playful|quieta|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": -0.117,
+   "quedarse": 0.117
+  },
+  "voz": {
+   "poema": -0.046,
+   "silencio": 0.046
+  }
+ },
+ "conocida|playful|quieta|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "acercarse": -0.104,
+   "alejarse": 0.104
+  },
+  "con_cuerpo": {
+   "invitar": 0.014,
+   "dibujar": -0.014
+  },
+  "imitar": {
+   "no": 0.039,
+   "si": -0.039
+  }
+ },
+ "nadie|sad|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": 0.13,
+   "alejarse": -0.13
+  },
+  "con_cuerpo": {
+   "observar": 0.157,
+   "dibujar": -0.237,
+   "invitar": 0.08
+  },
+  "voz": {
+   "silencio": 0.331,
+   "canto": -0.251,
+   "poema": -0.08
+  },
+  "memoria": {
+   "recordar": 0.198,
+   "olvidar": -0.198
+  },
+  "color": {
+   "propio": 0.302,
+   "ropa": -0.302
+  },
+  "boca": {
+   "esperar": 0.197,
+   "rehusar": -0.197
+  },
+  "viaje": {
+   "montanas": 0.167,
+   "lejos": -0.062,
+   "cerca": -0.061,
+   "quedarse": -0.045
+  }
+ },
+ "nueva|playful|quieta|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.021,
+   "alejarse": 0.428,
+   "acercarse": -0.406
+  },
+  "con_cuerpo": {
+   "observar": -0.228,
+   "invitar": 0.228
+  },
+  "voz": {
+   "silencio": 0.114,
+   "poema": -0.114
+  },
+  "memoria": {
+   "recordar": 0.052,
+   "olvidar": -0.052
+  },
+  "color": {
+   "propio": 0.23,
+   "ropa": -0.23
+  },
+  "boca": {
+   "esperar": -0.184,
+   "rehusar": -0.022,
+   "comer": 0.207
+  },
+  "viaje": {
+   "show": -0.094,
+   "cerca": 0.094
+  },
+  "imitar": {
+   "no": 0.007,
+   "si": -0.007
+  }
+ },
+ "nadie|angry|quieta|corta|sin_tacto|boca_nada": {
+  "viaje": {
+   "cerca": 0.139,
+   "lejos": -0.139
+  }
+ },
+ "nadie|feeding|quieta|media|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": -0.132,
+   "poema": 0.132
+  },
+  "viaje": {
+   "cerca": 0.128,
+   "lejos": -0.128
+  }
+ },
+ "nueva|calm|quieta|corta|tacto_lomo|boca_nada": {
+  "con_cuerpo": {
+   "observar": -0.164,
+   "invitar": 0.164
+  }
+ },
+ "nueva|playful|mueve|corta|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": -0.135,
+   "acercarse": 0.135
+  },
+  "imitar": {
+   "no": 0.213,
+   "si": -0.213
+  }
+ },
+ "nueva|feeding|quieta|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": 0.084,
+   "quedarse": 0.029,
+   "acercarse": -0.113
+  },
+  "con_cuerpo": {
+   "invitar": 0.012,
+   "bailar_de_vuelta": -0.012
+  },
+  "voz": {
+   "silencio": -0.008,
+   "poema": 0.057,
+   "canto": -0.049
+  },
+  "memoria": {
+   "recordar": 0.051,
+   "olvidar": -0.051
+  },
+  "viaje": {
+   "cerca": -0.116,
+   "show": 0.116
+  },
+  "imitar": {
+   "no": -0.005,
+   "si": 0.005
+  }
+ },
+ "nadie|playful|quieta|corta|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": 0.006,
+   "alejarse": -0.006
+  },
+  "con_cuerpo": {
+   "observar": -0.045,
+   "bailar_de_vuelta": 0.045
+  },
+  "voz": {
+   "silencio": 0.13,
+   "poema": -0.13
+  },
+  "viaje": {
+   "cerca": 0.037,
+   "show": -0.037
+  }
+ },
+ "nadie|calm|quieta|media|sin_tacto|boca_nada": {
+  "voz": {
+   "silencio": -0.184,
+   "poema": 0.184
+  },
+  "viaje": {
+   "lejos": -0.182,
+   "quedarse": -0.054,
+   "montanas": 0.086,
+   "cerca": 0.151
+  }
+ },
+ "nueva|angry|quieta|corta|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "observar": 0.074,
+   "invitar": -0.074
+  }
+ },
+ "nueva|sad|mueve|corta|sin_tacto|boca_nada": {
+  "distancia": {
+   "alejarse": 0.257,
+   "acercarse": -0.257
+  }
+ },
+ "nueva|alert|quieta|corta|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": -0.189,
+   "alejarse": 0.189
+  },
+  "con_cuerpo": {
+   "observar": -0.2,
+   "invitar": 0.2
+  },
+  "color": {
+   "propio": -0.072,
+   "ropa": 0.072
+  }
+ },
+ "nueva|playful|quieta|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "acercarse": -0.137,
+   "quedarse": 0.072,
+   "alejarse": 0.065
+  },
+  "con_cuerpo": {
+   "invitar": -0.002,
+   "observar": 0.002
+  },
+  "voz": {
+   "poema": 0.041,
+   "silencio": -0.041
+  },
+  "memoria": {
+   "recordar": 0.017,
+   "olvidar": -0.017
+  },
+  "imitar": {
+   "no": 0.049,
+   "si": -0.049
+  }
+ },
+ "nueva|feeding|quieta|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": 0.01,
+   "acercarse": -0.11,
+   "alejarse": 0.1
+  },
+  "con_cuerpo": {
+   "invitar": 0.092,
+   "bailar_de_vuelta": -0.092
+  },
+  "voz": {
+   "poema": 0.038,
+   "silencio": -0.038
+  },
+  "viaje": {
+   "cerca": -0.024,
+   "lejos": 0.024
+  },
+  "imitar": {
+   "si": -0.037,
+   "no": 0.037
+  }
+ },
+ "nueva|playful|mueve|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "acercarse": -0.159,
+   "alejarse": 0.159
+  },
+  "imitar": {
+   "no": -0.08,
+   "si": 0.08
+  }
+ },
+ "nueva|feeding|mueve|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "acercarse": -0.007,
+   "alejarse": 0.007
+  },
+  "voz": {
+   "silencio": 0.089,
+   "poema": -0.089
+  },
+  "imitar": {
+   "no": -0.034,
+   "si": 0.034
+  }
+ },
+ "nueva|feeding|mueve|media|sin_tacto|boca_pez": {
+  "distancia": {
+   "acercarse": -0.029,
+   "alejarse": 0.029
+  },
+  "imitar": {
+   "si": -0.066,
+   "no": 0.066
+  }
+ },
+ "nueva|playful|mueve|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "acercarse": -0.028,
+   "alejarse": 0.028
+  },
+  "imitar": {
+   "no": 0.103,
+   "si": -0.103
+  }
+ },
+ "conocida|feeding|quieta|larga|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "dibujar": -0.03,
+   "invitar": 0.03
+  },
+  "voz": {
+   "poema": -0.098,
+   "silencio": 0.098
+  }
+ },
+ "nueva|playful|quieta|corta|tacto_flores|boca_nada": {
+  "distancia": {
+   "acercarse": -0.33,
+   "alejarse": 0.33
+  },
+  "con_cuerpo": {
+   "observar": -0.192,
+   "invitar": 0.192
+  },
+  "imitar": {
+   "si": 0.165,
+   "no": -0.166
+  }
+ },
+ "nadie|playful|quieta|corta|tacto_flores|boca_nada": {
+  "distancia": {
+   "quedarse": 0.042,
+   "acercarse": -0.042
+  },
+  "con_cuerpo": {
+   "observar": 0.067,
+   "dibujar": -0.087,
+   "bailar_de_vuelta": 0.066,
+   "invitar": -0.045
+  },
+  "voz": {
+   "canto": -0.005,
+   "silencio": 0.003,
+   "poema": 0.003
+  },
+  "memoria": {
+   "recordar": 0.017,
+   "olvidar": -0.017
+  },
+  "color": {
+   "propio": -0.004,
+   "ropa": 0.004
+  },
+  "boca": {
+   "esperar": 0.0,
+   "rehusar": -0.0
+  },
+  "viaje": {
+   "cactus": -0.04,
+   "show": -0.003,
+   "quedarse": 0.021,
+   "montanas": 0.018,
+   "cerca": 0.004
+  }
+ },
+ "nueva|feeding|quieta|media|tacto_lomo|boca_pez": {
+  "voz": {
+   "silencio": 0.103,
+   "poema": -0.103
+  }
+ },
+ "nueva|playful|quieta|larga|tacto_flores|boca_nada": {
+  "voz": {
+   "poema": 0.057,
+   "silencio": -0.057
+  }
+ },
+ "nueva|playful|quieta|media|tacto_flores|boca_nada": {
+  "distancia": {
+   "acercarse": -0.085,
+   "alejarse": 0.085
+  },
+  "voz": {
+   "silencio": 0.112,
+   "poema": -0.112
+  }
+ },
+ "nueva|playful|quieta|media|tacto_flores|boca_pez": {
+  "distancia": {
+   "alejarse": 0.043,
+   "acercarse": -0.043
+  },
+  "voz": {
+   "silencio": -0.055,
+   "poema": 0.055
+  }
+ },
+ "nueva|feeding|quieta|media|tacto_flores|boca_pez": {
+  "distancia": {
+   "acercarse": -0.039,
+   "alejarse": 0.039
+  }
+ },
+ "nueva|playful|quieta|corta|tacto_flores|boca_pez": {
+  "distancia": {
+   "acercarse": -0.279,
+   "alejarse": 0.279
+  }
+ },
+ "conocida|sad|quieta|larga|sin_tacto|boca_nada": {
+  "con_cuerpo": {
+   "dibujar": 0.01,
+   "invitar": -0.01
+  },
+  "boca": {
+   "esperar": -0.044,
+   "rehusar": 0.044
+  },
+  "viaje": {
+   "lejos": 0.019,
+   "cerca": -0.019
+  }
+ },
+ "conocida|playful|mueve|larga|sin_tacto|boca_pez": {
+  "imitar": {
+   "no": 0.029,
+   "si": -0.029
+  }
+ },
+ "nueva|calm|quieta|media|tacto_lomo|boca_nada": {
+  "voz": {
+   "silencio": -0.07,
+   "poema": 0.07
+  }
+ },
+ "nadie|feeding|quieta|corta|sin_tacto|boca_pez": {
+  "voz": {
+   "silencio": 0.025,
+   "poema": -0.025
+  },
+  "memoria": {
+   "recordar": -0.029,
+   "olvidar": 0.029
+  },
+  "viaje": {
+   "lejos": 0.035,
+   "cerca": -0.035
+  }
+ },
+ "conocida|playful|quieta|media|tacto_flores|boca_pez": {
+  "voz": {
+   "silencio": -0.06,
+   "poema": 0.06
+  }
+ },
+ "nueva|calm|quieta|larga|tacto_lomo|boca_nada": {
+  "voz": {
+   "poema": 0.12,
+   "silencio": -0.12
+  },
+  "viaje": {
+   "cerca": -0.135,
+   "montanas": 0.135
+  }
+ },
+ "nueva|angry|quieta|larga|sin_tacto|boca_nada": {
+  "distancia": {
+   "quedarse": -0.008,
+   "alejarse": 0.008
+  }
+ },
+ "conocida|playful|quieta|media|tacto_flores|boca_nada": {
+  "voz": {
+   "poema": -0.179,
+   "silencio": 0.179
+  }
+ },
+ "nueva|alert|quieta|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": 0.118,
+   "acercarse": -0.054,
+   "quedarse": -0.064
+  },
+  "voz": {
+   "poema": 0.044,
+   "silencio": -0.044
+  },
+  "viaje": {
+   "cerca": -0.094,
+   "quedarse": 0.094
+  },
+  "imitar": {
+   "si": -0.073,
+   "no": 0.073
+  }
+ },
+ "nueva|alert|mueve|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": -0.025,
+   "acercarse": 0.025
+  },
+  "imitar": {
+   "no": -0.08,
+   "si": 0.08
+  }
+ },
+ "nueva|diving|mueve|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": 0.038,
+   "acercarse": -0.038
+  }
+ },
+ "nueva|calm|quieta|corta|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": -0.117,
+   "alejarse": 0.117
+  },
+  "con_cuerpo": {
+   "observar": -0.171,
+   "invitar": 0.171
+  }
+ },
+ "nueva|sad|quieta|corta|sin_tacto|boca_pez": {
+  "viaje": {
+   "cerca": -0.02,
+   "montanas": 0.02
+  },
+  "distancia": {
+   "alejarse": 0.005,
+   "quedarse": -0.005
+  },
+  "con_cuerpo": {
+   "invitar": 0.066,
+   "observar": -0.066
+  },
+  "memoria": {
+   "olvidar": -0.014,
+   "recordar": 0.014
+  }
+ },
+ "nueva|alert|quieta|media|sin_tacto|boca_pez": {
+  "imitar": {
+   "no": -0.07,
+   "si": 0.07
+  },
+  "distancia": {
+   "quedarse": -0.106,
+   "alejarse": 0.106
+  },
+  "voz": {
+   "silencio": -0.021,
+   "poema": 0.021
+  }
+ },
+ "nueva|calm|quieta|larga|sin_tacto|boca_pez": {
+  "viaje": {
+   "cerca": -0.033,
+   "montanas": 0.033
+  },
+  "distancia": {
+   "quedarse": -0.118,
+   "alejarse": 0.09,
+   "acercarse": 0.028
+  },
+  "voz": {
+   "poema": 0.017,
+   "silencio": -0.017
+  }
+ },
+ "nueva|curious|quieta|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "quedarse": -0.124,
+   "acercarse": 0.002,
+   "alejarse": 0.122
+  },
+  "memoria": {
+   "recordar": -0.061,
+   "olvidar": 0.061
+  }
+ },
+ "nueva|calm|quieta|media|sin_tacto|boca_pez": {
+  "viaje": {
+   "cerca": -0.069,
+   "montanas": 0.069
+  },
+  "distancia": {
+   "alejarse": 0.08,
+   "quedarse": -0.08
+  },
+  "voz": {
+   "silencio": 0.012,
+   "poema": -0.012
+  }
+ },
+ "nueva|sad|mueve|media|sin_tacto|boca_pez": {
+  "viaje": {
+   "cerca": -0.015,
+   "montanas": 0.015
+  },
+  "distancia": {
+   "alejarse": 0.078,
+   "acercarse": -0.078
+  }
+ },
+ "nueva|sad|quieta|media|sin_tacto|boca_pez": {
+  "viaje": {
+   "lejos": -0.098,
+   "montanas": 0.098
+  },
+  "distancia": {
+   "quedarse": -0.068,
+   "alejarse": 0.068
+  },
+  "voz": {
+   "poema": 0.139,
+   "silencio": -0.139
+  }
+ },
+ "nueva|curious|mueve|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": -0.024,
+   "acercarse": 0.024
+  }
+ },
+ "nueva|sad|mueve|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": 0.117,
+   "acercarse": -0.117
+  }
+ },
+ "nueva|sad|quieta|larga|sin_tacto|boca_pez": {
+  "viaje": {
+   "lejos": -0.117,
+   "montanas": 0.117
+  },
+  "distancia": {
+   "alejarse": -0.047,
+   "acercarse": 0.047
+  }
+ },
+ "nueva|calm|mueve|larga|sin_tacto|boca_pez": {
+  "distancia": {
+   "alejarse": -0.05,
+   "acercarse": 0.05
+  }
+ },
+ "nueva|angry|quieta|larga|tacto_lomo|boca_nada": {
+  "viaje": {
+   "cerca": 0.083,
+   "lejos": -0.083
+  }
+ }
+}
