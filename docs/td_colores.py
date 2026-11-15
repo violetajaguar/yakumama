@@ -4,18 +4,19 @@ and that never changes").
 
     exec(open('/Users/jaguar/Desktop/Yakumama/docs/td_colores.py').read())
 
-First run: APLICAR = False below -> it only LISTS every material (MAT) and every geometry whose name mentions the tongue or the
+First run: APLICAR = True below -> it only LISTS every material (MAT) and every geometry whose name mentions the tongue or the
 teeth (lengua / tongue / diente / teeth / tooth), with its current colour. If the right ones are in the list, set APLICAR = True and
 run again: tongue -> blue, teeth -> gold, on every colour parameter those materials have (Phong diffuse, PBR base colour, constant
 colour, emit). Then Cmd+S so the project keeps it (the watchdog's save keeps it too).
 If nothing is listed, the tongue and teeth share the body's material: say so to Claude and the names of the MATs printed at the end.
 """
 import re
-APLICAR = False
+APLICAR = True
 AZUL = (0.10, 0.30, 0.95)       # tongue
 ORO = (1.00, 0.78, 0.20)        # teeth
-PATRON = re.compile(r"lengua|tongue|diente|teeth|tooth", re.I)
-PARAMS = (("diffr", "diffg", "diffb"), ("basecolorr", "basecolorg", "basecolorb"), ("colorr", "colorg", "colorb"), ("emitr", "emitg", "emitb"))
+PATRON = re.compile(r"^(LENGUA_low|dientes_low)$", re.I)   # the two geometries (their own MAT copies live inside them); the tongue bones are not materials
+PARAMS = (("diffr", "diffg", "diffb"), ("basecolorr", "basecolorg", "basecolorb"), ("colorr", "colorg", "colorb"))
+APAGAR = ("emitr", "emitg", "emitb")   # emission OFF: lit gold read as white (23 Oct)
 def _rgb(o):
     for trio in PARAMS:
         if all(hasattr(o.par, k) for k in trio): return trio, tuple(round(float(getattr(o.par, k).eval()), 2) for k in trio)
@@ -24,8 +25,19 @@ def _pinta(o, rgb):
     hecho = []
     for trio in PARAMS:
         if all(hasattr(o.par, k) for k in trio):
-            for k, v in zip(trio, rgb): setattr(o.par, k, v)
+            for k, v in zip(trio, rgb):
+                par = getattr(o.par, k)
+                try: par.mode = ParMode.CONSTANT      # setup_skin.py binds every 'ballena' MAT's diffuse to the brain's tint; tongue and teeth leave that binding: they never change
+                except Exception: pass
+                par.val = v
             hecho.append(trio[0][:-1])
+    if all(hasattr(o.par, k) for k in APAGAR):
+        for k in APAGAR:
+            par = getattr(o.par, k)
+            try: par.mode = ParMode.CONSTANT
+            except Exception: pass
+            par.val = 0.0
+        hecho.append("emit=0")
     return hecho
 mats = [o for o in op('/').findChildren(maxDepth=8) if o.family == 'MAT']
 print("=" * 70); print("MATERIALS in the project:", len(mats))

@@ -26,8 +26,10 @@ while true; do
     osascript -e 'tell application "System Events" to keystroke "q" using command down' >/dev/null 2>&1
     n=0; until ! pgrep -x TouchDesigner >/dev/null || [ $n -ge 40 ]; do sleep 1; n=$((n+1)); done
     if pgrep -x TouchDesigner >/dev/null; then say_ "TD did not quit (a dialog?): leaving it"; continue; fi
-    open -a TouchDesigner "$TOE"; sleep 45
-    P=$(pgrep -x TouchDesigner | head -1); say_ "relaunched: $(ps -o rss= -p "$P" 2>/dev/null | awk '{printf "%.1f", $1/1048576}') GB"
+    sleep 5; open -a TouchDesigner "$TOE"
+    n=0; until pgrep -x TouchDesigner >/dev/null || [ $n -ge 120 ]; do sleep 1; n=$((n+1)); done   # 23 Oct: a 45 s wait once reported "relaunched:  GB" with TD not up
+    if ! pgrep -x TouchDesigner >/dev/null; then say_ "TD not up after 120 s: opening again"; open -a TouchDesigner "$TOE"; sleep 60; fi
+    sleep 30; P=$(pgrep -x TouchDesigner | head -1); say_ "relaunched: $(ps -o rss= -p "$P" 2>/dev/null | awk '{printf "%.1f", $1/1048576}') GB ($(basename "$TOE"))"
     vacio_desde=0
   fi
 done

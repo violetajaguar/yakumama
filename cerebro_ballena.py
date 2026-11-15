@@ -195,7 +195,7 @@ def compute_mood(d):
     elif water < 0.7: m["calm"] = 0.2; m["playful"] = 0.15
     elif water < 0.85: m["calm"] = 0.2; m["singing"] = 0.2
     else: m["calm"] = 0.25; m["singing"] = 0.25
-    if color_name in COLOR_TO_MOOD:
+    if color_name in COLOR_TO_MOOD and (d.get("color_ropa") or color_name not in ("white", "gray", "black")):   # 23 Oct: white/grey/black only as someone's CLOTHES; her eye's colour box sits on the printed sister (white) and kept her diving all day
         for k in m: m[k] *= 0.4
         m[COLOR_TO_MOOD[color_name]] += 0.9
     if bright < 0.2: m["calm"] += 0.2; m["singing"] += 0.1
@@ -266,7 +266,15 @@ def dibujo_empezar(figura, id_persona=None, pluma=True):
         try: firma = json.load(open(os.path.join(AQUI, "datasets", "memoria.json"))).get(id_persona, {}).get("firma")
         except Exception: firma = None
     nombre = "cara" if (figura == "cara" and firma) else FIG.elegir(figura if figura != "cara" else None)   # resolved ONCE: the name shown and the points drawn are the same figure (21 Oct: 'montanas' announced, a centipede drawn)
-    pts = FIG.puntos(nombre, firma, dib["R"] * (0.6 if not pluma else 1.0)); dib.update(activo=True, figura=nombre, persona=(id_persona if firma else None), puntos=pts, i=0)
+    pts = FIG.puntos(nombre, firma, dib["R"] * (0.6 if not pluma else 1.0))
+    if nombre != "cara" or not firma:   # 23 Oct (Violeta: "she keeps repeating the drawings"): the same figure never comes out the same: turned, mirrored, resized, a little wavy
+        ang = random.uniform(0.0, 2 * math.pi); esp = random.choice((1.0, -1.0)); esc = random.uniform(0.7, 1.0); ond = random.uniform(0.0, 0.06) * dib["R"]; fase = random.uniform(0.0, 6.28)
+        cx = sum(p[0] for p in pts) / max(1, len(pts)); cy = sum(p[1] for p in pts) / max(1, len(pts)); ca, sa = math.cos(ang), math.sin(ang); out = []
+        for i_, (x, y, pl) in enumerate(pts):
+            dx, dy = (x - cx) * esc * esp, (y - cy) * esc; rx, ry = dx * ca - dy * sa, dx * sa + dy * ca
+            w = ond * math.sin(i_ * 0.9 + fase); out.append((rx + w, ry - w * 0.5, pl))
+        pts = out
+    dib.update(activo=True, figura=nombre, persona=(id_persona if firma else None), puntos=pts, i=0)
 DIBUJOS = os.path.join(AQUI, "datasets", "dibujos"); DIBUJO_PANTALLA = os.environ.get("YAKUMAMA_DIBUJO_PANTALLA", "3")   # the display that shows the salar (screencapture -D); "" = no photo
 def _dibujo_guardar(t):
     """every drawing she finishes is kept: datasets/dibujos/<date>_<figure>.json (the waypoints, pen up/down, who it was for) and .svg (the strokes),
@@ -335,20 +343,26 @@ def decidir(d, t, hay_persona, dom, energia_cuerpo):
     if t - enc["ultima"] >= 4.0 or (palabra != enc.get("palabra") and t - enc["ultima"] > 0.5):
         enc["palabra"] = palabra
         if DEC.abierta: DEC.cerrar(_resultado(d, t, 0))
+        agobio_paso(t, d, dom)   # THE SEA (27 Oct): her overwhelm, eased
         s_ = {"persona": int(bool(hay_persona)), "conocida": int(bool(d.get("conocida"))), "animo": dom, "energia": energia_cuerpo, "segundos": (t - enc["t0"]) if enc["t0"] else (t - st["vistos"]), "tacto": d.get("tacto") or 0, "tacto_zona": d.get("tacto_zona"), "ropa_gusta": bool(d.get("color_ropa")), "pide_olvido": bool(d.get("olvidar")),
               "id_persona": d.get("visita") or None, "quieto": enc["quieto"], "vuelve": d.get("vuelve"), "distancia_m": d.get("distancia_m"), "flores": d.get("flores"), "flores_n": d.get("flores_n"), "joya": d.get("joya"), "joya_tiron": d.get("joya_tiron"),
               "boca": d.get("ofrenda"), "boca_p": d.get("ofrenda_p"), "ofrenda_id": d.get("ofrenda_id"), "reaccion": d.get("reaccion"), "ofrenda_nombre": d.get("ofrenda_nombre"), "palanca_s": d.get("palanca_s"), "camara_cerca": d.get("camara_cerca"), "camara_mira": d.get("camara_mira"),
-              "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "quieto_foco": d.get("quieto_foco"), "telefono": int(bool(d.get("ve_telefono"))), "viento": float(_clima["viento"] or 0.0) + 14.0 * _clima["mio"], "noche": int(_clima["noche"] or 0),
+              "personas_n": d.get("personas_n"), "foco_razon": d.get("foco_razon"), "quieto_foco": d.get("quieto_foco"), "telefono": int(bool(d.get("ve_telefono"))), "viento": float(_clima["viento"] or 0.0) + 14.0 * _clima["mio"], "noche": int(_clima["noche"] or 0), "mundo": _clima["mundo"], "calor_mundo": round(calor_del_mundo(), 2), "agobio": round(AG["nivel"], 2),
               **({"oye_nivel": float((d.get("oido") or {}).get("nivel") or 0.0), "oye_golpe": float((d.get("oido") or {}).get("golpe") or 0.0), "oye_canta": float((d.get("oido") or {}).get("canta") or 0.0)} if isinstance(d.get("oido"), dict) and t - float(d.get("oido_t") or 0) < 3.0 else {}), "ultimo_viaje": _viaje["ultimo"], "show": int(_show["on"]), "con_cuerpo_prev": (enc.get("dec") or {}).get("con_cuerpo"),
               "lluvia": float(_clima["lluvia"] or 0.0), "lluvia_real": _clima["lluvia_real"], "rachas": _clima["rachas"], "nubes": _clima["nubes"], "humedad": _clima["humedad"], "presion": _clima["presion"], "uv": _clima["uv"],   # the world (Open-Meteo)
               "aleta_sujeta": round(_cuerpo["sujeta"], 2), "cansada": round(_cuerpo["cansada"], 2), "excitada": round(_cuerpo["excitada"], 2), "calor": _cuerpo["temp"]}   # her body (proprioception)
         enc["dec"], enc["prob"] = DEC.decidir(s_, politica=(enc["politica"] if hay_persona else "ella")); enc["ultima"] = t; enc["abierta_t"] = t
         try: json.dump({"t": t, "decision": enc["dec"], "prob": enc["prob"], "fijo": (DEC.abierta or {}).get("fijo", ""), "animo": dom, "persona": int(bool(hay_persona)), "conocida": s_["conocida"], "segundos": round(s_["segundos"], 1),
-                        "personas_n": s_.get("personas_n"), "foco_razon": s_.get("foco_razon"), "tacto": s_["tacto"], "tacto_zona": s_["tacto_zona"], "ofrenda": s_.get("boca"), "ofrenda_id": s_.get("ofrenda_id"), "reaccion": s_.get("reaccion"), "reaccion_viva": ({"n": RO.r["n"], "texto": RO.r.get("texto", ""), "ofrenda_id": RO.r.get("ofrenda_id"), "nombre": str(RO.r.get("nombre") or "").split(" (")[0], "fase": round(RO.fase(t), 2), "animo": RO.r.get("animo")} if (RO is not None and RO.activa(t) and RO.r) else None), "ve_hermana": int(bool(d.get("ve_hermana"))), "ve_telefono": int(bool(d.get("ve_telefono"))), "id_persona": s_.get("id_persona"), "fuente": fuente if 'fuente' in dir() else None, "politica": enc["politica"] if hay_persona else "ella", "clima": {k: _clima[k] for k in CLIMA_CAMPOS}, "cuerpo_sentido": {"sujeta": s_["aleta_sujeta"], "cansada": s_["cansada"], "excitada": s_["excitada"], "calor": s_["calor"]}}, open("/tmp/ballena_cerebro.json", "w"))   # para la ventana: que decide y por que
+                        "personas_n": s_.get("personas_n"), "foco_razon": s_.get("foco_razon"), "tacto": s_["tacto"], "tacto_zona": s_["tacto_zona"], "ofrenda": s_.get("boca"), "ofrenda_id": s_.get("ofrenda_id"), "reaccion": s_.get("reaccion"), "reaccion_viva": ({"n": RO.r["n"], "texto": RO.r.get("texto", ""), "ofrenda_id": RO.r.get("ofrenda_id"), "nombre": str(RO.r.get("nombre") or "").split(" (")[0], "fase": round(RO.fase(t), 2), "animo": RO.r.get("animo")} if (RO is not None and RO.activa(t) and RO.r) else None), "ve_hermana": int(bool(d.get("ve_hermana"))), "ve_telefono": int(bool(d.get("ve_telefono"))), "id_persona": s_.get("id_persona"), "fuente": fuente if 'fuente' in dir() else None, "politica": enc["politica"] if hay_persona else "ella", "baila_s": (round(t - baile["sube"], 1) if (hay_persona and baile["activo"] and baile["sube"]) else 0), "oye_nivel": s_.get("oye_nivel"), "oye_canta": s_.get("oye_canta"), "clima": {k: _clima[k] for k in CLIMA_CAMPOS}, "cuerpo_sentido": {"sujeta": s_["aleta_sujeta"], "cansada": s_["cansada"], "excitada": s_["excitada"], "calor": s_["calor"]}}, open("/tmp/ballena_cerebro.json", "w"))   # para la ventana: que decide y por que
         except Exception: pass
     return enc["dec"], enc["prob"]
 def reaccion_tacto(d, t, comp, m):
-    """the sister is touched: head -> curious, she looks to that side; back -> calm; tail -> playful; fin -> alert; very hard -> angry startle. Returns the mood it pushes (or None)."""
+    """the sister is touched: head -> curious, she looks to that side; back -> calm; tail -> playful; fin -> alert; very hard -> angry startle. Returns the mood
+    EXILE (23 Oct): on the way to Mars and dying she is angry; dead she is sad; and a world too hot (calor_del_mundo) makes her angry before any touch."""
+    if EX["fase"] in ("viaje", "muriendo"): return "angry"
+    if EX["fase"] in ("muerta", "renace"): return "sad"
+    if EX["fase"] == "vive" and calor_del_mundo() > 0.6 and not (RO is not None and RO.activa(t)): return "angry"
+    _doc_ = """the touch rules follow: it pushes (or None)."""
     tacto = q(d, "tacto", 0, 1); zona = str(d.get("tacto_zona") or ""); boca = str(d.get("ofrenda") or "")
     if boca == "no_pez":
         if RO is not None: RO.cortar()
@@ -405,16 +419,17 @@ _viaje = {"destino": None, "altura": 0.5, "t": 0.0, "prox": 0.0, "llegada_t": 0.
 # her own gusts (viento 0..1 in the packet) rise with anger, alertness and play, and in her nightmares; the renderer adds them to
 # the real wind over the salt and the soundtrack.
 VIENTO_ANIMO = {"angry": 0.9, "alert": 0.6, "playful": 0.4, "surfacing": 0.3, "feeding": 0.25, "diving": 0.3, "curious": 0.15, "calm": 0.0, "singing": 0.05, "sad": 0.2}
-CLIMA_CAMPOS = ("viento", "sol", "noche", "lluvia", "agua", "temperatura", "humedad", "nubes", "lluvia_real", "rachas", "presion", "uv")   # 21 Oct: more of the world (Open-Meteo by the hour, via Dan's renderer)
-_clima = {"viento": 0.0, "sol": 10.0, "noche": 0, "lluvia": 0.0, "agua": 0.0, "temperatura": None, "humedad": None, "nubes": None, "lluvia_real": None, "rachas": None, "presion": None, "uv": None, "t": 0.0, "dicho": 0.0, "mio": 0.0, "racha": 0.0, "racha_t": 0.0}
+CLIMA_CAMPOS = ("viento", "sol", "noche", "lluvia", "agua", "temperatura", "humedad", "nubes", "lluvia_real", "rachas", "presion", "uv", "fuegos", "fuegos_regiones")   # 21 Oct: more of the world (Open-Meteo by the hour, via Dan's renderer)
+_clima = {"viento": 0.0, "sol": 10.0, "noche": 0, "lluvia": 0.0, "agua": 0.0, "temperatura": None, "humedad": None, "nubes": None, "lluvia_real": None, "rachas": None, "presion": None, "uv": None, "t": 0.0, "dicho": 0.0, "mio": 0.0, "racha": 0.0, "racha_t": 0.0, "mundo": "salar", "fuegos": None, "fuegos_regiones": {}}   # mundo (23 Oct): salar / tiupampa / marte, from Dan's renderer (ballena_mundo)
 def clima_leer(d, t):
     c = d.get("clima")
     if isinstance(c, dict) and t - float(d.get("clima_t") or 0) < 5.0:
         for k in CLIMA_CAMPOS:
             if c.get(k) is not None: _clima[k] = c[k]
+        if c.get("mundo"): _clima["mundo"] = str(c["mundo"])
         _clima["t"] = t
     if t - _clima["dicho"] > 60.0 and _clima["t"]:
-        _clima["dicho"] = t; print(f"   [weather] wind {float(_clima['viento']):.1f} m/s (gusts {_clima['rachas']}), sun {float(_clima['sol']):+.0f} deg{' (night)' if _clima['noche'] else ''}, rain {float(_clima['lluvia']):.2f} (real {_clima['lluvia_real']} mm), water {float(_clima['agua']):.2f}, {_clima['temperatura']} C, humidity {_clima['humedad']}%, clouds {_clima['nubes']}%, {_clima['presion']} hPa, uv {_clima['uv']} | her own wind {_clima['mio']:.2f}", flush=True)
+        _clima["dicho"] = t; print(f"   [weather] wind {float(_clima['viento']):.1f} m/s (gusts {_clima['rachas']}), sun {float(_clima['sol']):+.0f} deg{' (night)' if _clima['noche'] else ''}, rain {float(_clima['lluvia']):.2f} (real {_clima['lluvia_real']} mm), water {float(_clima['agua']):.2f}, {_clima['temperatura']} C, humidity {_clima['humedad']}%, clouds {_clima['nubes']}%, {_clima['presion']} hPa, uv {_clima['uv']} | her own wind {_clima['mio']:.2f} | world {_clima['mundo']} | fires {_clima['fuegos']} here, {', '.join(f'{k} {v}' for k, v in (_clima['fuegos_regiones'] or {}).items()) or 'regions pending'} | heat {calor_del_mundo():.2f} | exile {EX['fase']}", flush=True)
 # PROPRIOCEPTION AS JUDGEMENT (21 Oct, Violeta: "the told-measured gap as a hand on her fin, temperature as tiredness and also excitement").
 # The board reports each fin's measured angle (degrees), temperature (C) and load; she TOLD them a value in -1..1. She calibrates her own
 # body: a forgetting least-squares fit measured = a*told + b per fin, so no unit table is needed and a re-flashed firmware re-learns in
@@ -483,17 +498,148 @@ def cuerpo_leer(d, t):
 # outcomes become weight (decisiones.aprender: a small contextual bandit over the log) and her decider reloads them. This is the
 # calibration loop closing: what preceded engagement gets more likely in that situation; what preceded people leaving, less.
 _sueno = {"noche_de": None, "hilo": None}
+# EL EXILIO A MARTE (23 Oct 2026, Violeta: "cuando se enoja porque es muy caliente, si usamos la data de NASA FIRMS, se va al mundo de Marte y ahi muere
+# de una manera epica"). The heat of her world is the air (Open-Meteo), the fires NASA FIRMS counts around the site in a day, and her own servos. Hot, she is
+# angry; angry and hot, her own decision "mundo" leans to Mars (decisiones.OPCIONES["mundo"]); once chosen she travels (the world switches live in Dan's
+# renderer), then dies over EXILIO_MUERTE_S: slower, darker (red to black), sinking to the ground, eyes closing, the dust storm rising, silence; dead she lies
+# still until sunrise (or EXILIO_MUERTA_S), then she is reborn in the salar over EXILIO_RENACE_S. Every phase is logged to datasets/exilios.jsonl.
+# Rehearsal: YAKUMAMA_CALOR=1 (forces the heat) or YAKUMAMA_FUEGOS=300 on Dan's renderer; EXILIO_*_S shorten the phases.
+EXILIO_VIAJE_S = float(os.environ.get("YAKUMAMA_EXILIO_VIAJE_S", 45.0)); EXILIO_MUERTE_S = float(os.environ.get("YAKUMAMA_EXILIO_MUERTE_S", 240.0))
+EXILIO_MUERTA_S = float(os.environ.get("YAKUMAMA_EXILIO_MUERTA_S", 900.0)); EXILIO_RENACE_S = float(os.environ.get("YAKUMAMA_EXILIO_RENACE_S", 90.0))
+EX = {"fase": "vive", "t0": 0.0, "muerte": 0.0, "mundo": os.environ.get("BALLENA_MUNDO", "salar").strip().lower() or "salar", "calor": 0.0, "enojo_t": None}   # 26 Oct: starts in the launched world (MUNDO=mar ./correr_todo.sh); its packet names the world every frame and used to drag the renderer back to the salar
+def calor_del_mundo():
+    """0..1: how hot her world is: the air (28 -> 38 C), the fires FIRMS sees (20 -> 150 in a day), her own servos (55 -> 70 C). YAKUMAMA_CALOR forces it."""
+    f = os.environ.get("YAKUMAMA_CALOR")
+    if f:
+        try: return max(0.0, min(1.0, float(f)))
+        except Exception: pass
+    c = 0.0; T = _clima.get("temperatura"); F = _clima.get("fuegos"); S = _cuerpo.get("temp"); R = _clima.get("fuegos_regiones") or {}
+    try:
+        if T is not None: c = max(c, (float(T) - 28.0) / 10.0)
+        if F is not None: c = max(c, (float(F) - 20.0) / 130.0)
+        if S is not None: c = max(c, (float(S) - 55.0) / 15.0)
+        for k, (lo, hi) in FUEGOS_ESCALA.items():   # the burning regions (23 Oct): a quiet day reads ~0, a burning season reads 1
+            if R.get(k) is not None: c = max(c, (float(R[k]) - lo) / (hi - lo))
+    except Exception: pass
+    return max(0.0, min(1.0, c))
+# EL MAR BAJO EL SALAR (27 Oct 2026, Violeta: "the whale keeps falling inside and that should only happen sporadically, her world is
+# the salar"). Her overwhelm (agobio, 0..1) builds slowly from a crowd (3 -> 6 people), a hand held on her, a loud room, a bang, a
+# lens, her tiredness and the heat of her world; it fades slower than it builds. Overwhelmed (> 0.5) her decision `mundo` leans to
+# the sea; once she chooses it and has been overwhelmed MAR_ESPERA_S, the renderer breaks the salt under her and she goes down
+# (ballena_mundo.ARCO). She comes back up when she has been calm (< 0.3) MAR_CALMA_S after at least MAR_MIN_S, or at MAR_MAX_S.
+# Every passage is logged to datasets/mares.jsonl. YAKUMAMA_AGOBIO=0.9 forces the overwhelm for a rehearsal.
+MAR_ESPERA_S, MAR_CALMA_S, MAR_MIN_S, MAR_MAX_S = (float(os.environ.get(k, d)) for k, d in (("YAKUMAMA_MAR_ESPERA_S", 20.0), ("YAKUMAMA_MAR_CALMA_S", 40.0), ("YAKUMAMA_MAR_MIN_S", 150.0), ("YAKUMAMA_MAR_MAX_S", 600.0)))
+AG = {"nivel": 0.0, "t": 0.0}
+MAR = {"fase": "salar", "t0": 0.0, "agobio_t": None, "calma_t": None}
+def agobio_paso(t, d, dom):
+    """her overwhelm now, 0..1 (AG['nivel']), eased: up over ~30 s, down over ~90 s. d = the perception of this cycle."""
+    f = os.environ.get("YAKUMAMA_AGOBIO")
+    if f:
+        try: AG["nivel"] = max(0.0, min(1.0, float(f))); AG["t"] = t; return AG["nivel"]
+        except Exception: pass
+    o = d.get("oido") if isinstance(d.get("oido"), dict) and t - float(d.get("oido_t") or 0) < 3.0 else {}
+    inst = 0.0
+    try:
+        n = float(d.get("personas_n") or 0); inst = max(inst, (n - 2.0) / 4.0)                       # a crowd
+        inst = max(inst, 0.8 * float(d.get("tacto") or 0.0), 0.9 * float(_cuerpo.get("sujeta") or 0.0))   # a hand on her, held
+        inst = max(inst, (float(o.get("nivel") or 0.0) - 0.55) / 0.35, 0.7 * float(o.get("golpe") or 0.0))   # a loud room, a bang
+        if d.get("camara_cerca"): inst = max(inst, 0.6)                                               # a lens raised at her
+        inst = max(inst, 0.6 * float(_cuerpo.get("cansada") or 0.0), 0.7 * calor_del_mundo())        # her tiredness, the heat of her world
+    except Exception: pass
+    inst = max(0.0, min(1.0, inst)); dt = max(0.0, min(5.0, t - (AG["t"] or t))); AG["t"] = t
+    tau = 30.0 if inst > AG["nivel"] else 90.0
+    AG["nivel"] += (inst - AG["nivel"]) * min(1.0, dt / tau)
+    return AG["nivel"]
+def _mar_log(t, fase):
+    try:
+        with open("datasets/mares.jsonl", "a") as f: f.write(json.dumps({"t": round(t, 1), "fecha": time.strftime("%Y-%m-%d %H:%M:%S"), "fase": fase, "agobio": round(AG["nivel"], 2)}) + "\n")
+    except Exception: pass
+def mar_paso(t, dec):
+    """the sea's arc in her brain: salar -> mar (her decision + sustained overwhelm) -> salar (calm again, or long enough)."""
+    ag = AG["nivel"]
+    if MAR["fase"] == "salar":
+        if EX["fase"] != "vive": MAR["agobio_t"] = None; return
+        MAR["agobio_t"] = (MAR["agobio_t"] or t) if ag > 0.5 else None
+        if (dec or {}).get("mundo") == "mar" and MAR["agobio_t"] and t - MAR["agobio_t"] > MAR_ESPERA_S:
+            MAR.update(fase="mar", t0=t, calma_t=None); _mar_log(t, "mar"); print(f"   [mar] overwhelmed ({ag:.2f}): the salt breaks under her and she goes down", flush=True)
+    else:
+        MAR["calma_t"] = (MAR["calma_t"] or t) if ag < 0.3 else None
+        calma = MAR["calma_t"] and t - MAR["calma_t"] > MAR_CALMA_S and t - MAR["t0"] > MAR_MIN_S
+        if calma or t - MAR["t0"] > MAR_MAX_S:
+            MAR.update(fase="salar", t0=t, agobio_t=None); _mar_log(t, "salar"); print(f"   [mar] {'calm again' if calma else 'long enough'}: she comes back up to the salar", flush=True)
+            if os.environ.get("YAKUMAMA_AGOBIO"): os.environ.pop("YAKUMAMA_AGOBIO", None); print("   [mar] rehearsal over: the forced overwhelm is off", flush=True)
+FUEGOS_ESCALA = {"amazonia": (1000.0, 12000.0), "australia": (1500.0, 12000.0), "bolivia": (300.0, 4000.0)}   # VIIRS detections per day in each box (23 Oct 2026: 4694 / 5959 / 1871 -> 0.34 / 0.42 / 0.42)
+def _exilio_log(t, fase, c):
+    try:
+        with open("datasets/exilios.jsonl", "a") as f: f.write(json.dumps({"t": round(t, 1), "fecha": time.strftime("%Y-%m-%d %H:%M:%S"), "fase": fase, "calor": round(c, 2), "temperatura": _clima.get("temperatura"), "fuegos": _clima.get("fuegos"), "servos": _cuerpo.get("temp")}) + "\n")
+    except Exception: pass
+def exilio_paso(t, dom, dec):
+    """the arc, one step; returns how dead she is (0..1)."""
+    c = calor_del_mundo(); EX["calor"] = c; f = EX["fase"]
+    if f == "vive":
+        if dom == "angry" and c > 0.5: EX["enojo_t"] = EX["enojo_t"] or t
+        else: EX["enojo_t"] = None
+        if (dec or {}).get("mundo") == "marte" and EX["enojo_t"] and t - EX["enojo_t"] > 20.0:
+            EX.update(fase="viaje", t0=t, mundo="marte"); _exilio_log(t, "viaje", c)
+            print(f"   [exilio] too hot ({c:.2f}: air {_clima.get('temperatura')} C, {_clima.get('fuegos')} fires, servos {_cuerpo.get('temp')} C): angry, she leaves for Mars", flush=True)
+    elif f == "viaje":
+        if t - EX["t0"] > EXILIO_VIAJE_S: EX.update(fase="muriendo", t0=t); _exilio_log(t, "muriendo", c); print("   [exilio] on Mars: she begins to die", flush=True)
+    elif f == "muriendo":
+        EX["muerte"] = min(1.0, (t - EX["t0"]) / EXILIO_MUERTE_S)
+        if EX["muerte"] >= 1.0: EX.update(fase="muerta", t0=t); _exilio_log(t, "muerta", c); print("   [exilio] she is dead on Mars; the dust covers her until sunrise", flush=True)
+    elif f == "muerta":
+        amanece = (not _clima["noche"]) and float(_clima["sol"] or 0.0) > 2.0 and t - EX["t0"] > 120.0
+        if amanece or t - EX["t0"] > EXILIO_MUERTA_S: EX.update(fase="renace", t0=t, mundo="salar"); _exilio_log(t, "renace", c); print("   [exilio] sunrise: she is reborn in the salar", flush=True)
+    elif f == "renace":
+        EX["muerte"] = max(0.0, 1.0 - (t - EX["t0"]) / EXILIO_RENACE_S)
+        if EX["muerte"] <= 0.0:
+            EX.update(fase="vive", t0=t, enojo_t=None); _exilio_log(t, "vive", c)
+            if os.environ.get("YAKUMAMA_CALOR"): os.environ.pop("YAKUMAMA_CALOR", None); print("   [exilio] rehearsal over: the forced heat is off, her world's real heat decides from here", flush=True)
+    return EX["muerte"]
+def exilio_paquete(pk, dec, m):
+    """what the exile does to her packet and her choices: above every layer, like the refusals."""
+    pk["mundo"] = EX["mundo"]; pk["muerte"] = round(m, 3); pk["exilio"] = EX["fase"]
+    if EX["fase"] == "vive": return
+    if EX["fase"] == "viaje": pk["color"] = [1.0, 0.05, 0.0]; return     # she burns red on the way
+    k = (1.0 - m) ** 1.5
+    for c in ("pitch", "roll", "giro", "head", "fluke", "flap", "ladeo", "spin", "depth", "jaw", "boca"): pk[c] = round(float(pk[c] or 0.0) * k, 3)
+    pk["spine"] = [round(float(v) * k, 3) for v in pk["spine"]]
+    if not isinstance(pk.get("turbina"), str): pk["turbina"] = round(float(pk.get("turbina") or 0.0) * k, 3)
+    pk["latido"] = round(float(pk["latido"]) * (1.0 - m), 2); pk["tempo"] = round(0.4 + 0.6 * (1.0 - m), 3)
+    pk["blink"] = round(max(float(pk["blink"]), max(0.0, min(1.0, (m - 0.6) / 0.3))), 2)   # her eyes close
+    pk["viento"] = round(max(float(pk.get("viento") or 0.0), m), 3)                        # the dust rises with her death
+    if EX["fase"] == "renace": pk["color"] = [round(0.3 + 0.7 * (1.0 - m), 3), round(0.5 * (1.0 - m), 3), round(0.6 * (1.0 - m), 3)]; pk["renace"] = 1
+    else: pk["color"] = [round((1.0 - m) ** 0.7, 3), round(0.05 * (1.0 - m), 3), 0.0]       # red to black
+    for q_, o_ in (("voz", "silencio"), ("textura", "ninguna"), ("con_cuerpo", "observar"), ("viaje", "quedarse"), ("imitar", "no"), ("boca", "esperar")): dec[q_] = o_
 def dormir(t):
     if DEC is None or not _clima["noche"] or (t - st["vistos"]) < 600.0: return
     hoy = time.strftime("%Y-%m-%d")
     if _sueno["noche_de"] == hoy or (_sueno["hilo"] is not None and _sueno["hilo"].is_alive()): return
     _sueno["noche_de"] = hoy
-    def _aprender():
-        try:
-            import decisiones as _Dm; print("   she sleeps: learning from the day's decisions", flush=True); _Dm.aprender()
-            DEC.pesos = json.load(open(_Dm.PESOS)); print(f"   she wakes with {sum(len(v) for v in DEC.pesos.values())} learned situations", flush=True)
-        except Exception as e: print(f"   (sleep: {e})", flush=True)
-    _sueno["hilo"] = threading.Thread(target=_aprender, daemon=True); _sueno["hilo"].start()
+    _sueno["hilo"] = threading.Thread(target=aprender_todo, args=("she sleeps",), daemon=True); _sueno["hilo"].start()
+def aprender_todo(cuando="she sleeps"):
+    """everything she learns from a day, in one place: her decision weights, then her blinks from the visitors' faces."""
+    global _banco_cara
+    try:
+        import decisiones as _Dm; print(f"   {cuando}: learning from the day's decisions", flush=True); _Dm.aprender()
+        DEC.pesos = json.load(open(_Dm.PESOS)); print(f"   she wakes with {sum(len(v) for v in DEC.pesos.values())} learned situations", flush=True)
+    except Exception as e: print(f"   (sleep: {e})", flush=True)
+    try:   # HER BLINKS LEARN FROM THE VISITORS (30 Oct 2026, Violeta): the day's saved faces are cut into eyelid phrases and added over the home bank
+        import banco_caras as _Bc
+        if _Bc.aprender() is not None: _bz = np.load(_Bc.BANCO); _banco_cara = {m: _bz[m] for m in _bz.files}
+    except Exception as e: print(f"   (sleep, faces: {e})", flush=True)
+def despertar_aprendiendo():
+    """31 Oct 2026 (Barcelona: the power went off every night before she could sleep, so three days of decisions were never learned until
+    someone ran it by hand). On launch, if her decision log is newer than her weights, she learns first, in the background, then lives."""
+    if DEC is None: return
+    try:
+        import decisiones as _Dm
+        if not os.path.exists(_Dm.LOG): return
+        pesos_t = os.path.getmtime(_Dm.PESOS) if os.path.exists(_Dm.PESOS) else 0.0
+        if os.path.getmtime(_Dm.LOG) - pesos_t > 60.0:
+            print("   her log is newer than her weights (she did not get to sleep): learning now", flush=True)
+            _sueno["hilo"] = threading.Thread(target=aprender_todo, args=("she wakes",), daemon=True); _sueno["hilo"].start()
+    except Exception as e: print(f"   (wake-learn: {e})", flush=True)
 def viento_de_ella(t, dom, dt):
     """her own wind 0..1: the mood's base plus gusts she throws; nightmares at night blow harder."""
     base = VIENTO_ANIMO.get(dom, 0.1) * (1.4 if (_clima["noche"] and dom in ("sad", "alert", "angry")) else 1.0)
@@ -738,7 +884,7 @@ def paso():
     else: st["ella"] = None
     toque = reaccion_tacto(d, t, None, m)
     if toque and (t - st.get("tacto_t", 0) > 0.0):   # TOUCH on the sister rules for 6 s after the last touch
-        if q(d, "tacto", 0, 1) > 0.3 or _cuerpo["sujeta"] > 0.5 or str(d.get("ofrenda") or "") in ("pez", "no_pez") or d.get("ve_hermana") or (RO is not None and RO.activa(t)): st["tacto_t"] = t; st["tacto_animo"] = toque   # a touch, an offering (its reaction, while it lasts), or her sister in someone's hands
+        if q(d, "tacto", 0, 1) > 0.3 or _cuerpo["sujeta"] > 0.5 or str(d.get("ofrenda") or "") in ("pez", "no_pez") or d.get("ve_hermana") or (RO is not None and RO.activa(t)) or EX["fase"] != "vive" or calor_del_mundo() > 0.6: st["tacto_t"] = t; st["tacto_animo"] = toque   # 23 Oct: the heat of her world and the exile hold her mood like a touch does   # a touch, an offering (its reaction, while it lasts), or her sister in someone's hands
         if t - st.get("tacto_t", 0) < 6.0 and st.get("tacto_animo"): actor = st["tacto_animo"]; fuente = "tacto"
     if actor in m:
         for k in m: m[k] = 1.0 if k == actor else 0.0
@@ -848,8 +994,9 @@ def paso():
         elif "ojo_lado" in st: del st["ojo_lado"]
     # (the touch reflex now lives in the cosquillas layer above)
     dec, prob = decidir(d, t, hay_persona, dom, q(d, "cuerpo_energia", 0, 1))
-    if dec.get("distancia") == "acercarse" and hay_persona and not canales_local(d) and not (RO is not None and RO.activa(t)): st["ay"] += (-1.4 - st["ay"]) * 0.01
-    elif dec.get("distancia") == "alejarse" and hay_persona and not canales_local(d) and not (RO is not None and RO.activa(t)): st["ay"] += (1.2 - st["ay"]) * 0.01   # 20 Oct: a reaction owns her distance while it lasts
+    if dec.get("distancia") == "acercarse" and hay_persona and not canales_local(d) and not (RO is not None and RO.activa(t)) and not dib["activo"]: st["ay"] += (-1.4 - st["ay"]) * 0.01
+    elif dec.get("distancia") == "alejarse" and hay_persona and not canales_local(d) and not (RO is not None and RO.activa(t)) and not dib["activo"]: st["ay"] += (1.2 - st["ay"]) * 0.01
+    if EX["fase"] in ("muriendo", "muerta"): st["az"] += (-2.0 - st["az"]) * 0.01 * max(0.2, EX["muerte"])   # EXILE (23 Oct): dying, she sinks to the ground of Mars (Dan's floor holds her on it)   # 20 Oct: a reaction owns her distance while it lasts; 23 Oct: so does a drawing (the pen and "come closer" cancelled out and pinned her for 30 min on point 3 of a fish)
     if RO is not None and RO.activa(t):   # a reaction that draws (16: a tail slap and she draws it) or writes (18: a poem)
         fig = RO.dibujo()
         if fig and FIG is not None and not dib["activo"]: dibujo_empezar(fig)
@@ -906,6 +1053,8 @@ def paso():
             try: lectura = st["lectura"] = jepa.leer(dom)
             except Exception as e: lectura = st["lectura"] = {"error": str(e)[:80]}
     # --- the packet: everything she decided
+    _muerte = exilio_paso(t, dom, dec)   # EXILE (23 Oct): hot -> angry -> Mars -> death -> rebirth
+    mar_paso(t, dec)                     # THE SEA (27 Oct): overwhelmed -> the salt breaks -> she goes down -> calm -> she comes back up
     col = MOOD_RGB.get(dom, (0.5, 0.5, 0.5)); r3 = lambda v: round(float(v), 3); _parp_v = parpadeo_propio(t, dom, hay_persona)
     pk = {"animo": dom, "secundario": sec, "fuente": fuente, "x": r3(x), "y": r3(y), "z": r3(z), "yaw": r3((st["wy"] + math.pi) % (2 * math.pi) - math.pi),
           "pitch": r3(comp["pitch"]), "roll": r3(comp["roll"]), "giro": r3(comp["yaw"]), "head": r3(comp["head"]), "spine": [r3(v) for v in comp["spine"]], "fluke": r3(comp["fluke"]), "flap": r3(comp["flap"]), "ladeo": r3(comp["ladeo"]),
@@ -921,7 +1070,9 @@ def paso():
     if dec.get("boca") == "rehusar":   # a refusal (non-fish, jewel pulled, flowers trampled): jaw shut, tail stopped, fins folded, colour out
         pk["jaw"] = pk["boca"] = 0.0; pk["turbina"] = 0.0; pk["flap"] = 0.0; pk["color"] = [0.03, 0.03, 0.05]; pk["latido"] = 0.1; pk["rehusa"] = 1
     else: pk["rehusa"] = 0
-    if RO is not None: RO.paquete(t, pk, col)   # the offering's reaction: come/jaw as the reaction says, her colour (the creature's, orange, red, rainbow...), reaccion {n, texto, fase, extra}
+    exilio_paquete(pk, dec, _muerte)     # EXILE (23 Oct): above every layer
+    pk["mar"] = int(MAR["fase"] == "mar"); pk["agobio"] = round(AG["nivel"], 2)   # THE SEA (27 Oct): the renderer breaks the salt when this turns 1 and brings her up when it turns 0
+    if RO is not None and EX["fase"] == "vive": RO.paquete(t, pk, col)   # the offering's reaction: come/jaw as the reaction says, her colour (the creature's, orange, red, rainbow...), reaccion {n, texto, fase, extra}
     if DEC is not None and (DEC.abierta or {}).get("fijo") == "lente":   # a lens raised at her: still, dim, back turned (the sister on the table does not refuse the lens)
         pk["turbina"] = r3(_turb(pk) * 0.15); pk["flap"] = 0.0; pk["color"] = [round(c * 0.25, 3) for c in pk["color"]]; pk["latido"] = 0.2; pk["lente"] = 1
     else: pk["lente"] = 0
@@ -976,6 +1127,7 @@ def vista_enviar(pk):
 
 if __name__ == "__main__":
     print(f"   cerebro: in UDP {a.entrada} -> out {', '.join(f'{h}:{p}' for h, p in SALIDAS)} | {len(COMPORTAMIENTOS)} behaviours | choreography {'on' if a.coreo else 'off'} | initiative after {a.iniciativa:.0f} s | jepa {'on' if jepa else 'off'}")
+    if not a.prueba: despertar_aprendiendo()   # learn first if the night was cut short (31 Oct)
     t0 = time.time(); i = 0; ult = 0.0
     while True:
         pk = paso(); b = json.dumps(pk).encode()

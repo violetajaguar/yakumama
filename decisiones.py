@@ -47,7 +47,9 @@ EXPLORA, EXPLORA_PISO = float(os.environ.get("YAKUMAMA_EXPLORA", 0.15)), 0.12   
 PESOS = os.path.join(AQUI, "modelos", "decisiones_pesos.json"); PERSONAS = os.path.join(AQUI, "modelos", "decisiones_personas.json")
 OPCIONES = {"viaje": ["cactus", "cerca", "lejos", "quedarse", "show", "montanas"], "imitar": ["si", "no"],   # 21 Oct: ONE DECIDER - her journey and her imitation are decisions like the others (priors in puntajes, learned by reward, Laya leans them)
             "distancia": ["acercarse", "quedarse", "alejarse"], "con_cuerpo": ["bailar_de_vuelta", "invitar", "observar", "dibujar"], "voz": ["poema", "canto", "silencio"],
-            "memoria": ["recordar", "olvidar"], "color": ["propio", "ropa"], "boca": ["comer", "rehusar", "esperar"]}
+            "memoria": ["recordar", "olvidar"], "color": ["propio", "ropa"], "boca": ["comer", "rehusar", "esperar"],
+            "textura": ["ninguna", "hormigas", "maquina", "imprenta", "morse", "cajita", "xny_1", "xny_2", "xny_3", "xny_4", "xny_5", "bjork_1", "bjork_2", "bjork_3", "bjork_4", "bjork_5", "bjork_6", "protesta_1_1", "protesta_2_1", "protesta_2_2", "protesta_3_1", "protesta_3_2", "protesta_4_1", "protesta_4_2"],
+            "mundo": ["salar", "tiupampa", "marte", "mar"]}   # 27 Oct: the sea under the salar, when she is overwhelmed (cerebro_ballena.agobio)   # 23 Oct (Violeta): her world is her decision; too hot and angry, it leans to Mars (the exile, cerebro_ballena.EX)   # metronomo removed 23 Oct 18:50 (Violeta: "the tic tic is bad")   # 23 Oct (Violeta: "get her to pick the sounds just like everything else"): the texture under her is HER choice, learned by reward like the rest; the spray stays the pen's own sound
 PALMA_N = 3; PALMA_FUERZA = 0.7; TIRON_FUERZA = 0.85   # a palm = three or more stems above 0.7; a pull = jewel above 0.85 or joya_tiron
 LAYA = "/tmp/ballena_laya.json"; _laya = {"t": 0.0, "v": None}
 def laya_opinion():
@@ -57,6 +59,15 @@ def laya_opinion():
     try: v = json.load(open(LAYA)); _laya["v"] = v if time.time() - v.get("t", 0) < 12 else None
     except Exception: _laya["v"] = None
     return _laya["v"]
+CATDECIDE = "/tmp/ballena_catdecide.json"; _cat = {"t": 0.0, "v": None}
+def catdecide_opinion():
+    """CatDecide's second opinion on show, journey, mirror and voice (catdecide_sentidos.py, Violeta's criteria as facts, 13 Nov): perform, visit,
+    imitate, speak in 0..1, or None if it is not running or stale. While it is fresh it takes the place of Laya's four answers to those."""
+    if time.time() - _cat["t"] < 1.0: return _cat["v"]
+    _cat["t"] = time.time()
+    try: v = json.load(open(CATDECIDE)); _cat["v"] = v if time.time() - v.get("t", 0) < 12 else None
+    except Exception: _cat["v"] = None
+    return _cat["v"]
 def _softmax(d, temp=1.0):
     m = max(d.values()); e = {k: math.exp((v - m) / temp) for k, v in d.items()}; z = sum(e.values()); return {k: round(v / z, 3) for k, v in e.items()}
 def _f(s, k, por=0.0):
@@ -186,7 +197,14 @@ class Decisora:
         if _f(s, "oye_nivel") > 0.5: p["con_cuerpo"]["invitar"] += 0.4; p["viaje"]["show"] += 0.3; p["viaje"]["cerca"] += 0.2
         if _f(s, "oye_golpe") > 0.6: p["distancia"]["alejarse"] += 0.6; p["con_cuerpo"]["observar"] += 0.4; p["voz"]["silencio"] += 0.3
         L = laya_opinion()   # Laya's new questions (laya_sentidos.py: perform, visit, imitate, speak), once the mini runs them
-        if L and s.get("persona"):
+        C = catdecide_opinion()   # 13 Nov (Violeta's criteria, "run it under your measures"): CatDecide reads them as facts; while it runs, these replace Laya's four. Same sizes as Laya's leans: it leans her, it never decides.
+        if C:
+            if s.get("persona"):
+                p["viaje"]["show"] += 0.8 * (C.get("perform", 0.5) - 0.5)                                                  # someone has danced for her 20 s (she danced back meanwhile): now her own dance
+                v = 0.8 * (C.get("visit", 0.5) - 0.5); p["viaje"]["cactus"] += v; p["viaje"]["montanas"] += v             # someone films her: her cactus or her mountains
+                p["imitar"]["si"] += 1.0 * (C.get("imitate", 0.5) - 0.5)                                                   # a settled face that is not calm (angry too)
+            v = 0.8 * (C.get("speak", 0.5) - 0.5); p["voz"]["canto"] += v; p["voz"]["silencio"] -= v                      # it is cold, or a voice near her: she sings (alone too, when it is cold)
+        elif L and s.get("persona"):
             p["viaje"]["show"] += 0.8 * (L.get("perform", 0.5) - 0.5); p["viaje"]["cactus"] += 0.8 * (L.get("visit", 0.5) - 0.5)
             p["imitar"]["si"] += 1.0 * (L.get("imitate", 0.5) - 0.5); p["voz"]["silencio"] -= 0.8 * (L.get("speak", 0.5) - 0.5)
         # MORE OF THE WORLD (21 Oct, Violeta: "more environmental data"): small leans from the real rain, gusts, clouds, pressure and uv; the clima table below learns the rest
@@ -203,9 +221,21 @@ class Decisora:
             p["con_cuerpo"]["bailar_de_vuelta"] -= 1.2 * can; p["con_cuerpo"]["observar"] += 0.8 * can; p["viaje"]["show"] -= 1.0 * can; p["viaje"]["quedarse"] += 0.6 * can; p["voz"]["silencio"] += 0.3 * can; p["imitar"]["no"] += 0.5 * can
         if exc > 0.0 and can < 0.5:   # warm from moving: excited; she keeps going
             p["con_cuerpo"]["bailar_de_vuelta"] += 0.6 * exc; p["viaje"]["show"] += 0.4 * exc; p["viaje"]["cerca"] += 0.2 * exc; p["voz"]["canto"] += 0.2 * exc; p["imitar"]["si"] += 0.3 * exc
+        # HER TEXTURE (23 Oct): small starting leans by mood so the first days make sense; xny wolf's five at a flat share so she tries them; the log teaches the rest
+        tx = {"angry": {"maquina": 0.8}, "alert": {"morse": 0.5}, "sad": {"cajita": 0.6}, "playful": {"imprenta": 0.5}, "curious": {"hormigas": 0.6}, "feeding": {"hormigas": 0.6}, "calm": {"ninguna": 0.4}, "singing": {"ninguna": 0.3}}.get(an, {})
+        for o, w in tx.items(): p["textura"][o] += w
+        for o in ("xny_1", "xny_2", "xny_3", "xny_4", "xny_5", "bjork_1", "bjork_2", "bjork_3", "bjork_4", "bjork_5", "bjork_6", "protesta_1_1", "protesta_2_1", "protesta_2_2", "protesta_3_1", "protesta_3_2", "protesta_4_1", "protesta_4_2"): p["textura"][o] += 0.25   # xny wolf's five and six phrases of Bjork's Frosti (23 Oct)
+        # HER WORLD (23 Oct): the salar is home; a world too hot (NASA FIRMS fires, the air, her servos) and her anger lean her to Mars, where she dies
+        cal = _f(s, "calor_mundo"); p["mundo"]["salar"] += 2.0; p["mundo"]["tiupampa"] += 0.1
+        if an == "angry" and cal > 0.5: p["mundo"]["marte"] += 4.0 * cal
+        ag = _f(s, "agobio")   # THE SEA (27 Oct, Violeta: "her world is the salar", the sea "only sporadically"): only a sustained overwhelm leans her to it
+        if ag > 0.5: p["mundo"]["mar"] += 3.5 * ag
+        if not s.get("persona"): p["textura"]["ninguna"] += 0.5
         for q in p:
-            for o, w in self.pesos.get(clave, {}).get(q, {}).items(): p[q][o] += float(w)
-            for o, w in self.pesos.get("clima:" + clave_clima(s), {}).get(q, {}).items(): p[q][o] += float(w)   # what she has learned about this weather
+            for o, w in self.pesos.get(clave, {}).get(q, {}).items():
+                if o in p[q]: p[q][o] += float(w)   # an option retired since (metronomo) keeps its weight in the file, harmlessly
+            for o, w in self.pesos.get("clima:" + clave_clima(s), {}).get(q, {}).items():
+                if o in p[q]: p[q][o] += float(w)   # what she has learned about this weather
         return p
     def rechazos(self, s, dec, prob):
         """the fixed answers above rules and weights. Returns the name of the refusal or '' (logged as 'fijo', skipped by learning)."""
@@ -244,7 +274,7 @@ class Decisora:
                 cand = {o: v for o, v in pr.items() if v >= EXPLORA_PISO} or {top: 1.0}
                 dec[q] = random.choices(list(cand), weights=list(cand.values()))[0]
         fijo = self.rechazos(s, dec, prob)
-        self.abierta = {"t": time.time(), "clave": situacion_clave(s), "clima": clave_clima(s), "politica": politica, "fijo": fijo, "laya": {k: v for k, v in (laya_opinion() or {}).items() if k in ("engaged", "maltrato", "retirarse", "regalo")}, "situacion": {k: s.get(k) for k in ("persona", "conocida", "animo", "energia", "segundos", "quieto", "flores", "flores_n", "joya", "joya_tiron", "boca", "boca_p", "palanca_s", "camara_cerca", "tacto", "tacto_zona", "personas_n", "foco_razon", "telefono", "ofrenda_id", "reaccion",
+        self.abierta = {"t": time.time(), "clave": situacion_clave(s), "clima": clave_clima(s), "politica": politica, "fijo": fijo, "laya": {k: v for k, v in (laya_opinion() or {}).items() if k in ("engaged", "maltrato", "retirarse", "regalo")}, "situacion": {k: s.get(k) for k in ("persona", "mundo", "conocida", "animo", "energia", "segundos", "quieto", "flores", "flores_n", "joya", "joya_tiron", "boca", "boca_p", "palanca_s", "camara_cerca", "tacto", "tacto_zona", "personas_n", "foco_razon", "telefono", "ofrenda_id", "reaccion",
                                                                                                                       "viento", "rachas", "lluvia_real", "nubes", "humedad", "presion", "uv", "noche", "aleta_sujeta", "cansada", "excitada", "calor")},
                         "decision": dec, "prob": prob}
         return dec, prob

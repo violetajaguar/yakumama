@@ -55,7 +55,10 @@ class Memoria:
         """suma un encuentro a una persona conocida (pid) o crea una nueva. Devuelve el id."""
         ahora = time.strftime("%Y-%m-%d %H:%M")
         if pid is None or pid not in self.personas:
-            pid = f"v{len(self.personas) + 1:04d}"
+            # 30 Oct 2026: the id is one past the HIGHEST existing number, never len+1. After a person was forgotten the ids had holes, len+1
+            # fell on an id that already existed (v0009 in Barcelona) and every stranger was filed into that one person: 670 of 725 visits.
+            usados = [int(k[1:]) for k in self.personas if k[:1] == "v" and k[1:].isdigit()]
+            pid = f"v{(max(usados) if usados else 0) + 1:04d}"
             self.personas[pid] = {"firma": [round(float(x), 5) for x in firma], "visitas": 0, "primera": ahora, "ultima": ahora, "estilo": None, "animos": {}, "pulso": None, "encuentros": []}
         p = self.personas[pid]; p["visitas"] += 1; p["ultima"] = ahora
         # la firma se afina con cada visita (media movil), para que una cara cambie despacio con la memoria

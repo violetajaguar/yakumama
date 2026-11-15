@@ -7,6 +7,7 @@ videos_comportamientos/**/*.mp4
 modelos/jepa_datos.npz
 venv_datos/
 modelos/laya-typed-decisions-mlx/
+modelos/catdecide-v0.9/
 modelos/hermana_dorada.blend
 modelos/human-pose-estimation-0001_openvino_2022.1_6shave.blob
 modelos/decisiones_personas.json
@@ -23,8 +24,23 @@ modelos/ofrendas_manos.npz
 
 # 22 oct: entorno de TD, logs y fotos pesadas fuera del repo
 venv_td/
+venv_catdecide/
 logs/
 docs/ofrendas/*.jpg
 docs/ofrendas/*.jpeg
 docs/ofrendas/*.png
 modelos/mobilenet_v3_large_embedder.tflite
+secretos.env
+
+# 15 nov: fuera del repo -> los pesos de Fabrício (con permiso, no se redistribuyen), las copias entrenadas con su registro
+# (se rehacen con pruebas_laya/laya_de_ella.py y catdecide_de_ella.py), los parpadeos de visitas y los resultados sacados del registro de visitas
+modelos/CatDecide-1/
+modelos/CatDecide-1-de-ella*/
+modelos/laya-de-ella-mlx*/
+modelos/cara_banco_visitas.*
+pruebas_laya/resultados_*.json
+
+# 15 nov, Violeta: "no data should be shared just code". Nada de datos nuevos en GitHub: ni bancos de parpadeo, ni pesos aprendidos, ni hojas de sesion
+modelos/cara_banco_casa.npz
+modelos/decisiones_pesos_*.json
+docs/Yakumama_photo_session.xlsx

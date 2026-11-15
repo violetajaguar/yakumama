@@ -272,3 +272,13 @@ singing 53–75, 0 saltos. (La ofrenda ya duraba 30 s como escena.)
 
 ## 21 oct · el viaje (cámara que la sigue)
 Con `--violeta` el cerebro de Dan arranca en `nav_mode = viaje`: ella vive en metros absolutos del salar y la cámara la sigue (15–80 m según se acerque o se aleje). Perillas (entorno de `ballena_td.py`): `VIOLETA_VIAJE=0` (toma fija de antes), `VIAJE_M` (metros por unidad, 12), `VIAJE_MPS` (3 m/s de crucero entre destinos), `VIAJE_DEST_R` (destinos dentro de 200 m), `VIAJE_NEAR_M`/`VIAJE_FAR_M` (8/60 m de cámara), `BALLENA_EYE_DEG` (25°, cuánto giran sus ojos). Palanca: x orbita, y acerca/aleja. El panel puede volver a `walk`/`orbit`. Respaldo del archivo de Dan antes del cambio: `entregas/ballena_td_antes_viaje_21oct.py`.
+
+## Sin la mini (27 oct 2026, Barcelona)
+
+La mini no viajó. Su mente vive ahora en el PC (Threadripper + RTX PRO 6000), que ya corre Laya. Todo lo que apuntaba a la mini es
+una sola variable, `MINI` (el host de su mente): `MINI=<ip-del-PC> ./correr_todo.sh` manda Qwen (ELLA_OLLAMA y DAN_OLLAMA) y el
+puente de Laya al PC. En el PC hace falta: Ollama escuchando en todas las interfaces (`OLLAMA_HOST=0.0.0.0` antes de arrancarlo) con
+un modelo (`ollama list`; `qwen35-local` era el de Dan: si no está, `ELLA_MODEL=... DAN_MODEL=...` con el que haya), Laya responde desde el PC por el puente (la Studio lo ve en su log; `LAYA=mini` con `MINI=192.168.0.19`, el valor por defecto). Ojo: el
+`laya_sentidos.py` de este repo es MLX (solo Apple Silicon); si el PC deja de responder, `LAYA=aqui` la corre en la Studio (venv_datos,
+modelos/laya-typed-decisions-mlx). Las respuestas del puente van a la máquina del cerebro, no a quien pregunta: una prueba desde otra Mac no las oye. En Barcelona, en el router propio: el PC es **192.168.0.19** (ya es el valor por defecto de `MINI`) y la Mac Studio **192.168.0.186** (TD, los venv, el cerebro). La MacBook de desarrollo está en el wifi del lugar (10.105.x.x): para pasarle cosas a la Studio, cable al router. Si el PC no sirve
+Ollama, ella nada por reflejos (`YAKUMAMA_SIN_QWEN=1` ya lo pone el launcher para el grabador; a Dan le falta la cognición).

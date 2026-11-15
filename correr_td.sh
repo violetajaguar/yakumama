@@ -3,11 +3,12 @@
 # Orden obligatorio: PRIMERO el cerebro (OSC 7000), DESPUES TouchDesigner; si TD abre antes, sus parametros ligados
 # a OSC dan error (cruz roja) hasta que el cerebro envie.  Uso:  bash ~/Desktop/Yakumama/correr_td.sh [--run|--idle]
 Y=~/Desktop/Yakumama; D=$Y/fuentes/Yaku_PC_2026-10-20/Paqarina_TD; MODO=${@:---idle}
+[ -f "${Y:-$HOME/Desktop/Yakumama}/secretos.env" ] && . "${Y:-$HOME/Desktop/Yakumama}/secretos.env"   # 23 Oct: NASA_FIRMS_KEY (the fires) lives there, out of git
 # Su mente vive en la Mac mini (violetas-mini, 192.168.50.104, cable; Ollama con qwen35-local). Solo cuenta con --run --brain.
-export BALLENA_OLLAMA=${BALLENA_OLLAMA:-192.168.50.104:11434}
+MINI=${MINI:-192.168.0.19}; export BALLENA_OLLAMA=${BALLENA_OLLAMA:-$MINI:11434}; export OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3.6}   # 27 oct, Barcelona: sin mini; MINI = el PC (qwen3.6)
 cd "$D"
 pkill -f "ballena_td.p[y]" 2>/dev/null; sleep 1
-mkdir -p "$Y/logs"; nohup "$Y/venv_td/bin/python" -u ballena_td.py $MODO > "$Y/logs/ballena_td.log" 2>&1 &
+mkdir -p "$Y/logs"; BALLENA_MUNDO=${MUNDO:-salar} nohup "$Y/venv_td/bin/python" -u ballena_td.py $MODO > "$Y/logs/ballena_td.log" 2>&1 &
 echo "cerebro: pid $!  (log: $Y/logs/ballena_td.log)"; sleep 4; tail -3 "$Y/logs/ballena_td.log"
 TOE="$D/Paqarina.toe"; [ -f "$D/Paqarina_mac.toe" ] && TOE="$D/Paqarina_mac.toe"   # la copia con rutas Mac (relocate_paths.py, 20 oct)
 open -a TouchDesigner "$TOE"; echo "abriendo $(basename "$TOE")"

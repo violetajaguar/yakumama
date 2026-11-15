@@ -32,19 +32,16 @@ if pol["azar"]:
     def col(rs):
         con = [r for r in rs if (r.get("situacion") or {}).get("persona")]; rec = [float(r.get("recompensa") or 0) for r in con]
         q = [float((r.get("resultado") or {}).get("quedo_s") or 0) for r in con]; fue = [r for r in con if (r.get("resultado") or {}).get("se_fue")]
-        pronto = [r for r in fue if float((r.get("resultado") or {}).get("quedo_s") or 0) < 20]
+        pronto = [r for r in fue if float((r.get("situacion") or {}).get("segundos") or 0) < 20]   # the ENCOUNTER's length at the moment they left (quedo_s is one decision's 4 s)
         return {"decisions with someone": len(con), "encounters ended": len(fue), "mean reward": f"{sum(rec) / len(rec):+.3f}" if rec else "-",
                 "mean seconds per decision": f"{sum(q) / len(q):.1f}" if q else "-", "left within 20 s": f"{100.0 * len(pronto) / len(fue):.0f}%" if fue else "-"}
     ce, ca = col(pol["ella"]), col(pol["azar"])
     print("\nHER DECISIONS AGAINST A RANDOM POLICY (same day, same people, a coin per encounter)")
     print(f"  {'':28s} {'ella':>12s} {'azar':>12s}")
     for k in ce: print(f"  {k:28s} {str(ce[k]):>12s} {str(ca[k]):>12s}")
-    for q in sorted({q for r in filas for q in (r.get("decision") or {})}):
-        if solo and q != solo: continue
-        def por(rs):
-            v = [float(r.get("recompensa") or 0) for r in rs if q in (r.get("decision") or {}) and (r.get("situacion") or {}).get("persona")]
-            return f"{sum(v) / len(v):+.3f} ({len(v)})" if v else "-"
-        print(f"  {q:28s} {por(pol['ella']):>12s} {por(pol['azar']):>12s}")
+    enc = lambda rs: [float((r.get("situacion") or {}).get("segundos") or 0) for r in rs if (r.get("resultado") or {}).get("se_fue") and 0 < float((r.get("situacion") or {}).get("segundos") or 0) < 3600]   # an encounter, not the "alone since" clock
+    for nm, rs in pol.items():
+        e = enc(rs); print(f"  {'mean encounter length (s)':28s} {nm:>6s} {sum(e) / len(e):10.1f}" if e else f"  {'mean encounter length (s)':28s} {nm:>6s}          -")
     print("  (if 'ella' is not clearly above 'azar' on mean reward, her decider is not yet earning its keep: more days, or the priors are wrong)")
 else: print("  (no random-policy rows yet: run a day with EVALUAR=1 ./correr_todo.sh to measure her against chance)")
 preguntas = sorted({q for r in filas for q in (r.get("decision") or {})})
