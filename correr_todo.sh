@@ -4,6 +4,8 @@
 # Qwen: sus poemas en ESTA Mac (qwen3.6, el modelo para el que fue hecha; ELLA_OLLAMA/ELLA_MODEL), el cerebro de Dan en la mini
 # (qwen35-local; DAN_OLLAMA/DAN_MODEL): probado 20 oct, el qwen3.6 local con TD en la misma GPU le vence el tiempo a la cognicion de Dan.
 # Laya: por el puente en el host MINI (LAYA=mini, por defecto; en Barcelona el PC 192.168.0.19, donde la Studio la ve responder) o aqui (LAYA=aqui, venv_datos, MLX). Un log por proceso en logs/.  Uso:
+#   LAYA=de_ella bash correr_todo.sh   (15 nov) Laya aqui con la copia entrenada con su propio registro; sin esa palabra corre como siempre
+#   python3 chequeo_sentidos.py --abrir   antes de abrir (un minuto: cada sentido tiene que saltar)      python3 chequeo_sentidos.py --cerrar   al cerrar (lo que guardo el dia, con avisos)
 #   bash correr_todo.sh            arranca todo        bash correr_todo.sh --parar      para todo (el cerebro de Dan primero: deja el rig en reposo)
 #   SILENCIO=1 bash correr_todo.sh prueba sin voz ni sonidos        bash correr_todo.sh --estado   que corre y que no
 Y=~/Desktop/Yakumama; D=$Y/fuentes/Yaku_PC_2026-10-20/Paqarina_TD; L=$Y/logs; mkdir -p $L
@@ -36,9 +38,9 @@ echo "2a su ojo (Lite) -> logs/ojo.log   ventana: http://$(ipconfig getifaddr en
 BALLENA_MUNDO=${MUNDO:-salar} YAKUMAMA_EVALUAR=${EVALUAR:-0} YAKUMAMA_VISTA=${YAKUMAMA_VISTA:-127.0.0.1:4210} nohup venv/bin/python -u cerebro_ballena.py --entrada 9997 --salida 127.0.0.1:9994 --salida 127.0.0.1:9993 --callado > $L/cerebro.log 2>&1 </dev/null &
 echo "2b su cerebro -> 9994 (TD de Dan) y la vista 4210 -> logs/cerebro.log"; sleep 3
 pkill -f "laya_puente.py pc" 2>/dev/null; pkill -f "laya_sentidos.py" 2>/dev/null; sleep 1
-if [ "$LAYA" = "aqui" ]; then
-  nohup venv_datos/bin/python -I laya_sentidos.py > $L/laya.log 2>&1 </dev/null &
-  echo "2c Laya AQUI (laya_sentidos.py, venv_datos) -> logs/laya.log"
+if [ "$LAYA" = "aqui" ] || [ "$LAYA" = "de_ella" ]; then   # 15 nov: LAYA=de_ella = aqui, con la copia entrenada con su registro (modelos/laya-de-ella-mlx); sin esa palabra corre como siempre
+  LAYA_PESOS=$([ "$LAYA" = "de_ella" ] && echo de_ella) nohup venv_datos/bin/python -I laya_sentidos.py > $L/laya.log 2>&1 </dev/null &
+  echo "2c Laya AQUI (laya_sentidos.py, venv_datos$([ "$LAYA" = "de_ella" ] && echo ', pesos DE ELLA')) -> logs/laya.log"
 else
   nohup venv/bin/python -u laya_puente.py pc $MINI > $L/laya_puente.log 2>&1 </dev/null &
   echo "2c puente Laya <-> mini $MINI -> logs/laya_puente.log"
@@ -65,3 +67,4 @@ TOE="$D/Paqarina.toe"; [ -f "$D/Paqarina_mac.toe" ] && TOE="$D/Paqarina_mac.toe"
 pgrep -x TouchDesigner >/dev/null && echo "4 TouchDesigner ya abierto" || { open -a TouchDesigner "$TOE"; echo "4 abriendo $(basename "$TOE")"; }
 pkill -f vigilante_td.sh 2>/dev/null; nohup bash $Y/vigilante_td.sh > /dev/null 2>&1 </dev/null & echo "5 vigilante de TD (guarda y relanza a 9 GB con la sala vacia, o a 14 GB) -> logs/vigilante_td.log"
 echo; echo "estado:"; bash $Y/correr_todo.sh --estado
+echo; echo "antes de abrir al publico:  python3 chequeo_sentidos.py --abrir      al cerrar:  python3 chequeo_sentidos.py --cerrar"

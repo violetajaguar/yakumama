@@ -80,7 +80,10 @@ def escribir(d, R=None):
     return " ".join(o)
 
 def hechos(s):
-    tac = float(s.get("tacto") or 0); return (2 if (tac > 0.85 or s.get("joya_tiron")) else 1 if s.get("boca") == "no_pez" else 0), bool(s.get("boca") == "pez" or 0.3 < tac <= 0.85)
+    """What her senses read: (mistreatment level, gift). 15 Nov 2026, Violeta's go: mistreatment is only what her sister physically feels (a hard
+    touch, a pull on the jewel). Something that is not a fish at the mouth is NOT mistreatment: her eye read it in 27% of the Barcelona decisions
+    with a visitor, and she already refuses to eat it by her own rule. (Until 14 Nov it counted as "a little": the first trained copies learned that.)"""
+    tac = float(s.get("tacto") or 0); return (2 if (tac > 0.85 or s.get("joya_tiron")) else 0), bool(s.get("boca") == "pez" or 0.3 < tac <= 0.85)
 
 def efectos(P):
     """For each decision: the difference in 'still there 30 s later' between doing it and not, inside each kind of situation, pulled toward the overall one."""

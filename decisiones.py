@@ -173,8 +173,10 @@ class Decisora:
         L = laya_opinion()   # Laya's second opinion as small weights: it leans her, it never decides, and the refusals sit above it
         if L and s.get("persona"):
             eng, mal, ret, reg = L.get("engaged", 0.5), L.get("maltrato", 0.0), L.get("retirarse", 0.5), L.get("regalo", 0.5)
-            p["con_cuerpo"]["invitar"] += 0.6 * (eng - 0.5); p["voz"]["poema"] += (0.5 * (eng - 0.5) if seg > 30 else 0.0); p["memoria"]["recordar"] += 0.4 * (eng - 0.5)
-            p["distancia"]["alejarse"] += 1.0 * mal + 0.6 * (ret - 0.5); p["color"]["propio"] += 0.5 * mal; p["distancia"]["acercarse"] += 0.5 * (reg - 0.5); p["voz"]["canto"] += 0.3 * (reg - 0.5)
+            e, g = eng - 0.5, reg - 0.5
+            if L.get("pesos") == "de_ella": e, g = max(0.0, e), max(0.0, g)   # 15 Nov (Violeta): the copy trained on her log answers honestly (a newcomer 0.3, no gift 0.0), so these two only pull, never push: a newcomer is not invited less and no gift is no reason to keep away
+            p["con_cuerpo"]["invitar"] += 0.6 * e; p["voz"]["poema"] += (0.5 * e if seg > 30 else 0.0); p["memoria"]["recordar"] += 0.4 * e
+            p["distancia"]["alejarse"] += 1.0 * mal + 0.6 * (ret - 0.5); p["color"]["propio"] += 0.5 * mal; p["distancia"]["acercarse"] += 0.5 * g; p["voz"]["canto"] += 0.3 * g
         clave = situacion_clave(s)   # learned adjustments from the log, per situation
         # HER JOURNEY (21 Oct): the priors that were odds tables in cerebro_ballena.py, now one decision among the others
         an = str(s.get("animo") or "calm"); pv = PRIOR_VIAJE.get(an, PRIOR_VIAJE["calm"])
@@ -274,7 +276,8 @@ class Decisora:
                 cand = {o: v for o, v in pr.items() if v >= EXPLORA_PISO} or {top: 1.0}
                 dec[q] = random.choices(list(cand), weights=list(cand.values()))[0]
         fijo = self.rechazos(s, dec, prob)
-        self.abierta = {"t": time.time(), "clave": situacion_clave(s), "clima": clave_clima(s), "politica": politica, "fijo": fijo, "laya": {k: v for k, v in (laya_opinion() or {}).items() if k in ("engaged", "maltrato", "retirarse", "regalo")}, "situacion": {k: s.get(k) for k in ("persona", "mundo", "conocida", "animo", "energia", "segundos", "quieto", "flores", "flores_n", "joya", "joya_tiron", "boca", "boca_p", "palanca_s", "camara_cerca", "tacto", "tacto_zona", "personas_n", "foco_razon", "telefono", "ofrenda_id", "reaccion",
+        self.abierta = {"t": time.time(), "clave": situacion_clave(s), "clima": clave_clima(s), "politica": politica, "fijo": fijo, "laya": {k: v for k, v in (laya_opinion() or {}).items() if k in ("engaged", "maltrato", "retirarse", "regalo", "perform", "visit", "imitate", "speak", "pesos")},
+                        "catdecide": {k: v for k, v in (catdecide_opinion() or {}).items() if k in ("perform", "visit", "imitate", "speak")}, "situacion": {k: s.get(k) for k in ("persona", "mundo", "conocida", "animo", "energia", "segundos", "quieto", "flores", "flores_n", "joya", "joya_tiron", "boca", "boca_p", "palanca_s", "camara_cerca", "tacto", "tacto_zona", "personas_n", "foco_razon", "telefono", "ofrenda_id", "reaccion", "ofrenda_nombre", "ve_hermana", "distancia_m", "mueve_s", "baila_s", "oye_nivel", "oye_golpe", "oye_canta", "temperatura",   # 15 Nov: what the Barcelona log lacked
                                                                                                                       "viento", "rachas", "lluvia_real", "nubes", "humedad", "presion", "uv", "noche", "aleta_sujeta", "cansada", "excitada", "calor")},
                         "decision": dec, "prob": prob}
         return dec, prob
@@ -285,7 +288,7 @@ class Decisora:
         q = float(r.get("quedo_s", 0) or 0)
         tiempo = 0.2 * min(1.0, q / 30.0) + 0.8 * min(1.0, max(0.0, q - 30.0) / 180.0)
         rec = (tiempo + 0.3 * float(r.get("acerco", 0) or 0) + 0.15 * min(3.0, float(r.get("palabras", 0) or 0)) + 0.2 * float(r.get("quieto", 0) or 0)
-               + 0.2 * min(1.0, float(r.get("palanca_s", 0) or 0) / 60.0) + 0.5 * float(r.get("vuelve", 0) or 0) + 0.2 * float(r.get("bailo", 0) or 0)
+               + 0.2 * min(1.0, max(0.0, float(r.get("palanca_s", 0) or 0)) / 60.0) + 0.5 * float(r.get("vuelve", 0) or 0) + 0.2 * float(r.get("bailo", 0) or 0)
                - (0.5 if (r.get("se_fue") and q < 20) else 0.0))
         return round(rec, 3)
     def cerrar(self, resultado):
@@ -296,16 +299,19 @@ class Decisora:
         self.abierta = None
 def aprender():
     """nightly: for each situation key and question, the options that preceded better outcomes get weight (a small contextual bandit).
-    Rows with a fixed refusal are skipped: those answers are not hers to learn."""
+    Rows with a fixed refusal are skipped: those answers are not hers to learn. 15 Nov: so are rows with nobody there (their outcome held
+    the last visitor's dance, touch and joystick; in Barcelona the empty night of 28 Oct taught her weather table), and the reward is
+    computed again from the outcome, so the old negative joystick times no longer count."""
     try: filas = [json.loads(l) for l in open(LOG)]
     except Exception: print("no log yet"); return
-    acum = {}; usadas = 0
+    acum = {}; usadas = 0; solas = 0
     for r in filas:
         if r.get("fijo"): continue
-        usadas += 1; k = r["clave"]
+        if not (r.get("situacion") or {}).get("persona"): solas += 1; continue
+        usadas += 1; k = r["clave"]; rec = Decisora.recompensa(r["resultado"]) if isinstance(r.get("resultado"), dict) else r.get("recompensa", 0.0)
         for q, o in r["decision"].items():
-            acum.setdefault(k, {}).setdefault(q, {}).setdefault(o, []).append(r.get("recompensa", 0.0))
-            if r.get("clima"): acum.setdefault("clima:" + r["clima"], {}).setdefault(q, {}).setdefault(o, []).append(r.get("recompensa", 0.0))   # the weather's own table
+            acum.setdefault(k, {}).setdefault(q, {}).setdefault(o, []).append(rec)
+            if r.get("clima"): acum.setdefault("clima:" + r["clima"], {}).setdefault(q, {}).setdefault(o, []).append(rec)   # the weather's own table
     pesos = {}
     for k, qs in acum.items():
         for q, os_ in qs.items():
@@ -313,7 +319,7 @@ def aprender():
             if len(medias) >= 2:
                 base = sum(medias.values()) / len(medias); pesos.setdefault(k, {})[q] = {o: round(1.5 * (m - base), 3) for o, m in medias.items()}
     os.makedirs(os.path.dirname(PESOS), exist_ok=True); json.dump(pesos, open(PESOS, "w"), indent=1)
-    print(f"decisiones: {len(filas)} logged ({len(filas) - usadas} fixed, skipped), weights for {len(pesos)} situations -> {PESOS}")
+    print(f"decisiones: {len(filas)} logged ({len(filas) - usadas - solas} fixed and {solas} with nobody there, skipped), weights for {len(pesos)} situations -> {PESOS}")
 SITUACIONES_PRUEBA = [
     ("nadie", {"persona": 0, "segundos": 120}),
     ("conocida juguetona", {"persona": 1, "conocida": 1, "animo": "playful", "energia": 0.6, "segundos": 30}),

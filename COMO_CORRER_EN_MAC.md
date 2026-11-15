@@ -282,3 +282,38 @@ un modelo (`ollama list`; `qwen35-local` era el de Dan: si no está, `ELLA_MODEL
 `laya_sentidos.py` de este repo es MLX (solo Apple Silicon); si el PC deja de responder, `LAYA=aqui` la corre en la Studio (venv_datos,
 modelos/laya-typed-decisions-mlx). Las respuestas del puente van a la máquina del cerebro, no a quien pregunta: una prueba desde otra Mac no las oye. En Barcelona, en el router propio: el PC es **192.168.0.19** (ya es el valor por defecto de `MINI`) y la Mac Studio **192.168.0.186** (TD, los venv, el cerebro). La MacBook de desarrollo está en el wifi del lugar (10.105.x.x): para pasarle cosas a la Studio, cable al router. Si el PC no sirve
 Ollama, ella nada por reflejos (`YAKUMAMA_SIN_QWEN=1` ya lo pone el launcher para el grabador; a Dan le falta la cognición).
+
+## 15 nov — lo que Barcelona enseñó: Laya entrenada con su registro, y dos chequeos
+
+**Laya de ella.** `LAYA=de_ella ./correr_todo.sh` corre a Laya en esta Mac con la copia entrenada con todas sus decisiones (casa y
+Barcelona; `modelos/laya-de-ella-mlx`, se rehace con `pruebas_laya/experiencia_datos.py` y luego `pruebas_laya/laya_de_ella.py`).
+Sin esa palabra corre como siempre (la original, por el puente). Qué cambia con ella:
+- La original le decía «maltrato» con casi todo visitante (0,54 de 1 de media en Barcelona, también cuando sus sensores no leían nada):
+  un empujón fijo a alejarse y al silencio. La entrenada solo lo dice cuando la hermana siente un toque fuerte o un tirón de la joya.
+  Algo que no es un pez en la boca **no** es maltrato (regla de Violeta, 15 nov); su propio rechazo a comerlo sigue igual.
+- Lee además el toque en el lomo, el movimiento sostenido (`mueve_s`) y la quietud: `laya_sentidos.describir_larga`.
+- Con ella, dos reglas de `decisiones.py` solo tiran, nunca empujan: a quien acaba de llegar no se le invita menos, y que no haya
+  regalo no es razón para alejarse. Con la original esas reglas quedan como estaban.
+- En la mini sigue la original: para tener la entrenada allí hay que copiar `modelos/laya-de-ella-mlx` y `laya_sentidos.py`.
+
+**CatDecide** sigue con los pesos de Fabrício tal como son (`CATDECIDE=1`). El adaptador entrenado estropea las preguntas de
+hecho de los criterios de Violeta (baile: de 400 a 288 aciertos de 400): no se usa en vivo.
+
+**Chequeo de apertura:** `python3 chequeo_sentidos.py --abrir`. Un minuto, con todo corriendo: párate frente a ella, apúntale un
+teléfono, toca a la hermana, acércale un pez, habla, baila. Marca cada sentido cuando salta y al final dice cuáles no saltaron.
+
+**Chequeo de cierre:** `python3 chequeo_sentidos.py --cerrar`. Lo que guardó el día, con avisos. Sobre los tres días de Barcelona
+avisa de todo lo que entonces nadie vio: el teléfono nunca saltó, la sala contó cero personas el 29, el oído y la temperatura no
+llegaron al registro, la palanca salió negativa toda una noche, su ojo leyó «no es un pez» en un tercio de las decisiones, y ella
+se alejó en el 58–71 % de sus decisiones con visitante.
+
+**Arreglos en su aprendizaje (15 nov):** el reloj de la palanca ya no puede salir negativo (`cerebro_ballena._resultado`,
+`decisiones.recompensa`); una decisión tomada sin nadie ya no carga el baile ni el toque de la última visita; `aprender()` no aprende
+de la sala vacía y vuelve a calcular la recompensa. El registro guarda además: las ocho respuestas de Laya y con qué pesos, lo que
+dijo CatDecide, el oído, la temperatura del aire, el movimiento y el nombre de la ofrenda.
+
+**Su registro y sus pesos:** `datasets/decisiones.jsonl` es ahora el registro completo (casa + Barcelona, 79.950 decisiones; el de
+casa hasta el 23 oct quedó en `datasets/decisiones_casa_hasta_23oct.jsonl`) y `modelos/decisiones_pesos.json` se volvió a aprender
+de él con los arreglos (173 situaciones con visitante; las tablas del clima de noche, que la palanca había inflado hasta 4,47,
+quedan por debajo de 0,8). Para volver a los pesos de casa del 23 oct: `cp modelos/decisiones_pesos_casa_23oct.json modelos/decisiones_pesos.json`.
+

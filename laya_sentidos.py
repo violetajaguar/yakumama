@@ -10,6 +10,10 @@ import os, sys, json, time
 CEREBRO = "/tmp/ballena_cerebro.json"; SALIDA = "/tmp/ballena_laya.json"; AQUI = os.path.dirname(os.path.abspath(__file__)); LOG = os.path.join(AQUI, "datasets", "laya.jsonl")
 MODELO = os.path.join(AQUI, "modelos", "laya-typed-decisions-mlx")   # the weights travel with her (807 MB); if the folder is missing, the hub id below downloads them
 if not os.path.isdir(MODELO): MODELO = "aac6fef/laya-typed-decisions-mlx"
+PESOS = os.environ.get("LAYA_PESOS", "")   # 15 Nov: LAYA_PESOS=de_ella (LAYA=de_ella ./correr_todo.sh) = the copy trained on her own log (pruebas_laya/laya_de_ella.py); anything else = the original, as before
+DE_ELLA = os.path.join(AQUI, "modelos", "laya-de-ella-mlx")
+if PESOS == "de_ella" and os.path.isdir(DE_ELLA): MODELO = DE_ELLA
+else: PESOS = ""
 PRE = ("Yakumama is a whale in a gallery. Her goal is to keep each visitor engaged with her for a long time, not to entertain. She has a physical "
        "sister on a table with two touch points, a garden of metal flowers and a jewel crown; visitors may feed the sister her painted fish. Situation: ")
 Q = {"engaged": {"type": "noul", "instructions": "Is this visitor deeply engaged with her, rather than just passing by?"},
@@ -40,16 +44,26 @@ def describir(c):
     n = c.get("personas_n")
     if n and n > 1: s.append(f"There are {n} people in the room; she chose this one because: {c.get('foco_razon') or 'closest'}.")
     return " ".join(s)
+def describir_larga(c):
+    """describir + what the copy trained on her log also reads, in the same words it learned (pruebas_laya/experiencia_datos.escribir):
+    a touch on the sister's back, sustained movement (mueve_s, from her brain), stillness."""
+    o = [describir(c)]
+    if c.get("persona"):
+        tac = float(c.get("tacto") or 0)
+        if c.get("tacto_zona") == "lomo" and tac > 0.3: o.append("They are pressing hard on her sister's back." if tac > 0.85 else "They are stroking her sister's back gently.")
+        if float(c.get("mueve_s") or 0) >= 4: o.append(f"They have been dancing in front of her for {int(c['mueve_s'])} seconds.")
+        elif float(c.get("quieto") or 0) > 0.6: o.append("They are standing still.")
+    return " ".join(o)
 def main():
     import laya_mlx as laya
-    agente = laya.load(MODELO); ult = ""; una = "--una" in sys.argv; print("   laya: lista (segunda opinion, cada 2 s)")
+    agente = laya.load(MODELO); ult = ""; una = "--una" in sys.argv; print(f"   laya: lista (segunda opinion, cada 2 s; pesos: {PESOS or 'originales'})", flush=True)
     while True:
         try:
-            c = json.load(open(CEREBRO)); texto = describir(c)
+            c = json.load(open(CEREBRO)); texto = (describir_larga if PESOS else describir)(c)
             if texto != ult or una:
                 t0 = time.time(); r = agente.predict(PRE + texto, Q)["answers"]; ms = (time.time() - t0) * 1000
                 sc = r["maltrato"]; mal = float(sc.get("score", 0) or 0) / 2.0   # 0..2 -> 0..1
-                out = {"t": time.time(), "engaged": round(float(r["engaged"]["noul"]), 3), "maltrato": round(mal, 3), "retirarse": round(float(r["retirarse"]["noul"]), 3), "regalo": round(float(r["regalo"]["noul"]), 3), **{k: round(float(r[k]["noul"]), 3) for k in ("perform", "visit", "imitate", "speak") if k in r}, "ms": round(ms), "situacion": texto}
+                out = {"t": time.time(), "engaged": round(float(r["engaged"]["noul"]), 3), "maltrato": round(mal, 3), "retirarse": round(float(r["retirarse"]["noul"]), 3), "regalo": round(float(r["regalo"]["noul"]), 3), **{k: round(float(r[k]["noul"]), 3) for k in ("perform", "visit", "imitate", "speak") if k in r}, "ms": round(ms), "situacion": texto, "pesos": PESOS or "original"}
                 json.dump(out, open(SALIDA, "w"))
                 with open(LOG, "a") as f: f.write(json.dumps({**out, "decision": c.get("decision"), "fijo": c.get("fijo")}, ensure_ascii=False) + "\n")
                 ult = texto
