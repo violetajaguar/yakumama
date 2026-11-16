@@ -28,6 +28,15 @@ Part of a series of characters driven by human performance (the llama, the gecko
  recorded takes ──► reproducir ──► UDP            face: mood expression + performer's face on top
 ```
 
+**This repository holds code only.** Her recordings, what she has learned and her trained models (the `modelos/` folder)
+stay on her own machine and are not published. The two public MediaPipe files the recorder needs go into `modelos/`:
+
+```
+mkdir -p modelos
+curl -L -o modelos/face_landmarker.task https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task
+curl -L -o modelos/pose_landmarker_lite.task https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+```
+
 ## See her move
 
 **[▶ All ten moods, 2 min 20 s (mp4, 20 MB)](videos_comportamientos/16x9/todos_los_animos_16x9.mp4)** — rendered

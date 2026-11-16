@@ -317,3 +317,13 @@ casa hasta el 23 oct quedó en `datasets/decisiones_casa_hasta_23oct.jsonl`) y `
 de él con los arreglos (173 situaciones con visitante; las tablas del clima de noche, que la palanca había inflado hasta 4,47,
 quedan por debajo de 0,8). Para volver a los pesos de casa del 23 oct: `cp modelos/decisiones_pesos_casa_23oct.json modelos/decisiones_pesos.json`.
 
+
+## 16 nov — GitHub lleva solo código
+
+Violeta: «no data should be shared just code» (15 nov) y «remove the data from github» (16 nov). Desde hoy el repositorio
+no lleva la carpeta `modelos/` (datos, pesos aprendidos, redes entrenadas, bancos de caras y de frases, coreografías), ni el
+cuerpo grabado de `hjepa_ejemplo/` (`entrada.json`, `salida_esperada.json`), ni `docs/sala_videos.tsv`. **Nada se borró del
+disco:** todo sigue en esta Mac y ella corre igual que antes. `.gitignore` cierra la puerta a cualquier archivo de datos o de pesos.
+
+Un clon nuevo de GitHub no trae modelos: los suyos viajan solo por donde Violeta decida (el paquete de Dan), y los dos archivos
+públicos de MediaPipe (`face_landmarker.task`, `pose_landmarker_lite.task`) se bajan de Google con las dos líneas del README.

@@ -44,3 +44,25 @@ pruebas_laya/resultados_*.json
 modelos/cara_banco_casa.npz
 modelos/decisiones_pesos_*.json
 docs/Yakumama_photo_session.xlsx
+
+# 16 nov, Violeta: "remove the data from github". GitHub lleva solo codigo y documentos.
+# Fuera del repo toda la carpeta modelos/ (datos, pesos aprendidos, redes entrenadas, bancos de caras y de frases, coreografias),
+# el cuerpo grabado del ejemplo del H-JEPA y la tabla de videos. Todo sigue en esta Mac; nada se borra del disco.
+modelos/
+hjepa_ejemplo/*.json
+docs/sala_videos.tsv
+# red de seguridad: ningun archivo de datos o de pesos entra por descuido, este donde este
+*.npz
+*.npy
+*.pkl
+*.pt
+*.pth
+*.safetensors
+*.onnx
+*.tflite
+*.task
+*.blob
+*.jsonl
+*.xlsx
+*.csv
+*.tsv
